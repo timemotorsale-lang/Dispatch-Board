@@ -439,7 +439,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   async function recordQuickQc(result: "PASS" | "FAIL") {
     if (!order || !job || quickQcRequiresPeer) return;
     const evidence = quickNote.trim() || `Final QC ${result === "PASS" ? "completed" : "failed"} for ${job.description}.`;
-    if (result === "FAIL" && quickNote.trim().length < 10) {
+    if (result === "FAIL" && quickNote.trim().length === 0) {
       setErrorNotice("Briefly explain what failed so the repair can be corrected.");
       return;
     }
@@ -471,7 +471,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   async function recordVendorQc(result: "PASS" | "FAIL") {
     if (!order || !vendorQcWork) return;
     const note = vendorQcNote.trim();
-    if (result === "FAIL" && note.length < 10) {
+    if (result === "FAIL" && note.trim().length === 0) {
       setErrorNotice("Briefly describe what the vendor did not complete so the follow-up repair can be created.");
       return;
     }

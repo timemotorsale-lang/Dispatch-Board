@@ -69,7 +69,7 @@ const outcomeNextSteps: Record<RepairOutcome, { title: string; detail: string; a
 };
 
 export function incompleteRepairUpdateIssue(input: { blockerReason: string; recommendedNextStep: string }) {
-  if (input.blockerReason.trim().length < 10) {
+  if (input.blockerReason.trim().length === 0) {
     return "Add a short explanation of why the repair is incomplete before requesting the next action.";
   }
   if (!input.recommendedNextStep.trim()) {

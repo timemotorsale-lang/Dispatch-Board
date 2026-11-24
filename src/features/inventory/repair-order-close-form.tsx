@@ -29,7 +29,7 @@ export function RepairOrderCloseForm({ repairOrderId, expectedVersion, onClosed,
     return () => window.removeEventListener("beforeunload", warn);
   }, [saving, pending]);
   async function close() {
-    if (saving || (!pending && reason.trim().length < 10)) return;
+    if (saving || (!pending && reason.trim().length === 0)) return;
     const command = pending ?? { action: "CLOSE_RO" as const, expectedVersion, idempotencyKey: crypto.randomUUID(), reason: reason.trim(), occurredAt: new Date().toISOString() };
     setSaving(true); setError(""); setAction(null); setPending(command);
     try { sessionStorage.setItem(storageKey, JSON.stringify(command)); } catch { /* The in-memory command still supports retry. */ }
@@ -48,8 +48,8 @@ export function RepairOrderCloseForm({ repairOrderId, expectedVersion, onClosed,
     finally { setSaving(false); }
   }
   return <form className="rowb-close-panel" id="repair-order-close-panel" aria-label="Close repair order" onSubmit={event => { event.preventDefault(); void close(); }}>
-    <label><span>Closure reason</span><textarea autoFocus required minLength={10} maxLength={500} disabled={saving || Boolean(pending)} onChange={event => setReason(event.target.value)} placeholder="Example: The vehicle is already fixed and delivered." value={reason} /></label>
-    <div><button disabled={saving || Boolean(pending)} onClick={onCancel} type="button">Keep open</button><button disabled={saving || (!pending && reason.trim().length < 10)} type="submit">{saving ? "Closing RO…" : pending ? "Retry close RO" : "Close RO"}</button></div>
+    <label><span>Closure reason</span><textarea autoFocus required maxLength={500} disabled={saving || Boolean(pending)} onChange={event => setReason(event.target.value)} placeholder="Example: The vehicle is already fixed and delivered." value={reason} /></label>
+    <div><button disabled={saving || Boolean(pending)} onClick={onCancel} type="button">Keep open</button><button disabled={saving || (!pending && reason.trim().length === 0)} type="submit">{saving ? "Closing RO…" : pending ? "Retry close RO" : "Close RO"}</button></div>
     <p>Outstanding assignments will end. Work, costs and inspection records stay in the RO history.</p>
     {saving && <p role="status">Closing repair order…</p>}
     {error && <p role="alert">{error}</p>}

@@ -70,7 +70,7 @@ function validateApprovalLineage(records: DiagnosticManagerApprovalRecord[]) {
   for (const record of records) {
     if (!record.approvalId.trim() || ids.has(record.approvalId)) reasons.push("DGN053_APPROVAL_ID_UNIQUE_REQUIRED");
     if (!record.decidedBy.trim()) reasons.push("DGN053_APPROVER_REQUIRED");
-    if (record.reason.trim().length < 10) reasons.push("DGN053_APPROVAL_REASON_REQUIRED");
+    if (!record.reason.trim()) reasons.push("DGN053_APPROVAL_REASON_REQUIRED");
     if (record.supersedesApprovalId && !ids.has(record.supersedesApprovalId)) reasons.push("DGN053_APPROVAL_SUPERSESSION_ORDER_INVALID");
     ids.add(record.approvalId);
   }

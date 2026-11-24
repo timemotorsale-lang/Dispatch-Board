@@ -65,7 +65,7 @@ function oneOf<T extends readonly string[]>(value: unknown, values: T, label: st
 }
 
 function commandIdentity(raw: Record<string, unknown>) {
-  return { idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200), reason: text(raw.reason, "Command reason", 500, 10) };
+  return { idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200), reason: text(raw.reason, "Command reason", 500) };
 }
 
 function commandFields(raw: Record<string, unknown>) {
@@ -87,7 +87,7 @@ export function normalizeDiagnosticTestDefinition(value: unknown, now = new Date
     return { ...source, sourceId: text(source.sourceId, "Source ID", 100), version: text(source.version, "Source version", 100), rightsStatus: "AUTHORIZED", validUntil: validUntil?.toISOString() ?? null };
   });
   const semantic = {
-    name: text(raw.name, "Test name", 200), purpose: text(raw.purpose, "Test purpose", 2000, 10),
+    name: text(raw.name, "Test name", 200), purpose: text(raw.purpose, "Test purpose", 2000),
     ontologyLinks: array(raw.ontologyLinks, "Ontology links"), applicability: record(raw.applicability, "Applicability"),
     qualifications: array(raw.qualifications, "Qualifications"), hazards: array(raw.hazards, "Hazards"),
     prerequisites: array(raw.prerequisites, "Prerequisites"), tools: array(raw.tools, "Tools"), vehicleState: record(raw.vehicleState, "Vehicle state"),
@@ -131,7 +131,7 @@ function normalizePlanNodes(value: unknown): NormalizedNode[] {
 export function normalizeDiagnosticTestPlan(value: unknown) {
   const raw = record(value, "Diagnostic test plan");
   const nodes = normalizePlanNodes(raw.nodes);
-  return { ...commandFields(raw), applicability: record(raw.applicability, "Plan applicability"), nodes, rationale: text(raw.rationale, "Plan rationale", 2000, 10), supersedesId: optionalText(raw.supersedesId, "Superseded plan ID", 100), graphChecksum: checksum(nodes) };
+  return { ...commandFields(raw), applicability: record(raw.applicability, "Plan applicability"), nodes, rationale: text(raw.rationale, "Plan rationale", 2000), supersedesId: optionalText(raw.supersedesId, "Superseded plan ID", 100), graphChecksum: checksum(nodes) };
 }
 
 export type DiagnosticTestLifecycleAction = "START" | "PAUSE" | "RESUME" | "COMPLETE" | "INVALIDATE" | "CANCEL";

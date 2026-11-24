@@ -26,5 +26,7 @@
 .rentalSteps button { width: 100%; min-height: 44px; margin: 0; text-align: left; }
 .useTool .rentalPrimary { background: #3154ae; border-color: #3154ae; color: #fff; font-weight: 600; }
 .useTool a.rentalPrimary { display: inline-flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 4px; text-decoration: none; }
+.useTool a.rentalPrimary:hover { background: #24428d; }
+.useTool a.rentalPrimary:focus-visible { outline: 2px solid currentColor; outline-offset: -4px; }
 .picker [role=alert], .useTool [role=alert] { color: #a4262c; }
 @media(max-width:700px) { .identityGrid, .fields { grid-template-columns: minmax(0, 1fr); } }

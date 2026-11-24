@@ -27,7 +27,7 @@ export async function staffCompanyAccess(actor: AuthenticatedUser | null, userId
 
 export async function assignStaffCompanyAccess(actor: AuthenticatedUser | null, value: Record<string, unknown>, database: PrismaClient = prisma) {
   const userId = text(value.userId, 100), locationId = text(value.locationId, 100), reason = text(value.reason, 1000);
-  if (!userId || !locationId || reason.length < 10) throw new MoneyError("Choose staff, a company location and a reason of at least 10 characters.");
+  if (!userId || !locationId || !reason) throw new MoneyError("Choose staff, a company location and a reason.");
   return database.$transaction(async transaction => {
     const access = await managerScope(actor, transaction);
     const model = await staffCompanyAccess(actor, userId, transaction);

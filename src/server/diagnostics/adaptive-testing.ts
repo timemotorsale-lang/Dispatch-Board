@@ -146,7 +146,7 @@ export function normalizeAdaptiveTestingCommand(value: unknown) {
   const expectedVersion = Number(raw.expectedVersion); const idempotencyKey = typeof raw.idempotencyKey === "string" ? raw.idempotencyKey.trim() : ""; const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected diagnostic-case version must be a positive integer.");
   if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("Adaptive-testing idempotency key is required and cannot exceed 200 characters.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Adaptive-testing evaluation requires a reason of 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Adaptive-testing evaluation requires a reason of up to 500 characters.");
   return { expectedVersion, idempotencyKey, reason, maximumLookAheadTests: raw.maximumLookAheadTests == null ? undefined : Number(raw.maximumLookAheadTests) };
 }
 
@@ -166,7 +166,7 @@ export function diagnosticAdaptiveTestingId(prefix: "dat" | "dto", organizationI
 export function createDiagnosticTestOverride(input: { evaluationId: string; recommendedTestKey: string; selectedTestKey: string; eligibleTestKeys: string[]; actorUserId: string; reason: string; authorized: boolean; priorOverrideId?: string | null }) {
   const recommendedTestKey = canonical(input.recommendedTestKey); const selectedTestKey = canonical(input.selectedTestKey); const reason = input.reason.trim();
   if (!input.authorized) throw new Error("Adaptive-test override requires explicit technician authority.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Adaptive-test override reason must contain 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Adaptive-test override reason is required and must be at most 500 characters.");
   if (!canonicalSet(input.eligibleTestKeys).has(selectedTestKey)) throw new Error("An excluded test cannot be selected through an override.");
   if (recommendedTestKey === selectedTestKey) throw new Error("Selecting the recommended test is not an override.");
   const lineage = { evaluationId: input.evaluationId, recommendedTestKey, selectedTestKey, actorUserId: input.actorUserId, reason, priorOverrideId: input.priorOverrideId ?? null };

@@ -301,7 +301,7 @@ export function TaskStatusPanel({
               }} type="button">Accept Task</button> : null}
               {!readiness.ready ? <ul>{readiness.requirements.filter((item) => !item.satisfied).map((item) => <li key={item.code}>{item.label}</li>)}</ul> : <p>Required work and evidence are complete.</p>}
               {readiness.completionOverride ? <div className="task-readiness-override"><strong>Manager override recorded</strong><p>{readiness.completionOverride.reason}</p></div> : null}
-              {actorIsManager && !readiness.ready && !readiness.completionOverride ? <div className="task-readiness-override-form"><label><span>Override reason</span><textarea aria-label="Completion override reason" disabled={isSubmitting} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain why completion may proceed without the remaining evidence." rows={3} value={overrideReason} /></label><button disabled={isSubmitting || overrideReason.trim().length < 10} onClick={async () => {
+              {actorIsManager && !readiness.ready && !readiness.completionOverride ? <div className="task-readiness-override-form"><label><span>Override reason</span><textarea aria-label="Completion override reason" disabled={isSubmitting} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain why completion may proceed without the remaining evidence." rows={3} value={overrideReason} /></label><button disabled={isSubmitting || overrideReason.trim().length === 0} onClick={async () => {
                 setIsSubmitting(true);
                 setErrorMessage(null);
                 try {

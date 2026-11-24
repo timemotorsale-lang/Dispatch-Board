@@ -164,10 +164,10 @@ describe("CRM decision service", () => {
 
     await expect(
       overrideCrmDecision(manager, decision.id, {
-        reason: "Too short",
+        reason: " ",
         recommendation: { recommendedOwnerId: "staff-2" }
       }, deps)
-    ).rejects.toThrow("reason of at least 10 characters");
+    ).rejects.toThrow("require a reason");
 
     const overridden = await overrideCrmDecision(manager, decision.id, {
       reason: "Capacity changed after evaluation.",

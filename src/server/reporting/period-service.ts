@@ -156,7 +156,9 @@ export async function reviewPeriodReport(actor: AuthenticatedUser | null, input:
   writesEnabled();
   const user = assertAuthenticatedUser(actor);
   if (!isGeneralManager(user)) throw new Error("General Manager access is required to review reports.");
-  if (!['APPROVE', 'RETURN'].includes(input.action) || input.comment.length > 5000 || (input.action === "RETURN" && input.comment.trim().length < 10)) throw new Error("Return requires a comment of at least 10 characters.");
+  if (!['APPROVE', 'RETURN'].includes(input.action)) throw new Error("Choose Approve or Return.");
+  if (input.comment.length > 5000) throw new Error("Review comments must be at most 5000 characters.");
+  if (input.action === "RETURN" && !input.comment.trim()) throw new Error("Return requires a comment.");
   return prisma.$transaction(async tx => {
     const revision = await tx.reportingRevision.findFirstOrThrow({ where: { id: input.revisionId, series: { organizationId } }, include: { series: true, reviews: { orderBy: { createdAt: "desc" }, take: 1 } } });
     assertReportingReview(user, revision.series.subjectUserId, revision.submittedByUserId);

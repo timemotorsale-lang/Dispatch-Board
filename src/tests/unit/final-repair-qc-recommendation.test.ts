@@ -108,8 +108,8 @@ describe("repair-job Final QC recommendation", () => {
   it("requires both a finding and a next step on the repair-job checklist", () => {
     expect(() => normalizeQualityInspection({ ...pass, recommendation: { ...recommendation, finding: "  " } }))
       .toThrow("Recommendation finding is required");
-    expect(() => normalizeQualityInspection({ ...pass, recommendation: { ...recommendation, note: "short" } }))
-      .toThrow("at least 10 characters");
+    expect(() => normalizeQualityInspection({ ...pass, recommendation: { ...recommendation, note: " " } }))
+      .toThrow("Recommended next step is required");
     expect(() => normalizeQualityInspection({ ...pass, templateCode: "FINAL_QC", recommendation }))
       .toThrow("repair-job Final QC checklist");
   });

@@ -206,7 +206,7 @@ export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "A
     bodyClass: input.decoded?.bodyClass ?? "",
     cabType: input.decoded?.cabType ?? "",
     color: input.color?.trim() ?? "",
-    description: input.description?.trim().length && input.description.trim().length >= 10 ? input.description.trim().slice(0, 240) : "Vehicle presented for customer service intake.",
+    description: input.description?.trim().slice(0, 240) || "Vehicle presented for customer service intake.",
     displacementLiters: input.decoded?.displacementLiters ?? "",
     doors: input.decoded?.doors ?? "",
     driveType: input.decoded?.driveType ?? "",
@@ -383,8 +383,8 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const safetyVehicleModel = selectedVehicleDetails?.decoded.model ?? selectedVehicle?.model ?? null;
   const selectedVehicleOrders = repairOrderRecords.filter((order) => order.vehicle.id === form.vehicleId).slice().sort((left, right) => new Date(left.openedAt).getTime() - new Date(right.openedAt).getTime());
   const openVehicleOrders = selectedVehicleOrders.filter((order) => !order.closedAt);
-  const sameConcernOrder = form.concernSummary.trim().length >= 10 ? openVehicleOrders.find((order) => isSameRepairOrderConcern(order.serviceVisit.concernSummary, form.concernSummary)) : undefined;
-  const requiresRepairOrderDecision = form.concernSummary.trim().length >= 10 && openVehicleOrders.length > 0 && !sameConcernOrder;
+  const sameConcernOrder = form.concernSummary.trim().length > 0 ? openVehicleOrders.find((order) => isSameRepairOrderConcern(order.serviceVisit.concernSummary, form.concernSummary)) : undefined;
+  const requiresRepairOrderDecision = form.concernSummary.trim().length > 0 && openVehicleOrders.length > 0 && !sameConcernOrder;
   const singleOpenVehicleOrder = openVehicleOrders.length === 1 ? openVehicleOrders[0] : null;
   const existingRepairOrderToOpen = sameConcernOrder ?? (!newRepairOrderConfirmed || customerCheckIn ? singleOpenVehicleOrder : null);
   const existingOrderAction = customerCheckIn ? "Continue existing repair order" : "Open Labor Guide for this RO";
@@ -415,11 +415,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const checklist = [
     { label: isDealershipInventory ? "Canonical inventory unit selected" : "Customer selected", ready: isDealershipInventory ? Boolean(selectedInventoryUnit) : isCustomerVehicle && Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
-    { label: "Concern captured", ready: form.concernSummary.trim().length >= 10 },
+    { label: "Concern captured", ready: form.concernSummary.trim().length > 0 },
     { label: "Repair-order decision", ready: !requiresRepairOrderDecision || newRepairOrderConfirmed || Boolean(existingRepairOrderToOpen) },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
     { label: isDealershipInventory ? "Internal repair readiness" : "Live service readiness", ready: isDealershipInventory ? Boolean(selectedInventoryUnit) : Boolean(readiness) },
-    { label: usesOutsideVendor ? "Vendor route & target" : "Intake owner & target", ready: Boolean(form.ownerUserId && form.targetAt && (!usesOutsideVendor || form.vendorId && form.vendorScope.trim().length >= 10 && form.vendorExpectedReturnAt)) },
+    { label: usesOutsideVendor ? "Vendor route & target" : "Intake owner & target", ready: Boolean(form.ownerUserId && form.targetAt && (!usesOutsideVendor || form.vendorId && form.vendorScope.trim().length > 0 && form.vendorExpectedReturnAt)) },
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
   const ready = checklist.every((item) => item.ready);
@@ -437,7 +437,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         : "Add / Select Vehicle"
       : inventoryUnitRequired && !existingRepairOrderToOpen
         ? "Establish Inventory Unit"
-      : form.concernSummary.trim().length < 10
+      : form.concernSummary.trim().length === 0
         ? isDealershipInventory ? "Capture Inventory Concern" : "Capture Customer Concern"
         : sameConcernOrder
           ? usesOutsideVendor ? "Route to vendor & open RO" : customerCheckIn ? existingOrderAction : "Use Existing Repair Order"
@@ -447,7 +447,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             ? "Choose Existing or Create New RO"
         : isCustomerVehicle && !readiness
           ? "Refresh Live Readiness"
-          : !form.ownerUserId || !form.targetAt || usesOutsideVendor && (!form.vendorId || form.vendorScope.trim().length < 10 || !form.vendorExpectedReturnAt)
+          : !form.ownerUserId || !form.targetAt || usesOutsideVendor && (!form.vendorId || form.vendorScope.trim().length === 0 || !form.vendorExpectedReturnAt)
             ? usesOutsideVendor ? "Select Vendor & Return Target" : "Assign Technician & Target"
             : form.consentStatus === "DOCUMENTED" && (!form.consentReference || !form.consentedAt)
               ? "Complete Authorization"
@@ -861,7 +861,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       });
       return;
     }
-    if (form.concernSummary.trim().length < 10) {
+    if (form.concernSummary.trim().length === 0) {
       concernRef.current?.focus();
       setNotice("Capture the customer concern before creating the repair order.");
       return;
@@ -886,7 +886,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       setNotice("Review the open orders and link only the order that covers this visit.");
       return;
     }
-    const canOpenExisting = !customerCheckIn || (form.customerId && form.concernSummary.trim().length >= 10);
+    const canOpenExisting = !customerCheckIn || (form.customerId && form.concernSummary.trim().length > 0);
     if (existingRepairOrderToOpen && canOpenExisting && (!usesOutsideVendor || form.vendorId)) {
       void openExistingRepairOrder(existingRepairOrderToOpen.id);
       return;

@@ -7,7 +7,7 @@ export function CollisionVendorReturn({ repairOrderId, estimateId, works, lines,
   const [vendorId, setVendorId] = useState(""), [keys, setKeys] = useState<string[]>([]), [reference, setReference] = useState(""), [evidence, setEvidence] = useState(""), [fit, setFit] = useState(false), [safe, setSafe] = useState(false), [keysVerified, setKeysVerified] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [pending, setPending] = useState<Record<string, unknown> | null>(null);
   const work = works.find(item => item.id === vendorId);
   async function accept() {
-    if (!work || !keys.length || !reference.trim() || evidence.trim().length < 10 || !fit || !safe) { setMessage("Select the returned vendor work and covered quote lines, record the reference and inspection evidence, then confirm both checks."); return; }
+    if (!work || !keys.length || !reference.trim() || evidence.trim().length === 0 || !fit || !safe) { setMessage("Select the returned vendor work and covered quote lines, record the reference and inspection evidence, then confirm both checks."); return; }
     setBusy(true); setMessage("");
     try {
       const command = pending ?? { action: "VENDOR_RETURN", repairOrderId, estimateId, vendorWorkId: work.id, expectedVersion: work.version, lineKeys: keys, reference, evidence, fitFinishPassed: fit, safetyPassed: safe, idempotencyKey: crypto.randomUUID() }; setPending(command);
@@ -17,7 +17,7 @@ export function CollisionVendorReturn({ repairOrderId, estimateId, works, lines,
     } catch (failure) { setMessage((failure as Error).message); } finally { setBusy(false); }
   }
   async function release() {
-    if (evidence.trim().length < 10) { setMessage("Record the verified release evidence before authorizing handoff."); return; }
+    if (evidence.trim().length === 0) { setMessage("Record the verified release evidence before authorizing handoff."); return; }
     setBusy(true); setMessage("");
     try {
       const response = await fetch(`/api/repair-orders/${repairOrderId}/release-authorization`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ authorizedAt: new Date().toISOString(), keysVerified: true, openExceptions: [], releaseEvidence: [evidence], reason: "Staff verified vendor return, vehicle keys and readiness for release.", idempotencyKey: crypto.randomUUID() }) }), body = await response.json();

@@ -468,7 +468,7 @@ async function getLifecyclePayload(input: {
     const approval = snapshotRecord(payload.customerOverlapApproval);
     const reason = typeof approval?.reason === "string" ? approval.reason.trim() : "";
     const approved = isManager(input.user) && input.locationAccess?.canManageAppointments &&
-      approval?.warningKey === duplicateWarning.warningKey && reason.length >= 10 && reason.length <= 500;
+      approval?.warningKey === duplicateWarning.warningKey && Boolean(reason) && reason.length <= 500;
 
     payload = {
       ...payload,

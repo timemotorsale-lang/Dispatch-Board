@@ -111,7 +111,7 @@ export async function getClaimWorkflowTaskContext(actor: AuthenticatedUser, task
 
 export async function executeClaimRepairWorkflow(actor: AuthenticatedUser | null, claimId: string, raw: Record<string, unknown>, database: PrismaClient = prisma) {
   const user = await authorize(actor, database, null, true);
-  if (!Number.isInteger(raw.expectedVersion) || Number(raw.expectedVersion) < 0 || typeof raw.idempotencyKey !== "string" || raw.idempotencyKey.length > 200 || typeof raw.reason !== "string" || raw.reason.trim().length < 10) throw new ClaimWorkflowError("A version, request key, and reason of at least 10 characters are required.");
+  if (!Number.isInteger(raw.expectedVersion) || Number(raw.expectedVersion) < 0 || typeof raw.idempotencyKey !== "string" || raw.idempotencyKey.length > 200 || typeof raw.reason !== "string" || !raw.reason.trim()) throw new ClaimWorkflowError("A version, request key, and reason are required.");
   const command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: String(raw.action), domain: DOMAIN, expectedVersion: Number(raw.expectedVersion), idempotencyKey: raw.idempotencyKey, locationId: null, organizationId: INITIAL_ORGANIZATION.id, payload: raw, reason: raw.reason, subjectId: claimId, subjectType: "INSURANCE_CLAIM" });
   return executeAggregateMutation(database, command, "claims.repair-workflow", async (tx) => {
     const source = await sourceFor(tx, claimId);

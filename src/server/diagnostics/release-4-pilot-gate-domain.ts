@@ -66,7 +66,7 @@ export function evaluateDiagnosticRelease4PilotGate(input: DiagnosticRelease4Pil
   const signaturesReady = new Set(input.acceptanceSignedBy.map((value) => value.trim().toUpperCase())).size >= 2;
   const risksDisposed = input.unresolvedRisks.every((risk) => risk.riskId.trim()
     && risk.owner.trim()
-    && risk.note.trim().length >= 10
+    && risk.note.trim().length > 0
     && risk.disposition !== "OPEN");
   const operationalReady = input.operationalReadiness.status === "READY_FOR_REVIEW_CONTROLS" && validChecksum(input.operationalReadiness.resultChecksum);
   const reviewReady = input.reviewApproval.status === "READY_FOR_PILOT_REPLAY" && validChecksum(input.reviewApproval.resultChecksum);

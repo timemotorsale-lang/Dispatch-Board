@@ -130,7 +130,7 @@ export function FlagsPanel({ d }: { d: AccountDetail }) {
               {d.permissions.canClearFlag ? (
                 clearing === f.id ? (
                   <form className={styles.form} onSubmit={event => void clear(event, f)}>
-                    <label className={styles.wide}>Why is it being cleared?<input name="reason" required minLength={10} /></label>
+                    <label className={styles.wide}>Why is it being cleared?<input name="reason" required /></label>
                     {f.type === "BANKRUPTCY" ? <label className={styles.wide}>Required document (PDF/JPEG/PNG)<input type="file" name="document" accept=".pdf,image/jpeg,image/png" /></label> : null}
                     <div className={styles.actions}><button className={styles.primary} disabled={busy}>Clear flag</button><button type="button" onClick={() => setClearing(null)}>Cancel</button></div>
                   </form>

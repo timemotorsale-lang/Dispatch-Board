@@ -145,7 +145,7 @@ export async function reportingExpectations(actor: AuthenticatedUser | null, tea
 }
 export async function excuseReportingExpectation(actor: AuthenticatedUser | null, id: string, reason: string) {
   const user = manager(actor);
-  if (reason.trim().length < 10 || reason.length > 500) throw new Error("Excuse reason must be at least 10 characters.");
+  if (!reason.trim() || reason.length > 500) throw new Error("Enter an excuse reason of up to 500 characters.");
   return prisma.$transaction(async tx => {
     const item = await tx.reportingExpectation.findFirstOrThrow({ where: { id, organizationId } });
     await tx.reportingExpectation.update({ where: { id: item.id }, data: { disposition: "EXCUSED", reason: reason.trim() } });

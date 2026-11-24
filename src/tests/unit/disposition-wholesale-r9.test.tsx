@@ -12,7 +12,8 @@ describe("R9 Disposition & Wholesale", () => {
     const candidate = { ...base, inventoryUnitId: "unit", ownerUserId: "staff", targetAt: base.occurredAt, reasonCodes: ["AS_IS_SALE_REVIEW"], saleCondition: "AS_IS", reconDecisionReason: "Repair costs exceed expected recovery", knownDefects: "Engine fault; vehicle does not run" };
     expect(normalizeCandidateCreate(candidate).asIsReview?.knownDefects).toBe(candidate.knownDefects);
     expect(() => normalizeCandidateCreate({ ...candidate, knownDefects: "" })).toThrow("disclosure");
-    expect(() => normalizeCandidateCreate({ ...candidate, reconDecisionReason: "No" })).toThrow("10 characters");
+    expect(() => normalizeCandidateCreate({ ...candidate, reconDecisionReason: " " })).toThrow("Recon decision reason is required");
+    expect(normalizeCandidateCreate({ ...candidate, reconDecisionReason: " Cost ", knownDefects: " Rust " }).asIsReview).toMatchObject({ reconDecisionReason: "Cost", knownDefects: "Rust" });
   });
   it("requires buyer acknowledgment evidence only for the recorded as-is case", () => {
     const snapshot = [{ asIsReview: { saleCondition: "AS_IS" } }];

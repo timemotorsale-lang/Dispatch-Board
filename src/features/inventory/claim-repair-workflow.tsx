@@ -157,7 +157,7 @@ function WorkflowForm({ form, model, busy, error, onClose, onSave }: { form: Act
     {form.action === "DELIVERY" ? <><label>Receiving customer<input name="recipient" defaultValue={model.source.customer} required maxLength={200} /></label><label>Delivery mileage<input name="mileage" inputMode="numeric" pattern="[0-9]+" required maxLength={12} /></label><label className={styles.checkbox}><input name="keysVerified" type="checkbox" required />Keys verified</label></> : null}
     {form.action === "FINANCIAL_CLOSE" ? <label className={styles.checkbox}><input name="settlementConfirmed" type="checkbox" required />Settlement verified against payment evidence</label> : null}
     {needEvidence ? <fieldset><legend>Supporting claim evidence</legend>{model.source.evidence.filter((item) => form.action !== "FINANCIAL_CLOSE" || item.category === "PAYMENT").map((item) => <label className={styles.checkbox} key={item.id}><input type="checkbox" name="evidenceIds" value={item.id} />{item.title}</label>)}</fieldset> : null}
-    <label>Reason / outcome<textarea name="reason" required minLength={10} maxLength={1000} rows={3} /></label>
+    <label>Reason / outcome<textarea name="reason" required maxLength={1000} rows={3} /></label>
     </fieldset>{error ? <p className={styles.error} role="alert">{error}</p> : null}<div className={styles.actions}><button disabled={busy} type="submit">{busy ? "Saving..." : "Record action"}</button><button disabled={busy} onClick={onClose} type="button">Cancel</button></div>
   </form></section></div>;
 }

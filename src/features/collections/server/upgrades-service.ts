@@ -92,7 +92,7 @@ export async function upgradeAction(actor: AuthenticatedUser | null, accountId: 
         const approve = input.decision === "APPROVE";
         const why = reasonText(input.reason, 3);
         if (approve && frozen) throw new CollectionsError("Bankruptcy freeze: review with your bankruptcy attorney first.", 409);
-        if (approve && !r.eligible && text(input.overrideReason, 500).length < 10) throw new CollectionsError("This request doesn't meet the extension rules. Explain why you're approving it anyway (at least 10 characters).");
+        if (approve && !r.eligible && text(input.overrideReason, 500).length === 0) throw new CollectionsError("This request doesn't meet the extension rules. Explain why you're approving it anyway.");
         await tx.extensionRequest.update({ where: { id: r.id }, data: { status: approve ? "APPROVED" : "DECLINED", decidedByUserId: access.actor.id, decidedAt: new Date(), decisionReason: why, overrideReason: approve && !r.eligible ? text(input.overrideReason, 500) : null } });
         await event(approve ? "EXTENSION_APPROVED" : "EXTENSION_DECLINED", { requestId: r.id }, why);
         if (approve) await postTask(`extension:${r.id}`, `Post ${EXT_LABEL[r.type]} in DealerCenter`, `Approved ${EXT_LABEL[r.type]}: ${r.requestedTerms}${r.newDueDate ? ` (new due date ${toYmd(r.newDueDate)})` : ""}. Enter it in DealerCenter, then mark it applied in Collections.`);
@@ -156,7 +156,7 @@ export async function upgradeAction(actor: AuthenticatedUser | null, accountId: 
         if (await tx.collectionChargeOff.findFirst({ where: { accountId, status: { in: ["REQUESTED", "APPROVED"] } }, select: { id: true } })) throw new CollectionsError("A charge-off is already requested or approved.", 409);
         const why = reasonText(input.reason);
         const override = text(input.overrideReason, 500);
-        if (account.daysPastDue < settings.chargeOffMinDaysPastDue && override.length < 10) throw new CollectionsError(`The account is ${account.daysPastDue} days past due, below the ${settings.chargeOffMinDaysPastDue}-day charge-off point. Explain why (at least 10 characters).`);
+        if (account.daysPastDue < settings.chargeOffMinDaysPastDue && override.trim().length === 0) throw new CollectionsError(`The account is ${account.daysPastDue} days past due, below the ${settings.chargeOffMinDaysPastDue}-day charge-off point. Explain why.`);
         const outcome = await tx.collectionRecoveryOutcome.findFirst({ where: { accountId }, orderBy: { createdAt: "desc" } });
         const amount = input.amount !== undefined && input.amount !== "" ? cents(input.amount, "charge-off amount") : outcome ? Math.max(0, outcome.deficiencyCents) : (await latestBalances(tx, accountId)).totalBalanceCents;
         const row = await tx.collectionChargeOff.create({ data: { organizationId: org, accountId, amountCents: amount, reason: why, overrideReason: override || null, requestedByUserId: access.actor.id } });

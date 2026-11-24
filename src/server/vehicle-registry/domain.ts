@@ -23,7 +23,6 @@ export function normalizeCanonicalVin(input: { vin?: unknown; nonVinReason?: unk
     return { normalized, raw, state: "VALID", nonVinReason: null, validationSource: "ISO_3779_CHECK_DIGIT_V1" };
   }
   const nonVinReason = text(input.nonVinReason, "Non-VIN exception reason", 500);
-  if (nonVinReason.length < 10) throw new Error("Non-VIN exception reason must be at least 10 characters.");
   return { normalized: null, raw: null, state: "NON_VIN_EXCEPTION", nonVinReason, validationSource: "DOCUMENTED_NON_VIN_EXCEPTION" };
 }
 

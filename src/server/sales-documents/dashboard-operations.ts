@@ -99,14 +99,14 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
       await db.task.update({ where: { id: task.id }, data: { customerId: draft?.customerId || jacket?.customerId, templateSnapshot: json({ ...record(created.templateSnapshot), dealDashboard: { version: 1, organizationId, draftId: draft?.id ?? null, jacketId: jacket?.id ?? null } }) } });
       result = { saved: true, taskId: task.id }; details = { title, dueAt: due.toISOString(), assignedUserId: assignee };
     } else if (action === "DEAL_REASSIGN") {
-      if (reason.length < 10) throw new SalesDocumentsError("Enter an ownership-change reason of at least 10 characters.");
+      if (!reason) throw new SalesDocumentsError("Enter an ownership-change reason.");
       const target = await staffUser(text(input.assignedUserId), db);
       if (!await canOwnCustomer(target, draft!.customerId, db)) throw new SalesDocumentsError("This staff member does not have access to the linked customer. Assign the customer through Customer 360 first, then transfer this deal. No ownership was changed.", 409);
       await db.dealDeskDraft.update({ where: { id: draft!.id }, data: { ownerUserId: target.id, revision: { increment: 1 }, statusHistory: json([...(Array.isArray(draft!.statusHistory) ? draft!.statusHistory : []), { action: "REASSIGNED", from: draft!.status, to: draft!.status, actorId: user.id, actorName: user.name, at: new Date().toISOString(), reason, previousOwnerId: draft!.ownerUserId, ownerUserId: target.id }]) } });
       details = { previousOwnerId: draft!.ownerUserId, ownerUserId: target.id, ownerName: target.name };
     } else if (action === "DEAL_FINANCIAL") {
       if (!jacket) throw new SalesDocumentsError("Prepare the existing deal's packet before recording financial activity.");
-      if (input.confirmed !== true || !text(input.reference) || text(input.evidence, 1000).length < 10 || reason.length < 10) throw new SalesDocumentsError("Confirm the activity was verified, and enter its reference, supporting evidence and reason (at least 10 characters each for evidence and reason).");
+      if (input.confirmed !== true || !text(input.reference) || !text(input.evidence, 1000) || !reason) throw new SalesDocumentsError("Confirm the activity was verified, and enter its reference, supporting evidence and reason.");
       const date = text(input.businessDate); try { businessDate(date); } catch { throw new SalesDocumentsError("Choose a valid business date."); }
       if (date > moneyToday()) throw new SalesDocumentsError("Verified activity cannot be dated in the future.");
       const events = await db.documentLibraryAuditEvent.findMany({ where: { organizationId, packetId: jacket.packetId, action: "DEAL_FINANCIAL_RECORDED" }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
@@ -121,7 +121,7 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
       if (["PAYMENT", "REFUND"].includes(proposed.kind) && entries.some(entry => entry.kind === proposed.kind && entry.reference.toLowerCase() === String(details.reference).toLowerCase())) throw new SalesDocumentsError("This payment or refund reference is already recorded on this deal.", 409);
     } else {
       if (!jacket || !["FUNDING", "DELIVERY", "TITLE"].includes(text(input.dimension)) || !["VERIFIED", "NOT_REQUIRED", "PENDING"].includes(text(input.state))) throw new SalesDocumentsError("Choose funding, delivery or title and its verified state on the existing packet.");
-      if (reason.length < 10 || (input.state === "VERIFIED" && text(input.reference).length < 3)) throw new SalesDocumentsError("Record a reason of at least 10 characters and a verification reference when marking complete.");
+      if (!reason || (input.state === "VERIFIED" && text(input.reference).length < 3)) throw new SalesDocumentsError("Record a reason and a verification reference when marking complete.");
       details = { dimension: input.dimension, state: input.state, reference: text(input.reference), reason, actorName: user.name };
       auditAction = "DEAL_MILESTONE_RECORDED";
     }

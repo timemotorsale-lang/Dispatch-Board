@@ -41,8 +41,8 @@ export function LaborCatalogPanel({ initial, currentUserId }: { initial: Setting
         {settings.systems.map(system => <option key={system.id} value={system.id}>{system.label} · {system.operations} operations</option>)}
       </select></label>
       <a href={`/prototype/repair-explorer?system=${encodeURIComponent(systemId)}`}>Review this system’s operations</a>
-      <label className="form-field">Shop scope review reference<textarea required minLength={10} maxLength={2000} value={reviewReference} onChange={event => setReviewReference(event.target.value)} /></label>
-      <label className="form-field">Personnel, equipment and referral review reference<textarea required minLength={10} maxLength={2000} value={capabilityReference} onChange={event => setCapabilityReference(event.target.value)} /></label>
+      <label className="form-field">Shop scope review reference<textarea required maxLength={2000} value={reviewReference} onChange={event => setReviewReference(event.target.value)} /></label>
+      <label className="form-field">Personnel, equipment and referral review reference<textarea required maxLength={2000} value={capabilityReference} onChange={event => setCapabilityReference(event.target.value)} /></label>
       <label><input type="checkbox" checked={scopeReviewed} onChange={event => setScopeReviewed(event.target.checked)} /> I reviewed every operation, subsystem checklist and provisional labor limitation in this system.</label>
       <label><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Propose enabling this system. Leave unchecked to propose a hold.</label>
       <label className="form-field">Reason<input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>

@@ -866,7 +866,7 @@ describe("task status service", () => {
     );
   });
 
-  it("allows converted workflow completion when the status note supplies clear completion evidence", async () => {
+  it.each(["Both rear hub assemblies were successfully replaced.", "Fixed"])("allows converted workflow completion with evidence %s", async (progressNote) => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository, readTask } = createTaskStatusRepository([
@@ -908,13 +908,13 @@ describe("task status service", () => {
       "task-1",
       {
         status: "COMPLETED",
-        progressNote: "Both rear hub assemblies were successfully replaced."
+        progressNote
       },
       repository
     );
 
     expect(result.status).toBe(TaskStatus.COMPLETED);
-    expect(result.executionAssurance.lastProgressNote).toBe("Both rear hub assemblies were successfully replaced.");
+    expect(result.executionAssurance.lastProgressNote).toBe(progressNote);
     expect(readTask()).toMatchObject({
       status: TaskStatus.COMPLETED,
       completedAt: new Date("2026-06-18T15:30:00.000Z")
@@ -951,7 +951,7 @@ describe("task status service", () => {
     });
   });
 
-  it("keeps converted workflow completion gated when the status note is not completion evidence", async () => {
+  it.each(["Need to look at this.", "Not fixed", "Not yet repaired", "Partially installed", "Repaired in part", "Unfixed", "Incomplete", "To be replaced", "Will be fixed"])("keeps converted workflow completion gated for note %s", async (progressNote) => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository } = createTaskStatusRepository([
@@ -980,7 +980,7 @@ describe("task status service", () => {
         "task-1",
         {
           status: "COMPLETED",
-          progressNote: "Need to look at this."
+          progressNote
         },
         repository
       )

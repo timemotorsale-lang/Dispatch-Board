@@ -51,7 +51,7 @@ A missing decision is not consent. A reject decision blocks expansion.
 
 ## 4. Governed command contract
 
-`POST /api/admin/enterprise-readiness` accepts versioned, idempotent commands. Every command requires a reason of at least ten characters.
+`POST /api/admin/enterprise-readiness` accepts versioned, idempotent commands. Every command requires a reason.
 
 | Command | Guardrail |
 | --- | --- |

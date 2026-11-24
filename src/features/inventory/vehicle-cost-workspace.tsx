@@ -59,7 +59,7 @@ export function VehicleCostWorkspace({ unit, vehicleId, embedded = false }: { un
           <label>Invoice / unique reference<input required maxLength={160} value={form.reference} onChange={event => update("reference", event.target.value)} /></label>
           <label>Description / source detail<input required maxLength={1000} value={form.notes} onChange={event => update("notes", event.target.value)} /></label>
         </> : <p>Voiding excludes this record from totals. The original record and correction audit remain available.</p>}
-        <label className={styles.wide}>Record / correction reason<textarea required minLength={10} maxLength={1000} value={form.reason} onChange={event => update("reason", event.target.value)} /></label>
+        <label className={styles.wide}>Record / correction reason<textarea required maxLength={1000} value={form.reason} onChange={event => update("reason", event.target.value)} /></label>
         <div className={styles.actions}><button type="submit"><Plus size={16}/>{busy ? "Saving..." : voidId ? "Confirm void" : "Save cost"}</button>{voidId ? <button type="button" onClick={() => { pending.current = null; setVoidId(""); }}>Cancel</button> : null}</div>
       </fieldset></form>
     </>}

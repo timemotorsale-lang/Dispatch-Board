@@ -59,7 +59,7 @@ export function evaluateDiagnosticAdvancedFamilyReadinessGate(input: DiagnosticA
   if (Number.isNaN(occurredAt.getTime())) throw new Error("DG-G8 advanced-family readiness gate requires a valid timestamp.");
   const requestedBy = input.requestedBy.trim();
   const signaturesReady = new Set(input.acceptanceSignedBy.map((value) => value.trim().toUpperCase()).filter(Boolean)).size >= 2;
-  const risksDisposed = input.unresolvedRisks.every((risk) => risk.riskId.trim() && risk.owner.trim() && risk.note.trim().length >= 10 && risk.disposition !== "OPEN");
+  const risksDisposed = input.unresolvedRisks.every((risk) => risk.riskId.trim() && risk.owner.trim() && risk.note.trim().length > 0 && risk.disposition !== "OPEN");
   const coolingReady = evidenceReady(input.coolingEvidence);
   const mechanicalReady = evidenceReady(input.mechanicalEvidence);
   const holds = unique([

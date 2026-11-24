@@ -22,9 +22,7 @@ function state(value: unknown): InventoryUnitFoundationState {
 }
 function stateReason(operatingState: InventoryUnitFoundationState, value: unknown) {
   if (operatingState === "ACTIVE") return null;
-  const result = required(value, "Waiting or blocker reason", 500);
-  if (result.length < 10) throw new Error("Waiting or blocker reason must be at least 10 characters.");
-  return result;
+  return required(value, "Waiting or blocker reason", 500);
 }
 function acquisitionSource(value: unknown): InventoryUnitAcquisitionSource {
   const result = String(value ?? "OTHER").toUpperCase() as InventoryUnitAcquisitionSource;

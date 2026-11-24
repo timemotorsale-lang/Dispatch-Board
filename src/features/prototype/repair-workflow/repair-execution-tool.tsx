@@ -151,7 +151,7 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager, ini
       <label>Finding or additional work requested<textarea rows={3} required maxLength={1000} value={finding} onChange={event => setFinding(event.target.value)} /></label>
       <p>The advisor reviews the finding and obtains approval for any additional work.</p>
     </>}
-    {eventType === "PAUSE" && <label>Blocker / next action<textarea minLength={10} value={blocker} onChange={event => setBlocker(event.target.value)} /></label>}
+    {eventType === "PAUSE" && <label>Blocker / next action<textarea value={blocker} onChange={event => setBlocker(event.target.value)} /></label>}
     {eventType === "FINISH" && <>
       <label>Work completed and QC handoff notes<textarea rows={2} required value={notes} onChange={event => setNotes(event.target.value)} /></label>
       <label>Verification performed<textarea rows={2} required value={verification} onChange={event => setVerification(event.target.value)} /></label>

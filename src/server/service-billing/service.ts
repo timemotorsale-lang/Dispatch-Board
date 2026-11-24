@@ -104,7 +104,7 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
   if (DEPOSIT_ACTIONS.includes(action)) return executeRepairDeposit(actor, repairOrderId, raw, organizationId, options.enforceRollout ?? true);
   if (!["PREPARE_INVOICE", "POST_INVOICE", "PAYMENT", "REFUND", "CREDIT", "VOID"].includes(action)) throw new Error("Unsupported billing action.");
   const idempotencyKey = required(raw.idempotencyKey, "Idempotency key"), reason = required(raw.reason, "Reason", 500);
-  if (reason.length < 10) throw new Error("A detailed financial reason is required.");
+  if (!reason) throw new Error("A detailed financial reason is required.");
   if (action === "PREPARE_INVOICE") {
     const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId, closedAt: null }, select: { locationId: true, origin: true, customerId: true } });
     if (!order) throw new Error("Open repair order was not found.");

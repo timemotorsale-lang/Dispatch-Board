@@ -4,7 +4,7 @@ import Link from "next/link";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { INTAKE_SOURCES, intakePending, type IntakeDetails } from "@/server/inventory-unit/intake-domain";
+import { INTAKE_SOURCES, intakeConfirmationIssue, intakePending, type IntakeDetails } from "@/server/inventory-unit/intake-domain";
 import styles from "./compact-inventory-intake.module.css";
 
 export type CompactInventoryIntakeContext = {
@@ -47,6 +47,7 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
   const [ownershipConfirmed, setOwnershipConfirmed] = useState(false);
   const [busy, setBusy] = useState(false), [checking, setChecking] = useState(false);
   const [message, setMessage] = useState(""), [error, setError] = useState("");
+  const [invalidReceivingField, setInvalidReceivingField] = useState<"whereabouts" | "condition">();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const pending = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
   const correction = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
@@ -59,7 +60,14 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
-  function update(name: Field, value: string) { dirty.current = true; setFields(previous => ({ ...previous, [name]: value })); setError(""); }
+  function update(name: Field, value: string) {
+    dirty.current = true;
+    setFields(previous => ({ ...previous, [name]: value }));
+    if (!invalidReceivingField || name === invalidReceivingField) {
+      setError("");
+      setInvalidReceivingField(undefined);
+    }
+  }
   function cents(value: string) {
     if (!value.trim()) return null;
     if (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) <= 0) throw new Error("Enter a positive amount with at most two decimal places, or leave it pending.");
@@ -95,14 +103,14 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
           setMessage(identity ? "VIN decoded. Verify the details, then complete acquisition and receiving information." : "VIN validated; decoding is unavailable. Enter and verify year, make and model.");
         }
       }
-      dirty.current = false; pending.current = null; setReceipt(null); setOwnershipConfirmed(false);
+      dirty.current = false; pending.current = null; setReceipt(null); setOwnershipConfirmed(false); setInvalidReceivingField(undefined);
     } catch (failure) { setError(failure instanceof Error ? failure.message : "VIN lookup failed. Your entries were kept."); }
     finally { setChecking(false); }
   }
   function changeVehicle() {
     if (dirty.current && !window.confirm("Clear this form to select another vehicle?")) return;
     setContext(undefined); setFields(initialFields(undefined, options)); setReceipt(null); setOwnershipConfirmed(false);
-    setMessage(""); setError(""); pending.current = null; dirty.current = false;
+    setMessage(""); setError(""); setInvalidReceivingField(undefined); pending.current = null; dirty.current = false;
     setNumberEdit(""); setNumberReason(""); correction.current = null;
   }
   async function correctNumber() {
@@ -111,7 +119,7 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
     setError(""); setMessage("");
     try {
       if (pending.current) throw new Error("Recover the interrupted intake save before correcting its number, or reload the latest record.");
-      if (numberReason.trim().length < 10) throw new Error("Enter a brief correction reason (at least 10 characters).");
+      if (!numberReason.trim()) throw new Error("Enter a correction reason.");
       const values = { inventoryNumber: numberEdit.trim().toUpperCase(), expectedVersion: context.unitVersion, reason: numberReason.trim() };
       const signature = JSON.stringify(values);
       if (correction.current?.signature !== signature) correction.current = { signature, body: { ...values, idempotencyKey: crypto.randomUUID() } };
@@ -128,15 +136,19 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
     event.preventDefault();
     if (workType === "customer" || busy) return;
     const next = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "continue";
-    setError(""); setMessage("");
+    setError(""); setMessage(""); setInvalidReceivingField(undefined);
     try {
       if (!fields.location || !fields.staff) throw new Error("Select the receiving location and responsible staff.");
       if (!context?.vehicleId && (!fields.vin || !fields.year || !fields.make || !fields.model)) throw new Error("Identify the vehicle by VIN, year, make and model.");
       if (!fields.source || !fields.acquiredOn) throw new Error("Select the acquisition source and date.");
-      if (!fields.whereabouts.trim() || fields.condition.trim().length < 10) throw new Error("Enter the vehicle's current whereabouts and a brief condition description (at least 10 characters).");
       const values = details();
+      const issue = intakeConfirmationIssue(values);
+      if (issue) {
+        setInvalidReceivingField(issue.field);
+        throw new Error(issue.message);
+      }
       if (values.purchaseCents !== null && fields.priceStatus === "PENDING") throw new Error("Choose incurred or estimated for the entered purchase amount.");
-      if (next && workType === "recon" && fields.concern.trim().length < 10) throw new Error("Enter the repair concern (at least 10 characters).");
+      if (next && workType === "recon" && !fields.concern.trim()) throw new Error("Enter the repair concern.");
       const data = { action: next && workType === "recon" ? "SAVE_AND_START_RO" : "SAVE_INVENTORY", reason: "Record compact inventory acquisition intake", vehicleId: context?.vehicleId,
         vin: fields.vin || undefined, year: fields.year ? Number(fields.year) : undefined, make: fields.make || undefined, model: fields.model || undefined,
         locationId: fields.location, ownerUserId: fields.staff, expectedIntakeVersion: context?.intakeVersion ?? 0, expectedUnitVersion: context?.unitVersion ?? null,
@@ -158,13 +170,18 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
     finally { setBusy(false); }
   }
   function input(name: Field, label: string, type = "text", required = false) {
-    return <div className={styles.field}><label htmlFor={`${prefix}-${name}`}>{label}{required ? " *" : ""}</label><input id={`${prefix}-${name}`} name={name} type={type} value={fields[name]} required={required} readOnly={Boolean(context?.vehicleId) && ["year", "make", "model"].includes(name)} onChange={event => update(name, event.target.value)} {...(type === "number" ? { min: 0, step: name === "odometer" || name === "keys" ? "1" : "0.01" } : {})} /></div>;
+    return <div className={styles.field}><label htmlFor={`${prefix}-${name}`}>{label}{required ? " *" : ""}</label><input id={`${prefix}-${name}`} name={name} type={type} value={fields[name]} required={required} aria-invalid={error && invalidReceivingField === name ? true : undefined} readOnly={Boolean(context?.vehicleId) && ["year", "make", "model"].includes(name)} onChange={event => update(name, event.target.value)} {...(type === "number" ? { min: 0, step: name === "odometer" || name === "keys" ? "1" : "0.01" } : {})} /></div>;
   }
   function select(name: Field, label: string, choices: { id: string; name: string }[], required = false) {
     return <div className={styles.field}><label htmlFor={`${prefix}-${name}`}>{label}{required ? " *" : ""}</label><select id={`${prefix}-${name}`} name={name} value={fields[name]} required={required} onChange={event => update(name, event.target.value)}><option value="">Select…</option>{choices.map(choice => <option key={choice.id} value={choice.id}>{choice.name}</option>)}</select></div>;
   }
   function area(name: Field, label: string, required = false) {
-    return <div className={styles.field}><label htmlFor={`${prefix}-${name}`}>{label}{required ? " *" : ""}</label><textarea id={`${prefix}-${name}`} name={name} rows={2} required={required} value={fields[name]} onChange={event => update(name, event.target.value)} /></div>;
+    const hintId = name === "condition" ? `${prefix}-condition-hint` : undefined;
+    return <div className={styles.field}>
+      <label htmlFor={`${prefix}-${name}`}>{label}{required ? " *" : ""}</label>
+      <textarea id={`${prefix}-${name}`} name={name} rows={2} required={required} value={fields[name]} aria-invalid={error && invalidReceivingField === name ? true : undefined} aria-describedby={hintId} onChange={event => update(name, event.target.value)} />
+      {hintId && <small id={hintId} className={styles.hint}>Note the condition and any visible damage.</small>}
+    </div>;
   }
   return <section className={styles.workspace}>
     <header className={styles.header}><div><p className={styles.eyebrow}>Vehicle / Acquisition / Work</p><h1>{advisor ? "Vehicle intake · start work" : "Inventory intake"}</h1></div><span className={styles.badge}>{advisor ? "Advisor intake · review" : "New form · Review before adoption"}</span></header>
@@ -191,8 +208,13 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
           <details className={styles.optional}><summary>Additional details</summary>{input("boughtFrom", "Purchase location")}{input("buyer", "Who acquired it")}{input("keys", "Number of keys", "number")}{select("titleStatus", "Title status", [{ id: "PENDING", name: "Pending" }, { id: "RECEIVED", name: "Received (staff reported)" }, { id: "ISSUE", name: "Issue / hold" }])}{area("documents", "Document references (optional)")}{context?.canPrice && input("askingPrice", "Proposed asking price ($)", "number")}<p className={styles.hint}>Document references only; no upload or readiness approval is implied.</p></details>
         </section>
       </fieldset>
-      {(error || message || checking || receipt) && <div className={styles.feedback}>{error && <p role="alert">{error}</p>}{(message || checking) && <p role="status">{checking ? "Checking VIN…" : message}</p>}{receipt && <nav aria-label="Continue saved vehicle" onClickCapture={event => { if (event.target instanceof Element && event.target.closest("a") && dirty.current && !window.confirm("Leave this intake without saving your changes?")) event.preventDefault(); }}><Link href={`/vehicles/${encodeURIComponent(receipt.vehicleId)}/frontline`}>Open selling workbench</Link>{receipt.repairOrderId && <><span> · </span><Link href={`/prototype/repair-explorer?repairOrderId=${encodeURIComponent(receipt.repairOrderId)}`}>Build estimate in Labor Guide</Link></>}</nav>}</div>}
-      <footer className={styles.footer}><span>{workType === "sale" ? "Preparing for sale does not approve retail release." : "Intake does not authorize repairs or customer charges."}</span><div className={styles.actions}><button disabled={busy || checking} type="submit" value="inventory">{busy ? "Saving…" : "Save Inventory"}</button><button className={styles.primary} disabled={busy || checking} type="submit" value="continue">{workType === "sale" ? "Save & Open Selling Workbench" : reviewWorkbench ? "Save & Open Repair Workbench" : advisor ? "Save & Open Planning" : "Save & Start Repair Order"}</button></div></footer>
+      {receipt && <div className={styles.feedback}><nav aria-label="Continue saved vehicle" onClickCapture={event => { if (event.target instanceof Element && event.target.closest("a") && dirty.current && !window.confirm("Leave this intake without saving your changes?")) event.preventDefault(); }}><Link href={`/vehicles/${encodeURIComponent(receipt.vehicleId)}/frontline`}>Open selling workbench</Link>{receipt.repairOrderId && <><span> · </span><Link href={`/prototype/repair-explorer?repairOrderId=${encodeURIComponent(receipt.repairOrderId)}`}>Build estimate in Labor Guide</Link></>}</nav></div>}
+      <footer className={styles.footer}>
+        {error && <p className={styles.saveError} role="alert">{error}</p>}
+        {(message || checking || busy) && <p className={styles.saveStatus} role="status">{busy ? "Saving…" : checking ? "Checking VIN…" : message}</p>}
+        <span>{workType === "sale" ? "Preparing for sale does not approve retail release." : "Intake does not authorize repairs or customer charges."}</span>
+        <div className={styles.actions}><button disabled={busy || checking} type="submit" value="inventory">{busy ? "Saving…" : "Save Inventory"}</button><button className={styles.primary} disabled={busy || checking} type="submit" value="continue">{workType === "sale" ? "Save & Open Selling Workbench" : reviewWorkbench ? "Save & Open Repair Workbench" : advisor ? "Save & Open Planning" : "Save & Start Repair Order"}</button></div>
+      </footer>
     </form>}
   </section>;
 }

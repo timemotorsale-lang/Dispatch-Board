@@ -9,7 +9,7 @@ import { createEnterpriseReadinessRepository } from "./repository";
 
 type Dependencies = { database?: typeof prisma; organizationId?: string; activationAuthorized?: boolean; activationAuthority?: string };
 const object = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-const required = (value: unknown, label: string, minimum = 1) => { const result = String(value ?? "").trim(); if (result.length < minimum) throw new Error(`${label} is required${minimum > 1 ? ` and must contain at least ${minimum} characters` : ""}.`); return result; };
+const required = (value: unknown, label: string) => { const result = String(value ?? "").trim(); if (!result) throw new Error(`${label} is required.`); return result; };
 const array = (value: unknown) => Array.isArray(value) ? value : [];
 
 function authorize(actor: AuthenticatedUser | null, generalManager = false) {
@@ -52,7 +52,7 @@ export async function executeEnterpriseReadinessCommand(actor: AuthenticatedUser
   const data = object(value), action = required(data.action, "Action").toUpperCase(), user = authorize(actor, ["AUTHORIZE_PILOT", "ACTIVATE_PILOT", "RECORD_SIGNOFF"].includes(action)), ctx = context(input);
   const expectedVersion = Number(data.expectedVersion ?? 0); if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Expected version must be a non-negative integer.");
   const idempotencyKey = required(data.idempotencyKey, "Idempotency key");
-  const reason = required(data.reason, "Reason", 10);
+  const reason = required(data.reason, "Reason");
   const pilotId = action === "CREATE_PILOT_DRAFT" ? randomUUID() : required(data.pilotId, "Pilot id");
   const make = (payload: Record<string, unknown>) => command(user, ctx.organizationId, pilotId, action, expectedVersion, idempotencyKey, reason, payload);
 
@@ -64,7 +64,7 @@ export async function executeEnterpriseReadinessCommand(actor: AuthenticatedUser
   if (pilot.version !== expectedVersion) throw new Error(`Expected version ${expectedVersion}, but pilot version is ${pilot.version}.`);
 
   if (["SAVE_EVIDENCE", "SUBMIT_EVIDENCE"].includes(action)) {
-    const gateCode = validateGateCode(required(data.gateCode, "Gate code")), summary = required(data.summary, "Evidence summary", 10), status = action === "SUBMIT_EVIDENCE" ? "SUBMITTED" as const : "IN_PROGRESS" as const;
+    const gateCode = validateGateCode(required(data.gateCode, "Gate code")), summary = required(data.summary, "Evidence summary"), status = action === "SUBMIT_EVIDENCE" ? "SUBMITTED" as const : "IN_PROGRESS" as const;
     const gateNumber = Number(gateCode.slice(3));
     if (gateNumber <= 125 && !["DRAFT", "EVIDENCE_IN_PROGRESS"].includes(pilot.status)) throw new Error("Pre-pilot evidence is frozen once authorization review begins.");
     if (gateNumber >= 126 && gateNumber <= 128 && !["ACTIVE", "PAUSED", "ROLLED_BACK", "COMPLETED"].includes(pilot.status)) throw new Error("Pilot and outcome evidence requires an activated, paused, rolled-back, or completed pilot.");

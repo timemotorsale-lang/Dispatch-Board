@@ -57,7 +57,7 @@ export async function submitDailyHandoff(actor: AuthenticatedUser | null, boardD
   if (candidate.idempotencyKey !== undefined && (typeof candidate.idempotencyKey !== "string" || !/^[a-zA-Z0-9_-]{16,128}$/.test(candidate.idempotencyKey))) throw new Error("Report submission key is invalid.");
   if (candidate.expectedDraftVersion !== undefined && (!Number.isInteger(candidate.expectedDraftVersion) || Number(candidate.expectedDraftVersion) < 0)) throw new Error("Expected report version is invalid.");
   const onBehalfReason = onBehalf && typeof candidate.onBehalfReason === "string" ? candidate.onBehalfReason.trim() : null;
-  if (onBehalf && (!onBehalfReason || onBehalfReason.length < 10)) throw new Error("On-behalf submission requires a reason of at least 10 characters.");
+  if (onBehalf && !onBehalfReason) throw new Error("On-behalf submission requires a reason.");
   const draft = await buildDailyHandoffDraft(user, boardDate, targetUserId, dependencies);
   const submittedAt = (dependencies.now ?? (() => new Date()))();
   const repository = dependencies.repository ?? createDailyHandoffRepository();

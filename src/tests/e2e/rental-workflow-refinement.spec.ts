@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { rentalLocalTime } from "../../lib/rental-checkout";
+import { isValidVin } from "../../server/vehicle-registry/domain";
 
 test.use({ launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] } });
 
@@ -182,6 +183,74 @@ test("explains blocked checkout, then saves routine handoff without manual audit
     expect(bookings).toHaveLength(1);
     expect(bookings[0]).toMatchObject({ status: "CHECKED_OUT", departureSnapshot: { evidence: [`document:${documents[0].id}`, `document:${documents[2].id}`] } });
     expect(await prisma.dealContinuityEvent.count({ where: { contextId: id, action: "HANDOFF" } })).toBe(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+test("Inventory Intake shows why save is blocked next to the buttons and saves after correction", async ({ page }) => {
+  test.setTimeout(120_000);
+  test.skip(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1", "Requires a disposable migrated and seeded database.");
+  const database = new URL(process.env.DATABASE_URL!);
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname) || !/^deal_staging_\d+$/.test(database.searchParams.get("schema") ?? "")) throw new Error("An isolated loopback deal_staging schema is required.");
+  const organizationId = process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID!;
+  const prisma = new PrismaClient({ datasourceUrl: database.toString() });
+  await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: {} }));
+  try {
+    const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
+    expect(login.ok()).toBe(true);
+    const { user } = await (await page.request.get("/api/auth/me")).json();
+    const id = randomUUID();
+    const location = await prisma.location.create({ data: { organizationId, code: `intake-${id}`, name: `Intake test location ${id.slice(0, 8)}`, city: "Minneapolis", region: "MN", timezone: "America/Chicago" } });
+    await prisma.vehicleOperationsFeatureFlag.createMany({ data: ["VEHICLE_OPERATIONS_MASTER", "INVENTORY_INTAKE"].map(code => ({
+      organizationId, locationId: location.id, code, mode: "PILOT", rolloutPercent: 0, allowedUserIds: [user.id]
+    })) });
+    const serial = String(parseInt(id.slice(0, 5), 16) % 1_000_000).padStart(6, "0");
+    const vin = Array.from("0123456789X", check => `1HGCM826${check}3A${serial}`).find(isValidVin)!;
+    const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: id, vin, vinState: "VALID", vinValidationSource: "ISOLATED_FIXTURE", year: 2003, make: "Honda", model: "Accord" } });
+    const customer = await prisma.customer.create({ data: { organizationId, customerNumber: id, displayName: "Synthetic intake test" } });
+    const saved = await page.request.post("/api/crm/v1/deal-drafts", { data: {
+      id, revision: 0, pathway: "daily-rental", customerId: customer.id, customerName: customer.displayName, vehicleReference: vin,
+      snapshot: { "desk:identity": { customerId: customer.id, vehicleId: vehicle.id } }
+    } });
+    expect(saved.ok()).toBe(true);
+    await page.goto(`/crm-next/deals/start?draftId=${id}&rentalAction=HANDOFF#rental-checkout`);
+    const link = page.getByRole("link", { name: "Open Inventory Intake for this vehicle" });
+    await expect(link).toHaveAttribute("href", `/prototype/inventory-intake?vehicleId=${vehicle.id}`);
+    await expect(link).toHaveCSS("background-color", "rgb(49, 84, 174)");
+    const [intake] = await Promise.all([page.waitForEvent("popup"), link.click()]);
+    await intake.setViewportSize({ width: 1280, height: 640 });
+    await intake.getByRole("radio", { name: "Prepare for Sale" }).check();
+    await intake.locator('[name="source"]').selectOption("AUCTION");
+    await intake.locator('[name="acquiredOn"]').fill("2026-10-01");
+    await intake.locator('[name="purchaseAmount"]').fill("12000");
+    await intake.locator('[name="priceStatus"]').selectOption("INCURRED");
+    await intake.locator('[name="location"]').selectOption(location.id);
+    await intake.locator('[name="whereabouts"]').fill("Synthetic receiving lane");
+    await intake.getByLabel("I confirm dealership ownership or consignment authority.").check();
+    const condition = intake.locator('[name="condition"]');
+    await condition.fill("   ");
+    const footer = intake.locator("form footer");
+    await footer.getByRole("button", { name: "Save Inventory", exact: true }).click();
+    await expect(footer.getByRole("alert")).toContainText("Describe the arrival condition");
+    await expect(footer.getByRole("alert")).toBeInViewport();
+    await expect(condition).toHaveAttribute("aria-invalid", "true");
+    expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(0);
+    await intake.setViewportSize({ width: 390, height: 844 });
+    await footer.getByRole("button", { name: "Save & Open Selling Workbench", exact: true }).click();
+    await expect(footer.getByRole("alert")).toBeInViewport();
+    await condition.fill("GOOD");
+    const persisted = intake.waitForResponse(response => response.url().endsWith("/api/inventory-units/compact-intake") && response.request().method() === "POST");
+    await footer.getByRole("button", { name: "Save Inventory", exact: true }).click();
+    const save = await persisted;
+    expect(save.ok(), await save.text()).toBe(true);
+    await expect(footer.getByRole("status")).toContainText("Inventory saved and linked", { timeout: 15000 });
+    const stored = await intake.request.get(`/api/inventory-units/compact-intake?vehicleId=${vehicle.id}`);
+    expect(await stored.json()).toMatchObject({ details: { condition: "GOOD", purchaseCents: 1200000 } });
+    expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(1);
+    await footer.getByRole("button", { name: "Save & Open Selling Workbench", exact: true }).click();
+    await expect(intake).toHaveURL(`/vehicles/${vehicle.id}/frontline`);
+    expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(1);
   } finally {
     await prisma.$disconnect();
   }

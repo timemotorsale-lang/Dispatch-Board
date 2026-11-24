@@ -142,7 +142,7 @@ export async function overrideCrmDecision(
   const decisionId = id.trim();
   if (!decisionId) throw new Error("CRM decision id is required.");
   const reason = override.reason?.trim() ?? "";
-  if (reason.length < 10) throw new Error("Decision overrides require a reason of at least 10 characters.");
+  if (!reason) throw new Error("Decision overrides require a reason.");
   const recommendation = override.recommendation ?? {};
   if (recommendation.dueAt && Number.isNaN(Date.parse(recommendation.dueAt))) {
     throw new Error("Override due time must be ISO 8601 compatible.");

@@ -197,7 +197,7 @@ export function ChargeOffPanel({ d, u }: { d: AccountDetail; u: Upgrades }) {
         <form className={styles.form} onSubmit={event => void run("REQUEST_CHARGE_OFF", formValues(event))}>
           <label>Amount ($, blank = deficiency or balance)<input name="amount" inputMode="decimal" /></label>
           <label>Reason<input name="reason" required minLength={5} /></label>
-          {d.account.daysPastDue < u.chargeOffMinDaysPastDue ? <label className={styles.wide}>Why before {u.chargeOffMinDaysPastDue} days past due<input name="overrideReason" required minLength={10} /></label> : null}
+          {d.account.daysPastDue < u.chargeOffMinDaysPastDue ? <label className={styles.wide}>Why before {u.chargeOffMinDaysPastDue} days past due<input name="overrideReason" required /></label> : null}
           <div className={`${styles.actions} ${styles.wide}`}><button disabled={busy}>Request charge-off</button></div>
         </form>
       ) : null}

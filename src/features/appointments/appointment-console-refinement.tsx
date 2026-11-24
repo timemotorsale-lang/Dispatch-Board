@@ -1032,7 +1032,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const activeRescheduleWarning = rescheduleWarning?.fingerprint === rescheduleFingerprint ? rescheduleWarning : null;
   const canApproveRescheduleOverlap = editingAppointment?.visibility?.relationship === "MANAGER";
   const rescheduleApprovalMissing = Boolean(activeRescheduleWarning &&
-    (!canApproveRescheduleOverlap || activeRescheduleWarning.reason.trim().length < 10));
+    (!canApproveRescheduleOverlap || activeRescheduleWarning.reason.trim().length === 0));
   const openSlots = useMemo(() => appointmentWindow.status === "ready" ? appointmentTimeSlots.filter(slot => {
     const start = localDateTimeToIso(form.localDate, slot);
     return !visibleAppointmentOverlaps(visibleAppointments, start, addMinutesToIso(start, form.durationMinutes), editingAppointment?.id);
@@ -1429,7 +1429,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 reasonCode: "PLANNER_RESCHEDULE",
                 reasonNotes: form.reason.trim(),
                 customerOverlapApproval: canApproveRescheduleOverlap && activeRescheduleWarning &&
-                  activeRescheduleWarning.reason.trim().length >= 10
+                  activeRescheduleWarning.reason.trim().length > 0
                   ? { warningKey: activeRescheduleWarning.warningKey, reason: activeRescheduleWarning.reason.trim() }
                   : undefined
               }

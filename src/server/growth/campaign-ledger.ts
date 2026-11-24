@@ -135,7 +135,7 @@ export function createGrowthCampaignLedger(now = () => new Date()) {
 function assertCommand(command: GrowthLedgerCommand) {
   if (!command.actor.trim()) throw new Error("Actor is required.");
   if (!command.idempotencyKey.trim()) throw new Error("Idempotency key is required.");
-  if (command.reason.trim().length < 10) throw new Error("Reason must explain the business purpose.");
+  if (!command.reason.trim()) throw new Error("Reason must explain the business purpose.");
 }
 
 function cloneRecord(record: GrowthLedgerRecord): GrowthLedgerRecord {

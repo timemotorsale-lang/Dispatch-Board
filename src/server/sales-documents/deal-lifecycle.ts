@@ -18,7 +18,7 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
   if (typeof raw.id !== "string" || !Number.isInteger(raw.revision)) throw new SalesDocumentsError("Refresh this deal before continuing.", 409);
   const organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   const note = typeof raw.note === "string" ? raw.note.trim().slice(0, 1000) : "";
-  if (["REOPEN", "REQUEST_UNWIND"].includes(action) && note.length < 10) throw new SalesDocumentsError("Enter a reason of at least 10 characters. The original signed packet will remain preserved.");
+  if (["REOPEN", "REQUEST_UNWIND"].includes(action) && !note) throw new SalesDocumentsError("Enter a reason. The original signed packet will remain preserved.");
   return prisma.$transaction(async database => {
     const draft = await database.dealDeskDraft.findFirst({ where: { id: raw.id as string, organizationId, ...(!canManageDeals(user) ? { ownerUserId: user.id } : {}) } });
     if (!draft) throw new SalesDocumentsError("This deal is not available to your account.", 404);

@@ -112,9 +112,9 @@ describe.skipIf(!RUN_COLLECTIONS_DB)("history import, shadow posting and reconci
   });
 
   it("an owner note explains a difference; collectors can't import or add notes", async () => {
-    await expect(addReconciliationNote(ctx.owner, await id("FAKE-1002"), "short")).rejects.toThrow(/at least 10/);
-    await addReconciliationNote(ctx.owner, await id("FAKE-1002"), "DealerCenter moved the first due date; confirmed with the deal jacket");
-    expect((await getReconciliation(ctx.owner, "DIFFERENT")).rows.find(r => r.externalAccountId === "FAKE-1002")?.note).toMatch(/deal jacket/);
+    await expect(addReconciliationNote(ctx.owner, await id("FAKE-1002"), " ")).rejects.toThrow("Explain the difference.");
+    await addReconciliationNote(ctx.owner, await id("FAKE-1002"), " Due date ");
+    expect((await getReconciliation(ctx.owner, "DIFFERENT")).rows.find(r => r.externalAccountId === "FAKE-1002")?.note).toBe("Due date");
     const collector: AuthenticatedUser = { ...ctx.owner, roles: ["Collections"] };
     process.env.COLLECTIONS_MODULE = "LIVE";
     try {

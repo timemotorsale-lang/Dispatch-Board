@@ -29,6 +29,6 @@ export function normalizeEstimateCorrection(raw: Record<string, unknown>) {
   const unit = raw.unit;
   if (unit !== "MILES" && unit !== "KILOMETERS") throw new Error("Select miles or kilometers.");
   const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
-  if (reason.length < 10 || reason.length > 500) throw new Error("Enter a correction reason of 10 to 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Enter a correction reason of up to 500 characters.");
   return { details, reading, unit, reason } as const;
 }

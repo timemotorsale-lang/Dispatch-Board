@@ -11,7 +11,8 @@ describe("guided inventory intake", () => {
   });
   it("retains attributable notes from existing callers and rejects malformed optional notes", () => {
     expect(normalizeIntake(body, now).reason).toBe(body.reason);
-    for (const reason of [123, "short", "x".repeat(1001)]) expect(() => normalizeIntake({ ...body, reason }, now)).toThrow("optional intake note");
+    expect(normalizeIntake({ ...body, reason: " Trade " }, now).reason).toBe("Trade");
+    for (const reason of [123, "x".repeat(1001)]) expect(() => normalizeIntake({ ...body, reason }, now)).toThrow("optional intake note");
   });
   it("confirms screenshot-like pending information without mandatory notes or invented facts", () => {
     const incomplete = { ...details, seller: "", reference: "", titleStatus: "PENDING", documents: "", pendingNotes: "" };
@@ -33,7 +34,11 @@ describe("guided inventory intake", () => {
     expect(normalizeIntake({ ...body, details: { ...details, titleStatus: "ISSUE" } }, now)).toMatchObject({ pendingItems: ["Title"], details: { titleStatus: "ISSUE", pendingNotes: "" } });
     expect(normalizeIntake({ ...body, details: { ...details, titleStatus: "ISSUE", pendingNotes: "Owner will reconcile title documents" } }, now).pendingItems).toEqual(["Title"]);
   });
-  it.each([{ whereabouts: "" }, { condition: "ok" }])("requires receiving context %j before confirmation", override => { expect(() => normalizeIntake({ ...body, details: { ...details, ...override } }, now)).toThrow(/where the vehicle|arrival condition/); });
+  it.each(["whereabouts", "condition"] as const)("requires %s before confirmation", field => {
+    const incomplete = { ...details, [field]: " " };
+    expect(intakeConfirmationIssue(incomplete)?.field).toBe(field);
+    expect(() => normalizeIntake({ ...body, details: incomplete }, now)).toThrow(/where the vehicle|arrival condition/);
+  });
   it.each([{ purchaseCents: 0 }, { purchaseCents: 1.5 }, { proposedPriceCents: -1 }, { acquiredOn: "2026-02-30" }, { acquiredOn: "2026-10-08" }, { odometer: -1 }, { keys: 101 }, { priceStatus: "PENDING" }])("rejects invalid intake values %j", override => { expect(() => normalizeIntake({ ...body, details: { ...details, ...override } }, now)).toThrow(); });
   it("does not require a speculative selling price or fixed pack", () => { expect(intakePending({ ...details, proposedPriceCents: null })).toEqual([]); });
 });

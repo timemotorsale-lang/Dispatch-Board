@@ -60,8 +60,8 @@ export function DealLifecycleDialog({ deal, action, onClose, onSaved }: { deal: 
     </>}
     {!finish && !sold && <><p>{unwind ? "This starts a manager review. It does not refund the customer, reverse lender funding, release the vehicle, or adjust taxes." : "Open a correction version on this same deal. Original signed paperwork and sale dates stay preserved. Upload corrected copies and finalize the paperwork again when ready."}</p>
       {unwind && <ul><li>Confirm customer payments and any refunds against the original receipts.</li><li>Reconcile lender funding and bank confirmation.</li><li>Review vehicle return, title/DMV status and any tax corrections.</li></ul>}
-      <label>Reason<textarea required minLength={10} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label></>}
+      <label>Reason<textarea required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label></>}
     {error && <p role="alert">{error}</p>}
-    <div className={styles.commands}><button data-completion={sold ? "pending" : finish ? "finalized" : undefined} disabled={busy || loading || revision === null || (sold ? !confirmed : !packet || (finish ? !confirmed || blockers.length > 0 || ["UNWIND_PENDING", "DELIVERED_FUNDING_PENDING"].includes(packet.state) : reason.trim().length < 10))} onClick={() => void save()}>{busy ? "Saving…" : title}</button><button disabled={busy || loading} onClick={() => void load()}>Refresh checklist</button><button disabled={busy} onClick={onClose}>Cancel</button></div>
+    <div className={styles.commands}><button data-completion={sold ? "pending" : finish ? "finalized" : undefined} disabled={busy || loading || revision === null || (sold ? !confirmed : !packet || (finish ? !confirmed || blockers.length > 0 || ["UNWIND_PENDING", "DELIVERED_FUNDING_PENDING"].includes(packet.state) : reason.trim().length === 0))} onClick={() => void save()}>{busy ? "Saving…" : title}</button><button disabled={busy || loading} onClick={() => void load()}>Refresh checklist</button><button disabled={busy} onClick={onClose}>Cancel</button></div>
   </dialog>;
 }

@@ -255,7 +255,7 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
       if (raw.action === "EXCLUDE_DOCUMENT") {
         const document = jacket.packet.documents.find(item => item.documentId === raw.documentId)?.document;
         if (!document) throw new SalesDocumentsError("Document is not part of this jacket.", 404);
-        if (note.length < 10) throw new SalesDocumentsError("Record why this attachment was uploaded by mistake (at least 10 characters).");
+        if (!note) throw new SalesDocumentsError("Record why this attachment was uploaded by mistake.");
         if (isExcludedSalesDocument(document.classificationSnapshot)) throw new SalesDocumentsError("This attachment is already excluded. Refresh the Documents section.", 409);
         const preserved = jacket.versions.some(version => (version.snapshot as unknown as { documents?: JacketDocument[] }).documents?.some(doc => doc.id === document.id));
         if (preserved) requireSalesDocumentsUser(user, true);

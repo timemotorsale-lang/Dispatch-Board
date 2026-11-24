@@ -67,7 +67,7 @@ export function normalizeShopReconDraft(value: unknown) {
     stage: stage(raw.stage),
     expectedVersion: Number(raw.expectedVersion),
     idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200),
-    reason: requiredText(raw.reason, "Save reason", 10, 500),
+    reason: requiredText(raw.reason, "Save reason", 1, 500),
     checklist: Object.fromEntries(Object.entries(checklist).map(([key, checked]) => [key, checked === true])),
     formData,
     evidence: strings(raw.evidence ?? [], "Evidence"),
@@ -80,7 +80,7 @@ export function normalizeShopReconTransition(value: unknown) {
     toStage: stage(raw.toStage, "Destination stage"),
     expectedVersion: Number(raw.expectedVersion),
     idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200),
-    reason: requiredText(raw.reason, "Transition reason", 10, 500),
+    reason: requiredText(raw.reason, "Transition reason", 1, 500),
     facts: factsRaw as Partial<Record<ShopReconGateFact, boolean>>,
     overrideId: typeof raw.overrideId === "string" && raw.overrideId.trim() ? raw.overrideId.trim() : null,
   };
@@ -91,13 +91,13 @@ export function normalizeShopReconPartsReadinessReturn(value: unknown) {
   return {
     expectedVersion: Number(raw.expectedVersion),
     idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200),
-    reason: requiredText(raw.reason, "Parts-readiness reason", 10, 500),
+    reason: requiredText(raw.reason, "Parts-readiness reason", 1, 500),
   };
 }
 
 export function normalizePublishShopReconEvidence(value: unknown) {
   const raw = record(value, "Operational evidence");
-  return { expectedVersion: Number(raw.expectedVersion), idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200), reason: requiredText(raw.reason, "Publication reason", 10, 500) };
+  return { expectedVersion: Number(raw.expectedVersion), idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200), reason: requiredText(raw.reason, "Publication reason", 1, 500) };
 }
 
 export function normalizeShopReconOverride(value: unknown) {
@@ -107,7 +107,7 @@ export function normalizeShopReconOverride(value: unknown) {
   const expiresAt = parseDate(raw.expiresAt), followUpAt = parseDate(raw.followUpAt);
   if (expiresAt && Number.isNaN(expiresAt.getTime())) throw new Error("Override expiry is invalid.");
   if (followUpAt && Number.isNaN(followUpAt.getTime())) throw new Error("Override follow-up is invalid.");
-  return { kind, expectedVersion: Number(raw.expectedVersion), idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200), reason: requiredText(raw.reason, "Override explanation", 10, 1_000), boundaries: strings(raw.boundaries ?? [], "Override boundaries"), expiresAt, followUpAt };
+  return { kind, expectedVersion: Number(raw.expectedVersion), idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200), reason: requiredText(raw.reason, "Override explanation", 1, 1_000), boundaries: strings(raw.boundaries ?? [], "Override boundaries"), expiresAt, followUpAt };
 }
 
 export function normalizeShopReconScopeChange(value: unknown) {
@@ -115,8 +115,8 @@ export function normalizeShopReconScopeChange(value: unknown) {
   return {
     expectedVersion: Number(raw.expectedVersion),
     idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200),
-    reason: requiredText(raw.reason, "Scope-change reason", 10, 500),
-    finding: requiredText(raw.finding, "New finding", 10, 2_000),
+    reason: requiredText(raw.reason, "Scope-change reason", 1, 500),
+    finding: requiredText(raw.finding, "New finding", 1, 2_000),
     affectedRepairJobIds: strings(raw.affectedRepairJobIds ?? [], "Affected repair jobs"),
     originalScope: record(raw.originalScope ?? {}, "Original scope"),
     proposedScope: record(raw.proposedScope ?? {}, "Proposed scope"),

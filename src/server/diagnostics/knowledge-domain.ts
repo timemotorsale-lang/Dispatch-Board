@@ -130,7 +130,7 @@ export function normalizeDiagnosticKnowledgePackage(input: DiagnosticKnowledgePa
   if (expiresAt && expiresAt <= effectiveAt) throw new Error("Rule-set expiry must follow its effective time.");
   const semantic = {
     contractVersion: DIAGNOSTIC_KNOWLEDGE_CONTRACT_VERSION, ruleSetKey: requiredText(input.ruleSetKey, "Rule-set key", 1, 100).toUpperCase(), version: input.version,
-    releaseState, purpose: requiredText(input.purpose, "Rule-set purpose", 10, 1000), applicability: input.applicability,
+    releaseState, purpose: requiredText(input.purpose, "Rule-set purpose", 1, 1000), applicability: input.applicability,
     nodes: input.nodes, edges: input.edges, rules: input.rules, testDefinitionKeys: input.testDefinitionKeys.map((key) => requiredText(key, "Test-definition key", 1, 100).toUpperCase()),
     calculationVersions: input.calculationVersions.map((version) => requiredText(version, "Calculation version", 1, 100)), sources, sourceCitations,
     authoredByUserId: author, reviewedByUserId: reviewer, approvedAt, effectiveAt, expiresAt,

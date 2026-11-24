@@ -88,7 +88,7 @@ export function ClaimCustomerAuthorization({ model, open, onOpen, onClose }: { m
         <label className={styles.checkbox}><input name="signatureVerified" type="checkbox" required />Customer signature and signer authority verified</label>
         <label className={styles.checkbox}><input name="copyProvided" type="checkbox" required />Copy provided to the customer</label>
       </fieldset><button disabled={busy || closed} type="submit"><Upload size={16} />Record verified signed copy</button></form>
-      <details><summary>Record customer withdrawal</summary><form onSubmit={withdraw}><fieldset disabled={busy || closed}><label>Permission<select name="category"><option value="CLAIM_COMMUNICATION">Claim communication</option><option value="CLAIM_DIRECT_PAY">Direction to pay</option></select></label><label>Customer request / reason<textarea name="reason" required minLength={10} maxLength={1000} rows={3} /></label></fieldset><button disabled={busy || closed} type="submit">Record withdrawal</button></form></details>
+      <details><summary>Record customer withdrawal</summary><form onSubmit={withdraw}><fieldset disabled={busy || closed}><label>Permission<select name="category"><option value="CLAIM_COMMUNICATION">Claim communication</option><option value="CLAIM_DIRECT_PAY">Direction to pay</option></select></label><label>Customer request / reason<textarea name="reason" required maxLength={1000} rows={3} /></label></fieldset><button disabled={busy || closed} type="submit">Record withdrawal</button></form></details>
     </section></div> : null}
   </section>;
 }

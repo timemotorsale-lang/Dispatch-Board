@@ -135,7 +135,7 @@ export function normalizeCreateDiagnosticCase(value: unknown) {
     concernStatement: optionalText(raw.concernStatement, "Concern statement", 2000),
     idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200),
     operatingConditions: jsonObject(raw.operatingConditions),
-    reason: text(raw.reason, "Creation reason", 500, 10),
+    reason: text(raw.reason, "Creation reason", 500),
     reasonCode: oneOf(raw.reasonCode, CREATE_REASON_CODES, "Creation reason code"),
     repairOrderId: text(raw.repairOrderId, "Repair order ID", 100),
     riskTier: oneOf(raw.riskTier ?? "R1", DIAGNOSTIC_RISK_TIERS, "Diagnostic risk tier")
@@ -148,7 +148,7 @@ export function normalizeDiagnosticAssignment(value: unknown) {
     assignedUserId: text(raw.assignedUserId, "Assigned user ID", 100),
     expectedVersion: expectedVersion(raw.expectedVersion),
     idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200),
-    reason: text(raw.reason, "Assignment reason", 500, 10),
+    reason: text(raw.reason, "Assignment reason", 500),
     reasonCode: oneOf(raw.reasonCode, ASSIGN_REASON_CODES, "Assignment reason code")
   };
 }
@@ -162,7 +162,7 @@ export function normalizeDiagnosticTransition(value: unknown) {
   return {
     expectedVersion: expectedVersion(raw.expectedVersion),
     idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200),
-    reason: text(raw.reason, "Transition reason", 500, 10),
+    reason: text(raw.reason, "Transition reason", 500),
     reasonCode,
     targetStatus
   };
