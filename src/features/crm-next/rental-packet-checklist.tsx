@@ -28,8 +28,8 @@ export async function finalizeCheckoutReview({ packet, reviews }: CheckoutPacket
   });
 }
 
-export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onClose, refreshKey, activationFeedback, activationFeedbackId }: {
-  href: string; busy: boolean; canActivate: boolean; onActivate: (review: CheckoutPacketReview) => void; onClose: () => void; refreshKey: number;
+export function RentalPacketChecklist({ id, href, busy, canFinalize, onFinalize, onClose, refreshKey, activationFeedback, activationFeedbackId }: {
+  id: string; href: string; busy: boolean; canFinalize: boolean; onFinalize: (review: CheckoutPacketReview) => void; onClose: () => void; refreshKey: number;
   activationFeedback: ReactNode; activationFeedbackId: string;
 }) {
   const [state, setState] = useState<{ packet?: SalesDocumentJacketView; error?: string }>({});
@@ -62,9 +62,9 @@ export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onC
   const insurance = rows.find(row => row.item.id === "insurance-proof")?.doc;
   const agreement = rows.find(row => row.item.id === "signed-agreement")?.doc;
   const complete = Boolean(agreement && insurance && rows.every(row => row.checked));
-  return <fieldset disabled={busy} className={styles.checkoutChecklist}>
+  return <fieldset id={id} tabIndex={-1} disabled={busy} className={styles.checkoutChecklist}>
     <legend>Checkout checklist</legend>
-    <p>Open each file before confirming it. Complete the physical handoff above before saving activation.</p>
+    <p>Open and verify each required file, then finalize the packet to continue to handoff.</p>
     {state.error && <p role="alert">{state.error}</p>}
     {!packet && !state.error && <p role="status">Loading the checkout packet…</p>}
     {packet?.phase === "CHECKOUT" && !rows.length && <p>Open Sales Documents to review this packet’s requirements.</p>}
@@ -74,9 +74,9 @@ export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onC
       {doc ? <a target="_blank" rel="noopener noreferrer" href={`/api/sales-documents/${encodeURIComponent(packet.id)}/documents/${encodeURIComponent(doc.id)}`}>{doc.fileName}</a> : !item.ready && <span> · Upload in Sales Documents</span>}
     </li>)}</ul>}
     {activationFeedback}
-    {packet?.phase === "CHECKOUT" && <button className={styles.rentalPrimary} type="button" aria-describedby={activationFeedbackId} disabled={!complete || !canActivate} onClick={() => onActivate({
+    {packet?.phase === "CHECKOUT" && <button className={styles.rentalPrimary} type="button" aria-describedby={activationFeedbackId} disabled={!complete || !canFinalize} onClick={() => onFinalize({
       packet, insuranceId: insurance?.id ?? "", reviews: rows.flatMap(({ item, doc, accepted }) => !accepted && doc ? [{ documentId: doc.id, documentType: item.id, signed: item.signed }] : [])
-    })}>{busy ? "Saving checkout…" : "Finalize & activate"}</button>}
+    })}>{busy ? "Finalizing packet…" : "Finalize packet & continue to handoff"}</button>}
     {packet?.phase === "RETURN" && <p>Checkout packet finalized. Use Activate Rental to record handoff.</p>}
     <a href={href} target="_blank" rel="noopener noreferrer">Open Sales Documents</a>
     <button type="button" onClick={() => setReloadKey(current => current + 1)}>Refresh checklist</button>
