@@ -30,8 +30,13 @@ describe("shared deal vehicle use", () => {
     expect(() => normalizeVehicleUseCommand({ ...handoff, driverVerified: false })).toThrow("Verify the current driver");
     expect(normalizeVehicleUseCommand(handoff)).toMatchObject({ action: "HANDOFF", keysVerified: true, driverVerified: true });
   });
-  it.each([{ keysVerified: false }, { odometer: "" }, { odometer: -1 }, { odometer: 1.2 }, { evidence: [] }, { condition: "" }, { recipient: "" }, { fuel: "" }])("does not invent actual handoff facts %j", input => {
+  it.each([{ keysVerified: false }, { odometer: "" }, { odometer: -1 }, { odometer: 1.2 }, { condition: "" }, { recipient: "" }, { fuel: "" }])("does not invent actual handoff facts %j", input => {
     expect(() => normalizeVehicleUseCommand({ ...handoff, ...input })).toThrow();
+  });
+  it("uses the action as the routine reason and keeps dated evidence mandatory for historical handoff", () => {
+    expect(normalizeVehicleUseCommand({ ...handoff, reason: "", evidence: [] })).toMatchObject({ reason: "Recorded actual vehicle checkout", evidence: [] });
+    expect(() => normalizeVehicleUseCommand({ ...handoff, historicalHandoff: true, evidence: [] })).toThrow("dated handoff record");
+    expect(() => normalizeVehicleUseCommand({ ...handoff, historicalHandoff: true, reason: "" })).toThrow("brief reason");
   });
   it("rejects future handoffs and stale versions", () => {
     expect(() => normalizeVehicleUseCommand({ ...handoff, occurredAt: new Date(Date.now() + 3600000).toISOString() })).toThrow("future");

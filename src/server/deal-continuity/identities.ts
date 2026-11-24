@@ -20,6 +20,8 @@ import { createEnterpriseCommandRepository } from "@/server/enterprise-command/r
 import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { DealCustomerMatchError } from "./customer-match-error";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
+import { describeVehicleCustodySelection } from "@/lib/vehicle-use-custody";
+import { vehicleCustodySelection } from "./custody-selection";
 
 function requireDealIdentityUser(actor: AuthenticatedUser | null) {
   return requireOwnDealUser(actor);
@@ -101,7 +103,7 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
 }
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
   requireDealIdentityUser(actor);
-  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
+  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { vehicleUseBookings: vehicleCustodySelection(dealOrganization()), inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
   const unit = vehicle.inventoryUnits[0];
   const snapshot = vehicle.specificationSnapshot as { specifications?: Record<string, unknown> } | null;
@@ -116,9 +118,10 @@ export async function dealVehicle(actor: AuthenticatedUser | null, id: string, d
     drivetrain: spec("drivetrain") || spec("driveType"), fuelType: spec("fuelType") || spec("fuelTypePrimary"),
     recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? ""
   };
-  const active = await database.vehicleUseBooking.findFirst({ where: { organizationId: dealOrganization(), vehicleId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, orderBy: { startsAt: "asc" }, select: { status: true, expectedReturnAt: true, context: { select: { draft: { select: { pathway: true } } } } } });
-  const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && active?.status !== "RETURNED_REVIEW");
-  return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active?.status === "RETURNED_REVIEW" ? "Returned — unavailable pending exception review" : active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };
+  const custody = describeVehicleCustodySelection(vehicle.vehicleUseBookings ?? []);
+  const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && !custody?.blocksTemporaryUse);
+  const commercialLabel = unit?.lifecycleStage === "RESERVED_DEAL_PENDING" ? "Reserved for sale" : unit?.lifecycleStage === "SOLD" ? "Sold" : unit?.lifecycleStage === "DELIVERED" ? "Delivered" : null;
+  return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: custody?.label ?? commercialLabel ?? (eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use"), eligibleForUse: eligible };
 }
 export async function searchDealVehicles(actor: AuthenticatedUser | null, params: URLSearchParams) {
   requireDealIdentityUser(actor);

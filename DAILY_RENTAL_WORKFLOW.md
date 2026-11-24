@@ -1,5 +1,20 @@
 # Daily rental workflow refinement
 
+## Rentals and loaners in CRM Next
+
+Open **Deals → Rentals & Loaners**. Use the lifecycle filter to find drafts, reserved vehicles, vehicles out or overdue, returns awaiting review, completed assignments, and cancellations. The row and details drawer open the saved assignment at its next action. Times on these screens use America/Chicago. During the repeated fall hour, select the occurrence shown in the actual evidence.
+
+In **Terms & Payments**, tab out of a complete VIN to decode blank vehicle fields and check the registry. If it is missing, open **Register this VIN** to reuse the number. A registered vehicle without an open inventory unit links to Inventory Intake. Release and return photo slots offer **Take photo** and **Upload photo** and show a filename after the upload is accepted.
+
+- **Prepare Checkout** shows the linked customer, vehicle, terms, and checkout blockers. Reserve in advance when needed. Confirm actual handoff, driver, keys, condition, mileage, and coverage through the due-back time before the vehicle becomes **Rented Out** or **Loaner Active**. Routine checkout records the reason and links accepted documents automatically. Managers enter a dated record and explanation for historical handoff.
+- **Record Return** records physical receipt and places the vehicle on hold. Finalize the linked return packet and use **Complete Rental** or **Complete Loaner** to confirm inspection and record the settlement or no-charge reference. Managers can record a settlement exception with a reason. Completion releases rental custody.
+- **Cancel** is for work before handoff. Once checkout paperwork is signed and finalized, a manager confirms physical handoff never occurred before cancelling. Existing agreement versions and usage history are retained. For actual handoffs more than 24 hours old, a manager records the dated evidence and original checkout time. Existing documents or scheduled dates alone never establish actual custody.
+- To convert a resolved rental or loaner to a sale, use **Change revenue pathway** and the existing sales workflow. Inventory, the vehicle registry, and deal vehicle selection show temporary-use holds. The database serializes checkout and sales decisions for the same canonical vehicle.
+
+Apply the cross-workflow custody and return-review migrations together on an isolated database before release. Neither migration backfills facts or changes historical documents. A legacy return without explicit completion remains held for review. A legacy sale needs a canonical vehicle link, exact VIN, or exact stock, vehicle, or inventory number for automatic conflict matching.
+
+## Prior daily-rental implementation
+
 Branch: `codex/enterprise-general-refinement`. Base: `e7124bd272da8c2fc2cd2a5711eeb098f0a90eca`.
 
 ## Review

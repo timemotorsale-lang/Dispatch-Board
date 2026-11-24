@@ -7,6 +7,7 @@ import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { canManageDeals } from "./dashboard-operations";
+import { vehicleCustodyBlocker } from "@/server/deal-continuity/custody-error";
 
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
@@ -64,5 +65,9 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
       state = result.state;
     }
     return { id: draft.id, jacketId: jacket.id, status, state };
-  }, { timeout: 30000 });
+  }, { timeout: 30000 }).catch((error: unknown) => {
+    const blocker = vehicleCustodyBlocker(error);
+    if (blocker) throw new SalesDocumentsError(blocker, 409);
+    throw error;
+  });
 }

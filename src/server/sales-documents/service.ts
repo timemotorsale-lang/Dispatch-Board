@@ -16,6 +16,8 @@ import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } fro
 import { prepareClosingReview } from "./closing-review";
 import { MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
 import { assessSalesDocument, isExcludedSalesDocument } from "@/lib/sales-document-audit";
+import { dealOrganization } from "@/server/deal-continuity/identities";
+import { isRentalPathway } from "@/lib/rental-operations";
 
 const include = {
   packet: { include: { documents: { include: { document: { include: { versions: true } } } }, auditEvents: { orderBy: { occurredAt: "desc" as const }, take: 30 } } },
@@ -23,6 +25,26 @@ const include = {
 } satisfies Prisma.SalesDocumentJacketInclude;
 type Jacket = Prisma.SalesDocumentJacketGetPayload<{ include: typeof include }>;
 type Transaction = Prisma.TransactionClient;
+
+async function lockRentalCheckoutDraft(db: Transaction, jacket: Jacket) {
+  const dealNumber = Number(jacket.dealNumber);
+  const drafts = await db.dealDeskDraft.findMany({
+    where: { organizationId: jacket.organizationId, pathway: jacket.pathway, OR: [
+      { id: jacket.dealReference },
+      { snapshot: { path: ["jackets", jacket.pathway], equals: jacket.id } },
+      ...(Number.isInteger(dealNumber) && dealNumber > 0 && dealNumber <= 2147483647 ? [{ dealNumber }] : [])
+    ] },
+    orderBy: { id: "asc" }, select: { id: true }
+  });
+  for (const draft of drafts) {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${dealOrganization() + ":deal-context:" + draft.id}, 0))`;
+    const current = await db.dealDeskDraft.findUnique({ where: { id: draft.id }, select: { status: true, pathway: true } });
+    if (current?.pathway !== jacket.pathway || ["ARCHIVED", "CANCELLED", "LOST"].includes(current.status) ||
+      await db.vehicleUseBooking.count({ where: { contextId: draft.id, status: "CANCELLED" } })) {
+      throw new SalesDocumentsError("This assignment is inactive. Keep the existing paperwork and start a new assignment if needed.", 409);
+    }
+  }
+}
 
 export function requireSalesDocumentsUser(actor: AuthenticatedUser | null, elevated = false) {
   if (!actor?.isActive) throw new SalesDocumentsError("Sign in to access Sales Documents.", 401);
@@ -279,7 +301,8 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
         await audit(db, jacket, user, raw.action, `${requirement.label}: ${note || "Marked applicable"}`);
       } else if (raw.action === "FINALIZE") {
         const current = view(jacket), phase = current.phase;
-        if (jacket.pathway === "daily-rental" && phase === "RETURN" && await db.vehicleUseBooking.count({ where: { agreementJacketId: jacket.id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Record the actual vehicle return before closing rental paperwork.", 409);
+        if (isRentalPathway(jacket.pathway) && phase === "CHECKOUT") await lockRentalCheckoutDraft(db, jacket);
+        if (["daily-rental", "vehicle-loaner"].includes(jacket.pathway) && phase === "RETURN" && !await db.vehicleUseBooking.count({ where: { agreementJacketId: jacket.id, checkedOutAt: { not: null }, returnedAt: { not: null }, status: { in: ["RETURNED", "RETURNED_REVIEW"] } } })) throw new SalesDocumentsError("Record actual checkout and return on the linked assignment before finalizing return paperwork.", 409);
         if (phase === "RETURN" && !jacket.versions.some((item) => item.phase === "CHECKOUT")) throw new SalesDocumentsError("Finalize checkout before receiving the vehicle.");
         const pending = current.checklist.filter((item) => item.blocker);
         const fundingPending = raw.disposition === "DELIVERED_FUNDING_PENDING" && ["outside-finance-one-pay", "finance"].includes(jacket.pathway);

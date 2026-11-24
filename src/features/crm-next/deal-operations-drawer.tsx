@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { cents, moneyLabel, moneyToday } from "@/lib/money-resources";
 import { FINANCIAL_KINDS } from "@/lib/deal-dashboard-enterprise";
+import { isRentalPathway, RENTAL_OPERATIONS_CHANGED, rentalTime, type RentalWork } from "@/lib/rental-operations";
 import type { DealOperationsView } from "@/server/sales-documents/dashboard-operations";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import { DealDocumentWorkspace } from "@/features/sales-documents/deal-document-workspace";
@@ -13,22 +14,22 @@ import { RentalOperationsPanel } from "./rental-operations-panel";
 import { DealRepairHistory } from "./deal-repair-history";
 import styles from "./deal-draft-workspace.module.css";
 
-export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string; customerId?: string | null }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
+export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string; customerId?: string | null; rental?: RentalWork | null }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null), pending = useRef<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [data, setData] = useState<DealOperationsView | null>(null), [packet, setPacket] = useState<SalesDocumentJacketView | null>(null);
-  const [tab, setTab] = useState(deal.pathway === "daily-rental" && initialTab === "Documents" ? "Rental" : initialTab), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [message, setMessage] = useState("");
+  const [tab, setTab] = useState(isRentalPathway(deal.pathway) && initialTab === "Documents" ? "Rental" : initialTab), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [message, setMessage] = useState("");
   const [financialKind, setFinancialKind] = useState("PAYMENT");
   const [updatedDraft, setUpdatedDraft] = useState<DealPathwayChangeResult | null>(null);
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true); setError("");
+  const load = useCallback(async (signal?: AbortSignal, background = false) => {
+    if (!background) { setLoading(true); setError(""); }
     try {
       const params = new URLSearchParams({ view: "operations", ...(deal.draftId ? { draftId: deal.draftId } : deal.jacketId ? { jacketId: deal.jacketId } : {}) });
-      const response = await fetch(`/api/crm/v1/deal-drafts?${params}`, { signal }), body = await response.json();
+      const response = await fetch(`/api/crm/v1/deal-drafts?${params}`, { signal, cache: "no-store" }), body = await response.json();
       if (!response.ok) throw new Error(body.error || "Deal details could not be loaded.");
-      if (!signal?.aborted) { setData(body); setPacket(null); }
-      if (body.jacketId && body.pathway !== "repairs") { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal }); const jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); if (!signal?.aborted) setPacket(jacket); }
+      if (!signal?.aborted) { setData(body); setPacket(current => current?.id === body.jacketId ? current : null); }
+      if (body.jacketId && body.pathway !== "repairs") { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal, cache: "no-store" }); const jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); if (!signal?.aborted) setPacket(jacket); }
     } catch (caught) { if (!signal?.aborted) setError(caught instanceof Error ? caught.message : "Connection interrupted. Select Refresh to try again."); }
-    finally { if (!signal?.aborted) setLoading(false); }
+    finally { if (!background && !signal?.aborted) setLoading(false); }
   }, [deal.draftId, deal.jacketId]);
   useEffect(() => { dialog.current?.showModal(); const controller = new AbortController(); const timer = setTimeout(() => void load(controller.signal), 0); return () => { clearTimeout(timer); controller.abort(); }; }, [load]);
   async function save(fields: Record<string, unknown>) {
@@ -59,7 +60,25 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   const repairIntakeHref = data?.draftId && !data.inactive && data.canEdit
     ? `/crm-next/deals/start?${new URLSearchParams({ draftId: data.draftId, section: "terms" })}`
     : null;
-  const rental = (data?.pathway ?? deal.pathway) === "daily-rental";
+  const rental = isRentalPathway(data?.pathway ?? deal.pathway);
+  const closedReturn = packet?.versions.findLast(version => version.phase === "RETURN" && version.disposition === "CLOSED");
+  useEffect(() => {
+    if (!rental || busy || tab !== "Rental") return;
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      controller?.abort();
+      controller = new AbortController();
+      void load(controller.signal, true);
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener(RENTAL_OPERATIONS_CHANGED, refresh);
+    return () => {
+      controller?.abort();
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener(RENTAL_OPERATIONS_CHANGED, refresh);
+    };
+  }, [rental, busy, tab, load]);
   const packetId = data?.jacketId || deal.jacketId;
   function focusDocuments() {
     setTab("Documents");
@@ -86,7 +105,7 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
         if (onPathwayChanged) onPathwayChanged(result); else onChanged();
         void load();
       }} /> : <><p>This row is a saved paperwork packet. Open the editable deal to change its pathway.</p>{onFindEditableDeal && <button type="button" onClick={onFindEditableDeal}>Find editable deal</button>}</>)}
-      {tab === "Rental" && <><RentalOperationsPanel key={data.draftId} draftId={data.draftId} packetClosed={packet?.state === "CLOSED"} inactive={data.inactive} /><h3>Rental follow-ups</h3>{data.tasks.length ? <ul>{data.tasks.map(task => <li key={task.id}><Link href={`/tasks/${encodeURIComponent(task.id)}`}>{task.title}</Link> · {task.status.replaceAll("_", " ")} · {new Date(task.dueAt).toLocaleString()}</li>)}</ul> : <p>No return follow-up exists yet. Activation creates it automatically; review any legacy active rental missing a task.</p>}</>}
+      {tab === "Rental" && <><RentalOperationsPanel key={data.draftId} draftId={data.draftId} pathway={data.pathway} packetClosed={packet?.state === "CLOSED"} closedReturns={packet && closedReturn ? [{ jacketId: packet.id, finalizedAt: closedReturn.finalizedAt }] : []} cancelled={data.draftStatus === "CANCELLED"} inactive={data.inactive} canAct={data.canEdit || data.canManage} fallback={deal.rental} /><h3>Return follow-ups</h3>{data.tasks.length ? <ul>{data.tasks.map(task => <li key={task.id}><Link href={`/tasks/${encodeURIComponent(task.id)}`}>{task.title}</Link> · {task.status.replaceAll("_", " ")} · {rentalTime(task.dueAt)}</li>)}</ul> : <p>No return follow-up is recorded.</p>}</>}
       {!repair && tab === "Documents" && <>
         <div className={styles.progressBadges}><span>Paperwork: {packet?.state === "CLOSED" ? "Finalized" : "Pending"}</span>{!rental && <><span>Funding: {badge("FUNDING")}</span><span>Delivery: {badge("DELIVERY")}</span><span>Title: {badge("TITLE")}</span></>}{rental && <span>Actual checkout and return: see Rental Operations</span>}</div>
         {!packet ? <div><p>Prepare the paperwork checklist on this existing deal to begin adding documents.</p>{data.draftId && !data.inactive && (data.canEdit || data.canManage) && ["SALES", "LEASING"].includes(dealGroup(data.pathway)) && <button type="button" disabled={busy} onClick={() => void prepareDocuments()}>Prepare required document checklist</button>}</div> : <DealDocumentWorkspace key={packet.id} jacket={packet} canManage={data.canManage} disabled={busy} onBusyChange={setBusy} onSaved={next => { setPacket(next); setData(current => current ? { ...current, jacketRevision: next.revision } : current); onChanged(); }} />}

@@ -19,6 +19,7 @@ import { DealRowActions, DealRowStatus, type DealLibraryRow } from "./deal-row-c
 import { DEAL_WORK_AREAS, DEAL_AREA_HELP, dealAreaAfterPathwayChange, isDealWorkArea, type DealWorkArea } from "@/lib/deal-work-areas";
 import { moneyLabel } from "@/lib/money-resources";
 import { DealRepairHistory } from "./deal-repair-history";
+import { RENTAL_OPERATIONS_CHANGED, RENTAL_STAGES, rentalTime } from "@/lib/rental-operations";
 
 type SavedDeal = DealLibraryRow;
 type SavedWorkView = { id: string; name: string; area?: DealWorkArea; group: string; owner: string; workspace: string; pathway: string; bucket: string; search: string };
@@ -27,6 +28,7 @@ type Result = { items: SavedDeal[]; counts: Record<string, number>; total: numbe
 export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved Deals", headerAction, renderHeaderAction }: { onOpen: (id: string) => void; disabled: boolean; refreshKey: string; title?: string; headerAction?: ReactNode; renderHeaderAction?: (pathway: string) => ReactNode }) {
   const dashboard = title === "Deals";
   const [area, setArea] = useState<DealWorkArea>("working");
+  const [rentalStage, setRentalStage] = useState("ALL");
   const [workspace, setWorkspace] = useState("ACCESSIBLE"), [details, setDetails] = useState<SavedDeal | null>(null);
   const [detailsTab, setDetailsTab] = useState("Documents");
   const [savedViews, setSavedViews] = useState<SavedWorkView[]>([]), [viewName, setViewName] = useState(""), [selectedView, setSelectedView] = useState("");
@@ -39,8 +41,19 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
   const [data, setData] = useState<Result | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [reload, setReload] = useState(0);
   useEffect(() => {
     if (!dashboard) return;
-    const timer = setInterval(() => { if (document.visibilityState === "visible") setReload(value => value + 1); }, 60000);
-    return () => clearInterval(timer);
+    const refresh = () => { if (document.visibilityState === "visible") setReload(value => value + 1); };
+    const timer = setInterval(refresh, 60000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    window.addEventListener(RENTAL_OPERATIONS_CHANGED, refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+      window.removeEventListener(RENTAL_OPERATIONS_CHANGED, refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [dashboard]);
   const [restored, setRestored] = useState(!dashboard);
   useEffect(() => {
@@ -57,6 +70,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
         if (["ALL", "CURRENT", ...Object.keys(SAVED_DEAL_STATUSES)].includes(saved.status)) setStatus(saved.status);
         if (["ALL", ...Object.keys(SALES_DOCUMENT_PATHWAYS)].includes(saved.pathway)) setPathway(saved.pathway);
         if (Object.hasOwn(DEAL_WORK_VIEWS, saved.bucket)) setBucket(saved.bucket);
+        if (Object.hasOwn(RENTAL_STAGES, saved.rentalStage)) setRentalStage(saved.rentalStage);
         if (["MY", "TEAM", "ACCESSIBLE"].includes(saved.workspace)) setWorkspace(saved.workspace);
         if (typeof saved.owner === "string") setOwner(saved.owner);
         if (typeof saved.search === "string") setSearch(saved.search);
@@ -66,6 +80,8 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     const query = new URLSearchParams(window.location.search);
     if (isDealWorkArea(query.get("area") || "")) {
       setArea(query.get("area") as DealWorkArea); setSection("work"); setStatus("ALL"); setBucket("ALL"); setGroup("ALL"); setPathway("ALL"); setSearch(""); setOwner("ALL");
+      const requestedStage = query.get("rentalStage") || "";
+      setRentalStage(Object.hasOwn(RENTAL_STAGES, requestedStage) ? requestedStage : "ALL");
       if (Object.hasOwn(SALES_DOCUMENT_PATHWAYS, query.get("pathway") || "")) setPathway(query.get("pathway")!);
       const requestedWorkspace = query.get("workspace");
       if (requestedWorkspace === "TEAM" || requestedWorkspace === "MY" || requestedWorkspace === "ACCESSIBLE") setWorkspace(requestedWorkspace);
@@ -76,7 +92,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     }, 0);
     return () => clearTimeout(timer);
   }, [dashboard]);
-  useEffect(() => { if (dashboard && restored) { try { sessionStorage.setItem("deal-dashboard-filters-v2", JSON.stringify({ area, group, period, date, section, status, pathway, bucket, owner, search, pageSize, workspace })); } catch {} } }, [dashboard, restored, area, group, period, date, section, status, pathway, bucket, owner, search, pageSize, workspace]);
+  useEffect(() => { if (dashboard && restored) { try { sessionStorage.setItem("deal-dashboard-filters-v2", JSON.stringify({ area, group, period, date, section, status, pathway, bucket, owner, search, pageSize, workspace, rentalStage })); } catch {} } }, [dashboard, restored, area, group, period, date, section, status, pathway, bucket, owner, search, pageSize, workspace, rentalStage]);
   useEffect(() => {
     if (!restored) return;
     const controller = new AbortController();
@@ -84,7 +100,8 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
       setLoading(true); setError("");
       const params = new URLSearchParams({ view: "workbench", search, status, pathway, page: String(page) });
       if (dashboard) for (const [key, value] of Object.entries({ dashboard: "1", area: section === "overview" || section === "report" ? "all" : area, group, owner, period, date, bucket, pageSize: String(pageSize), workspace })) params.set(key, value);
-      void fetch(`/api/crm/v1/deal-drafts?${params}`, { signal: controller.signal }).then(async (response) => {
+      if (dashboard && area === "rentals" && section === "work") params.set("rentalStage", rentalStage);
+      void fetch(`/api/crm/v1/deal-drafts?${params}`, { signal: controller.signal, cache: "no-store" }).then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || "Saved deals could not be loaded.");
         if (!controller.signal.aborted) setData(body);
@@ -92,7 +109,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [search, status, pathway, page, reload, refreshKey, dashboard, area, section, group, owner, period, date, bucket, pageSize, restored, workspace]);
+  }, [search, status, pathway, page, reload, refreshKey, dashboard, area, section, group, owner, period, date, bucket, pageSize, restored, workspace, rentalStage]);
   const actorId = data?.dashboard?.actorId;
   useEffect(() => {
     if (!actorId) return;
@@ -100,9 +117,9 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     return () => clearTimeout(timer);
   }, [actorId]);
   function storeViews(views: SavedWorkView[]) { if (!actorId) return; try { localStorage.setItem(`deal-work-views:${actorId}`, JSON.stringify(views)); setSavedViews(views); } catch { setError("This browser could not save the view. Your deal records are unchanged."); } }
-  function applyWorkView(view: Omit<SavedWorkView, "id" | "name">) { setArea(view.area && isDealWorkArea(view.area) ? view.area : "all"); setGroup(view.group); setOwner(view.owner); setWorkspace(view.workspace); setPathway(view.pathway); setBucket(view.bucket); setSearch(view.search); setSection("work"); setStatus("ALL"); setPage(1); }
-  function selectArea(value: DealWorkArea) { setLoading(true); setReload(value => value + 1); setArea(value); setSection(value === "archive" ? "archive" : "work"); setStatus("ALL"); setBucket("ALL"); setGroup("ALL"); setPathway("ALL"); setPage(1); setSelectedView(""); setMessage(""); setSearch(""); }
-  function selectBucket(value: string) { if (section === "overview" || section === "report") setArea(value === "paperwork" || value === "aging" || value === "funding" ? "sold" : value === "returns" ? "rentals" : "all"); setBucket(value); setSection("work"); setStatus("ALL"); setPage(1); }
+  function applyWorkView(view: Omit<SavedWorkView, "id" | "name">) { setRentalStage("ALL"); setArea(view.area && isDealWorkArea(view.area) ? view.area : "all"); setGroup(view.group); setOwner(view.owner); setWorkspace(view.workspace); setPathway(view.pathway); setBucket(view.bucket); setSearch(view.search); setSection("work"); setStatus("ALL"); setPage(1); }
+  function selectArea(value: DealWorkArea) { setRentalStage("ALL"); setLoading(true); setReload(value => value + 1); setArea(value); setSection(value === "archive" ? "archive" : "work"); setStatus("ALL"); setBucket("ALL"); setGroup("ALL"); setPathway("ALL"); setPage(1); setSelectedView(""); setMessage(""); setSearch(""); }
+  function selectBucket(value: string) { if (section === "overview" || section === "report") { setRentalStage("ALL"); setArea(value === "paperwork" || value === "aging" || value === "funding" ? "sold" : value === "returns" ? "rentals" : "all"); } setBucket(value); setSection("work"); setStatus("ALL"); setPage(1); }
   function exportVisible() {
     if (!data) return;
     const rows = [["Deal", "Customer", "Vehicle", "Pathway", "Stage", "Next action", "Owner", "Due", "Updated"], ...data.items.map(row => [row.dealNumber || row.id, row.customerName, row.vehicleReference, SALES_DOCUMENT_PATHWAYS[row.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS], row.stage || SAVED_DEAL_STATUSES[row.status], row.nextAction || "", row.ownerName || "", row.dueAt || "", row.updatedAt])];
@@ -135,6 +152,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     </div>
     {status === "ARCHIVED" ? <p>Archived deals · preserved packet documents and history. These deals are excluded from Current deals.</p> : null}
     {dashboard && ["work", "archive"].includes(section) && <div className={styles.areaHeading}><h2>{DEAL_WORK_AREAS[area]}</h2><details><summary>About this view</summary><p>{DEAL_AREA_HELP[area]}</p>{area === "accounts" && <p>Accounts and Sold Deals can reference the same original transaction. Their totals must not be added together.</p>}</details></div>}
+    {dashboard && area === "rentals" && section === "work" && <div className={styles.commands}><label>Rental / loaner lifecycle<select value={rentalStage} onChange={event => { setRentalStage(event.target.value); setPage(1); }}><option value="ALL">All lifecycle stages</option>{Object.entries(RENTAL_STAGES).map(([key, label]) => <option key={key} value={key}>{label} ({loading || error ? "…" : data?.dashboard?.rentalCounts?.[key as keyof typeof RENTAL_STAGES] ?? 0})</option>)}</select></label></div>}
     {dashboard && ["overview", "report"].includes(section) && <div className={styles.commands} style={{marginTop:12}}><label>Quick reporting range<select aria-label="Quick reporting range" value="" onChange={event => { const value=event.target.value; if(!value)return; const next=dealTimeShortcut(value,moneyToday());setDate(next.date);setPeriod(next.period);setPage(1); }}><option value="">Choose a reporting period</option>{[["today","Today"],["week","This week"],["month","This month"],["yesterday","Yesterday"],["last-week","Last week"],["two-weeks","Two weeks ago"],["last-month","Last month"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><span>{period === "day" ? "Daily" : period === "week" ? "Weekly" : "Monthly"} reporting · {date}</span></div>}
     {dashboard && <div className={styles.filters}><label className={styles.search}><Search size={16} /><input aria-label="Search saved deals" placeholder="Customer, vehicle, or deal reference" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label><select aria-label="Saved deal revenue path" value={pathway} onChange={(event) => { setPathway(event.target.value); setPage(1); }}><option value="ALL">All revenue paths</option>{Object.entries(SALES_DOCUMENT_PATHWAYS).filter(([key]) => group === "ALL" || dealGroup(key) === group).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>}
     <details className={overviewStyles.advanced} open={!dashboard}><summary>Filters, pathway and personal views</summary>
@@ -142,7 +160,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
       <label>Workspace<select aria-label="Workspace" value={workspace} onChange={event => { setWorkspace(event.target.value); setOwner("ALL"); setPage(1); }}><option value="ACCESSIBLE">Accessible deals</option><option value="MY">My work</option>{data?.dashboard?.canManage && <option value="TEAM">Team work · manager</option>}</select></label>
       <button onClick={() => { setSelectedView(""); applyWorkView({ group: "ALL", owner: "ALL", workspace: "MY", pathway: "ALL", bucket: "overdue", search: "" }); }}>My overdue deals</button>
       <button onClick={() => { setSelectedView(""); applyWorkView({ area: "all", group: "LEASING", owner: "ALL", workspace, pathway: "lease-to-own", bucket: "paperwork", search: "" }); }}>Lease paperwork pending</button>
-      <button onClick={() => { setSelectedView(""); applyWorkView({ area: "rentals", group: "USE", owner: "ALL", workspace, pathway: "daily-rental", bucket: "returns", search: "" }); }}>Rental returns due</button>
+      <button onClick={() => { setSelectedView(""); applyWorkView({ area: "rentals", group: "USE", owner: "ALL", workspace, pathway: "ALL", bucket: "returns", search: "" }); }}>Rental / loaner returns due</button>
       <label>Saved view<select aria-label="Saved view" value={selectedView} onChange={event => { setSelectedView(event.target.value); const view = savedViews.find(view => view.id === event.target.value); if (view) applyWorkView(view); }}><option value="">Choose a personal view</option>{savedViews.filter(view => view.workspace !== "TEAM" || data?.dashboard?.canManage).map(view => <option key={view.id} value={view.id}>{view.name}</option>)}</select></label>
       <details className={styles.viewEditor}><summary>Save / manage views</summary><div><label>View name<input value={viewName} maxLength={60} placeholder="My lease follow-ups" onChange={event => setViewName(event.target.value)} /></label><button disabled={!viewName.trim() || !actorId || savedViews.length >= 20} onClick={() => { const view = { id: crypto.randomUUID(), name: viewName.trim(), area, group, owner, workspace, pathway, bucket, search }; storeViews([...savedViews, view]); setSelectedView(view.id); setViewName(""); }}>Save current view</button>
       {selectedView && <button onClick={() => { storeViews(savedViews.filter(view => view.id !== selectedView)); setSelectedView(""); }}>Remove saved view</button>}<small>Personal views are saved in this browser for your account.</small></div></details>
@@ -183,10 +201,10 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     {loading ? <p role="status">Loading saved deals...</p> : section !== "report" && !error && !data?.items.length ? <p>No saved deals match this category or search.</p> : null}
     {!loading && !error && section !== "report" && data?.items.length ? <div className={`${styles.tableWrap} ${dashboard ? styles.compact : ""}`}><table><thead><tr><th>Customer / Deal</th><th>Vehicle</th><th>Revenue Path</th><th>Status / Next action</th><th>Owner / Due</th><th>Actions</th></tr></thead><tbody>{data.items.map((deal) => <tr key={deal.id}>
       <td data-label="Customer / Deal"><strong>{deal.customerName}</strong>{deal.dealNumber ? <small>{deal.dealNumber}</small> : null}{dashboard && (deal.soldDate ? <small>Sold {deal.soldDate}</small> : deal.indicators && <small>{deal.indicators.ageDays} days open</small>)}{dashboard && area === "accounts" && section === "work" && <><small>Recorded outstanding: {deal.indicators?.financials?.outstandingCents == null ? "Not recorded" : moneyLabel(deal.indicators.financials.outstandingCents)}</small></>}</td>
-      <td data-label="Vehicle"><span className={styles.truncate} title={deal.vehicleReference}>{deal.vehicleReference || "Not assigned"}</span></td>
+      <td data-label="Vehicle"><span className={styles.truncate} title={deal.vehicleReference}>{deal.vehicleReference || "Not assigned"}</span>{deal.rental && <small>{deal.rental.occupancy}</small>}</td>
       <td data-label="Revenue Path">{SALES_DOCUMENT_PATHWAYS[deal.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? deal.pathway}</td>
-      <td data-label="Status / Next action">{dashboard ? <DealRowStatus deal={deal} onDetails={() => { setDetailsTab(deal.outstandingItems?.length ? "Completion" : "Documents"); setDetails(deal); }} /> : <span className={styles.badge} data-status={deal.status}>{deal.stage || SAVED_DEAL_STATUSES[deal.status] || deal.status}</span>}</td>
-      <td data-label="Owner / Due">{dashboard ? <><span>{deal.ownerName || "Unassigned"}</span><small>{deal.dueAt ? new Date(deal.dueAt).toLocaleString() : "No due date"}</small></> : new Date(deal.updatedAt).toLocaleString()}</td>
+      <td data-label="Status / Next action">{dashboard ? <DealRowStatus deal={deal} onDetails={() => { setDetailsTab(deal.rental ? "Rental" : deal.outstandingItems?.length ? "Completion" : "Documents"); setDetails(deal); }} /> : <span className={styles.badge} data-status={deal.status}>{deal.stage || SAVED_DEAL_STATUSES[deal.status] || deal.status}</span>}</td>
+      <td data-label="Owner / Due">{dashboard ? <><span>{deal.ownerName || "Unassigned"}</span><small>{deal.rental ? `Due back · ${rentalTime(deal.rental.dueBack)}` : deal.dueAt ? new Date(deal.dueAt).toLocaleString() : "No due date"}</small></> : new Date(deal.updatedAt).toLocaleString()}</td>
       <td>{dashboard ? <DealRowActions deal={deal} canManage={Boolean(data.dashboard?.canManage)} disabled={disabled} archiveBusy={archiveBusy} onOpen={() => onOpen(deal.draftId || deal.id)} onDetails={tab => { setDetailsTab(tab); setDetails(deal); }} onLifecycle={action => setLifecycle({ deal, action })} onArchive={() => { setError(""); setMessage(""); setArchiving(deal); }} /> : <>
         <div className={styles.commands}>{(deal.draftId || !deal.jacketId) && deal.indicators?.canEdit !== false ? <button aria-label={`Open deal for ${deal.customerName}`} disabled={disabled} onClick={() => onOpen(deal.draftId || deal.id)}><FolderOpen size={16} />Continue</button> : null}{deal.jacketId ? <Link aria-label={`Open packet for ${deal.customerName}`} href={`/sales-documents?jacketId=${encodeURIComponent(deal.jacketId)}`}><FileText size={16} />Open packet</Link> : null}</div>
         {deal.status !== "ARCHIVED" && <details><summary>More</summary><div className={styles.commands}>

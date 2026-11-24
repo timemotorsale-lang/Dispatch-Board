@@ -9,12 +9,14 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
     if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !/^deal_staging_\d+$/.test(url.searchParams.get("schema") ?? "")) throw new Error("An isolated loopback deal_staging schema is required.");
     const { prisma } = await import("@/server/db/client");
     const { saveDealDeskDraft } = await import("@/server/sales-documents/deal-drafts");
+    const { changeDealPathway } = await import("@/server/sales-documents/deal-pathway");
+    const { manageDealLifecycle } = await import("@/server/sales-documents/deal-lifecycle");
     const { executeVehicleUse, readDealContinuity, resolveDealSource, validateDealDocumentContext } = await import("@/server/deal-continuity/service");
     const { createDealCustomer, createDealVehicle, dealCustomer, dealVehicle, searchDealVehicles } = await import("@/server/deal-continuity/identities");
     const prefix = `deal-proof-${randomUUID()}`;
     const organizationId = process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID!;
     const actor: AuthenticatedUser = { id: `${prefix}-staff`, name: "Isolated review staff", email: `${prefix}@example.test`, isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
-    await prisma.organization.upsert({ where: { id: organizationId }, create: { id: organizationId, code: "DEAL_TEST", name: "Isolated deal review only" }, update: {} });
+    await prisma.organization.upsert({ where: { id: organizationId }, create: { id: organizationId, code: organizationId, name: "Isolated deal review only" }, update: {} });
     await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "NON_LOGIN_TEST_FIXTURE" } });
     const location = await prisma.location.create({ data: { organizationId, code: prefix, name: "Isolated review lot", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
     const customer = await createDealCustomer(actor, { displayName: "Isolated linked customer", phoneNumber: "+16125550199", locationId: location.id });
@@ -23,8 +25,8 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
     const simultaneousCustomers = await Promise.allSettled([1, 2].map(() => createDealCustomer(actor, { displayName: "Simultaneous isolated customer", phoneNumber: "+16125550299", locationId: location.id })));
     expect(simultaneousCustomers.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(await prisma.customer.count({ where: { organizationId, phoneNumber: "+16125550299" } })).toBe(1);
-    const original = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-original`, stockNumber: "004352", vin: "1HGCM82633A004352", vinState: "VALID", year: 2003, make: "Honda", model: "Accord" } });
-    const temporary = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-temporary`, stockNumber: "352563", vin: "1M8GDM9AXKP042788", vinState: "VALID", year: 1989, make: "MCI", model: "Review vehicle" } });
+    const original = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-original`, stockNumber: "004352", vin: "1HGCM82633A004352", vinState: "VALID", vinValidationSource: "TEST_FIXTURE", year: 2003, make: "Honda", model: "Accord" } });
+    const temporary = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-temporary`, stockNumber: "352563", vin: "1M8GDM9AXKP042788", vinState: "VALID", vinValidationSource: "TEST_FIXTURE", year: 1989, make: "MCI", model: "Review vehicle" } });
     await prisma.vehicleOperationsFeatureFlag.createMany({ data: ["VEHICLE_OPERATIONS_MASTER", "VEHICLE_REGISTRY"].map(code => ({ organizationId, code, mode: "GENERAL" as const, rolloutPercent: 100, allowedUserIds: [] })) });
     const { isValidVin } = await import("@/server/vehicle-registry/domain");
     const newVin = [..."0123456789X"].map(check => `1HGCM826${check}3A004353`).find(isValidVin)!;
@@ -61,24 +63,56 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
     await expect(saveDealDeskDraft(actor, { id: loaner.id, revision: loaner.revision, pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: original.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: original.id } } })).rejects.toMatchObject({ status: 409 });
     await expect(dealCustomer({ ...actor, roles: ["Salesperson"], id: "unrelated-user" }, customer.id)).rejects.toBeDefined();
     await expect(readDealContinuity(null, loaner.id)).rejects.toMatchObject({ status: 401 });
-    const actual = { operationKey: randomUUID(), action: "HANDOFF", bookingId: booking.id, expectedVersion: booking.version, reason: "Actual isolated handoff", occurredAt: new Date(Date.now() - 300000).toISOString(), odometer: 10000, fuel: "Full", condition: "Isolated condition evidence", recipient: "Isolated customer", keysVerified: true, driverVerified: true, evidence: ["ISOLATED_TEST_REPORT_NOT_REAL_HANDOFF"] };
+    const coverage = new Date(Date.now() + 3 * 86400000).toISOString();
+    const actual = { operationKey: randomUUID(), action: "HANDOFF", bookingId: booking.id, expectedVersion: booking.version, reason: "Actual isolated handoff", occurredAt: new Date(Date.now() - 300000).toISOString(), odometer: 10000, fuel: "Full", condition: "Isolated condition evidence", recipient: "Isolated customer", keysVerified: true, driverVerified: true, physicalHandover: true, insuranceVerified: true, insuranceValidUntil: coverage, timezone: "America/Chicago", evidence: ["ISOLATED_TEST_REPORT_NOT_REAL_HANDOFF"] };
     await expect(executeVehicleUse(actor, loaner.id, actual)).rejects.toThrow("finalize");
     const packet = await prisma.documentLibraryPacket.create({ data: { organizationId, ownerType: "CUSTOMER", ownerId: customer.id, ownerLabel: customer.name, packetType: "TEST_FIXTURE", workflow: "vehicle-loaner", title: "Isolated finalized agreement fixture" } });
     const jacket = await prisma.salesDocumentJacket.create({ data: { organizationId, packetId: packet.id, dealReference: randomUUID(), dealNumber: "ISOLATED-LOANER", pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber!, vin: temporary.vin, state: "CHECKED_OUT", requirements: [], createdByUserId: actor.id, versions: { create: { version: 1, phase: "CHECKOUT", disposition: "CHECKED_OUT", snapshot: { isolatedTestFixture: true }, finalizedByUserId: actor.id } } } });
+    for (const documentType of ["signed-agreement", "insurance-proof"]) {
+      await prisma.documentLibraryDocument.create({ data: {
+        organizationId, ownerType: "CUSTOMER", ownerId: customer.id, ownerLabel: customer.name,
+        documentType, fileName: `isolated-${documentType}.pdf`, status: "ACCEPTED", retentionCategory: "TEST_FIXTURE",
+        storageProvider: "TEST_FIXTURE", storageReference: documentType, classificationSnapshot: { signed: true },
+        packetLinks: { create: { organizationId, packetId: packet.id } }
+      } });
+    }
     await prisma.dealDeskDraft.update({ where: { id: loaner.id }, data: { snapshot: { "desk:identity": identity, jackets: { "vehicle-loaner": jacket.id } } } });
     expect((await readDealContinuity(actor, loaner.id)).agreements).toEqual([{ id: jacket.id, dealNumber: jacket.dealNumber }]);
-    await executeVehicleUse(actor, loaner.id, { ...actual, agreementJacketId: jacket.id });
-    expect((await dealVehicle(actor, temporary.id)).availability).toContain("Out");
+    const handoff = { ...actual, agreementJacketId: jacket.id, occurredAt: new Date(Date.now() - 2 * 86400000).toISOString(), historicalHandoff: true };
+    await expect(executeVehicleUse(actor, loaner.id, { ...handoff, historicalHandoff: false })).rejects.toMatchObject({ status: 403 });
+    const duplicateHandoffs = await Promise.all([executeVehicleUse(actor, loaner.id, handoff), executeVehicleUse(actor, loaner.id, handoff)]);
+    expect(duplicateHandoffs.map(result => result.duplicate).sort()).toEqual([false, true]);
+    expect((await dealVehicle(actor, temporary.id)).availability).toContain("Loaner Active");
     await expect(validateDealDocumentContext(actor, { workflowContextId: competitor.id, customerId: customer.id, customerName: customer.name, pathway: "daily-rental", vehicle: { vin: temporary.vin } })).rejects.toThrow("checked out");
     booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
+    expect(booking).toMatchObject({ startsAt: new Date(startsAt), checkedOutAt: new Date(handoff.occurredAt), departureSnapshot: { historicalHandoff: true, recordedBy: actor.id } });
     await expect(executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 9000 })).rejects.toThrow("lower");
     await executeVehicleUse(actor, loaner.id, { action: "EXTEND", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, expectedReturnAt: new Date(Date.now() + 2 * 86400000).toISOString(), reason: "Original delivery remains pending" });
     booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
     await executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 10050, occurredAt: new Date().toISOString() });
-    expect(await prisma.vehicleUseBooking.findUnique({ where: { id: booking.id } })).toMatchObject({ status: "RETURNED" });
+    booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
+    expect(booking.status).toBe("RETURNED_REVIEW");
+    expect((await dealVehicle(actor, temporary.id)).availability).toMatch(/pending|review/i);
+    await expect(changeDealPathway(actor, { id: loaner.id, pathway: "retail-sale", revision: loaner.revision })).rejects.toMatchObject({ status: 409 });
+    const completion = { action: "COMPLETE", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, reason: "Return inspection completed and no charges due", inspected: true, settlementReference: "ISOLATED_NO_CHARGE_RECEIPT" };
+    await expect(executeVehicleUse(actor, loaner.id, completion)).rejects.toThrow("return packet");
+    await prisma.salesDocumentPacketVersion.create({ data: { jacketId: jacket.id, version: 2, phase: "RETURN", disposition: "CLOSED", snapshot: { isolatedTestFixture: true, documents: [{ type: "return-receipt", reviewed: true }] }, finalizedByUserId: actor.id } });
+    const concurrentCompletions = await Promise.allSettled([
+      executeVehicleUse(actor, loaner.id, completion),
+      executeVehicleUse(actor, loaner.id, { ...completion, operationKey: randomUUID() })
+    ]);
+    expect(concurrentCompletions.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(await prisma.vehicleUseBooking.findUnique({ where: { id: booking.id } })).toMatchObject({
+      status: "RETURNED", returnSnapshot: { odometer: 10050, completion: { settlementReference: completion.settlementReference } }
+    });
+    expect(await prisma.dealContinuityEvent.count({ where: { bookingId: booking.id, action: "COMPLETE" } })).toBe(1);
     expect(await prisma.vehicleCustodyEvent.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
     expect(await prisma.vehicleOdometerObservation.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
     expect(JSON.stringify(await prisma.dealDeskDraft.findUnique({ where: { id: originalDraft.id } }))).toBe(originalBefore);
+    const converted = await changeDealPathway(actor, { id: loaner.id, pathway: "retail-sale", revision: loaner.revision, reason: "Separate sale after completing vehicle use" });
+    expect(converted.pathway).toBe("retail-sale");
+    await expect(manageDealLifecycle(actor, { action: "MARK_SOLD", id: loaner.id, revision: converted.revision })).resolves.toMatchObject({ status: "SOLD" });
+    expect(await prisma.salesDocumentPacketVersion.count({ where: { jacketId: jacket.id } })).toBe(2);
     await expect(prisma.dealContinuityEvent.deleteMany({ where: { contextId: loaner.id } })).rejects.toThrow();
     await prisma.$disconnect();
   }, 60000);

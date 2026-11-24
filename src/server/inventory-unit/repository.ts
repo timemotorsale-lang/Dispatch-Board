@@ -1,5 +1,7 @@
 import { InventoryUnitLifecycleStage, Prisma, type InventoryUnitOperatingState, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
+import { describeVehicleCustodySelection } from "@/lib/vehicle-use-custody";
+import { vehicleCustodySelection } from "@/server/deal-continuity/custody-selection";
 import { allocateInventoryNumber } from "./number-allocation";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
@@ -43,7 +45,7 @@ export async function executeInventoryMutation(database: PrismaClient, input: En
 export type InventoryUnitCreateRecord = { acquisitionSource: "AUCTION" | "TRADE" | "DIRECT_PURCHASE" | "DEALER_TRANSFER" | "CONSIGNMENT" | "OTHER"; actorUserId: string; financialAcquiredAt: Date; inventoryNumber: string | null; locationId: string; nextAction: string; operatingState: "ACTIVE" | "WAITING" | "BLOCKED"; ownerUserId: string; stateReason: string | null; targetAt: Date; vehicleId: string; intakeDraftRequired?: boolean };
 export type InventoryUnitControlRecord = Omit<InventoryUnitCreateRecord, "acquisitionSource" | "financialAcquiredAt" | "inventoryNumber" | "vehicleId">;
 
-const detailInclude = { vehicle: { select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true, year: true, make: true, model: true, color: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
+const detailInclude = (organizationId: string) => ({ vehicle: { select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true, year: true, make: true, model: true, color: true, vehicleUseBookings: vehicleCustodySelection(organizationId) } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } });
 
 export function createInventoryUnitRepository(database: PrismaClient = prisma) {
   return {
@@ -58,7 +60,7 @@ export function createInventoryUnitRepository(database: PrismaClient = prisma) {
         const total = await tx.inventoryUnit.count({ where });
         const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
         const page = Math.min(input.page, totalPages);
-        const items = await tx.inventoryUnit.findMany({ where, orderBy: [...(input.sort === "location" ? [{ location: { name: "asc" as const } }] : []), { targetAt: "asc" }, { inventoryNumber: "asc" }, { id: "asc" }], skip: (page - 1) * input.pageSize, take: input.pageSize, include: { vehicle: { select: { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } }, _count: { select: { stateEvents: true } } } });
+        const items = await tx.inventoryUnit.findMany({ where, orderBy: [...(input.sort === "location" ? [{ location: { name: "asc" as const } }] : []), { targetAt: "asc" }, { inventoryNumber: "asc" }, { id: "asc" }], skip: (page - 1) * input.pageSize, take: input.pageSize, include: { vehicle: { select: { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, vehicleUseBookings: vehicleCustodySelection(organizationId) } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } }, _count: { select: { stateEvents: true } } } });
         const groups = await tx.inventoryUnit.groupBy({ by: ["locationId", "operatingState", "lifecycleStage"], where, _count: { _all: true } });
         const overdueWhere = { ...where, targetAt: { lt: input.now } };
         const overdueGroups = await tx.inventoryUnit.groupBy({ by: ["locationId"], where: overdueWhere, _count: { _all: true } });
@@ -72,10 +74,18 @@ export function createInventoryUnitRepository(database: PrismaClient = prisma) {
           stages: Object.values(InventoryUnitLifecycleStage).map(stage => ({ stage, total: groups.filter(group => group.lifecycleStage === stage).reduce((sum, group) => sum + group._count._all, 0) })),
           locations: locations.map(location => ({ ...location, total: groups.filter(group => group.locationId === location.id).reduce((sum, group) => sum + group._count._all, 0), active: countState("ACTIVE", location.id), waiting: countState("WAITING", location.id), blocked: countState("BLOCKED", location.id), overdue: overdueGroups.find(group => group.locationId === location.id)?._count._all ?? 0 }))
         };
-        return { items, page, pageSize: input.pageSize, total, totalPages, summary };
+        return { items: items.map(({ vehicle, ...item }) => {
+          const { vehicleUseBookings, ...identity } = vehicle;
+          return { ...item, vehicle: identity, custodyLabel: describeVehicleCustodySelection(vehicleUseBookings ?? [], input.now)?.label ?? null };
+        }), page, pageSize: input.pageSize, total, totalPages, summary };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     },
-    getDetail(organizationId: string, id: string) { return database.inventoryUnit.findFirst({ where: { id, organizationId }, include: detailInclude }); },
+    async getDetail(organizationId: string, id: string) {
+      const unit = await database.inventoryUnit.findFirst({ where: { id, organizationId }, include: detailInclude(organizationId) });
+      if (!unit) return null;
+      const { vehicleUseBookings, ...vehicle } = unit.vehicle;
+      return { ...unit, vehicle, custodyLabel: describeVehicleCustodySelection(vehicleUseBookings ?? [])?.label ?? null };
+    },
     getCostDetail(organizationId: string, vehicleId: string) {
       return database.inventoryUnit.findFirst({ where: { organizationId, vehicleId, closedAt: null }, include: { vehicle: { select: { id: true, vehicleNumber: true, year: true, make: true, model: true } }, costEntries: { orderBy: [{ createdAt: "desc" }, { id: "desc" }] } } });
     },

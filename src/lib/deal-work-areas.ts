@@ -13,12 +13,17 @@ export function dealAreaAfterPathwayChange(pathway: string): DealWorkArea {
   if (pathway === "repairs") return "repairs";
   return "working";
 }
-type AreaRecord = Pick<DashboardDeal, "pathway" | "status" | "packetState" | "stage" | "soldDate" | "indicators">;
+type AreaRecord = Pick<DashboardDeal, "pathway" | "status" | "packetState" | "stage" | "soldDate" | "indicators" | "rental">;
 export function isRecordedSale(row: AreaRecord) {
   return dealGroup(row.pathway) === "SALES" && (row.status === "SOLD" || row.status === "COMPLETED" || Boolean(row.soldDate) || ["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(row.packetState || ""));
 }
 export function belongsToDealArea(row: AreaRecord, area: DealWorkArea): boolean {
   if (area === "all") return true;
+  if (row.rental) {
+    if (area === "rentals") return row.status !== "ARCHIVED";
+    if (area === "archive") return ["ARCHIVED", "CANCELLED", "LOST"].includes(row.status) || ["COMPLETE", "CANCELLED"].includes(row.rental.stage);
+    return false;
+  }
   const inactive = ["ARCHIVED", "CANCELLED", "LOST"].includes(row.status);
   const finished = row.status === "COMPLETED" || row.stage === "Completed";
   if (area === "archive") return inactive || finished && !isRecordedSale(row) && (row.pathway !== "lease-to-own" || !belongsToDealArea(row, "accounts"));
@@ -40,7 +45,7 @@ export const DEAL_AREA_HELP: Record<DealWorkArea, string> = {
   working: "Quotes, applications and deals being prepared. Recorded sales and active vehicle-use work have their own views.",
   sold: "Recorded vehicle sales. Delivery, documents, funding and title remain separate checks on the original deal jacket.",
   accounts: "BHPH and lease agreements ready for account review. Open Money for verified entries and Follow-ups for the next task. A blank balance means it has not been recorded; this view does not calculate installments or delinquency from worksheets.",
-  rentals: "Reservations, vehicles out and return follow-up for rentals and loaners.",
+  rentals: "Track preparation, vehicles out, return review and completed or cancelled assignments.",
   repairs: "Service intake and repair handoffs. Continue in the linked repair workflow.",
   drives: "Test-drive agreements and vehicle returns, separate from vehicle sales.",
   archive: "Canceled, lost, archived and completed operational records. Documents and history remain available. Completed vehicle sales stay in Sold Deals; lease agreements stay separate from ownership-transfer sales.",

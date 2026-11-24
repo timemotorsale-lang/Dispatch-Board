@@ -112,6 +112,7 @@
 @media(max-width: 600px) { .savedViews { align-items: stretch; }.savedViews label { flex: 1 1 140px; }.savedViews input, .savedViews select { max-width: 100%; }.dealDrawer { padding: 16px; }.dealDrawer .reportTotals { grid-template-columns: 1fr; } }
 .rowActionBar { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
 .library .rowActionBar > button, .library .rowActionBar > a { white-space: normal; }
+.library .rowActionBar > .rentalPrimaryAction { background: #3154ae; border-color: #3154ae; color: #fff; font-weight: 600; }
 .library .rowStatusTrigger { display: inline-flex; justify-content: space-between; gap: 6px; max-width: 100%; white-space: normal; text-align: left; border-color: transparent; }
 .rowStatusTrigger svg, .rowActionsTrigger svg { display: block; flex: 0 0 auto; }
 .library .rowNextAction > a { display: inline; padding: 0; border: 0; background: transparent; border-radius: 0; text-decoration: underline; text-underline-offset: 2px; white-space: normal; font-size: inherit; }

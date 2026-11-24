@@ -5,6 +5,9 @@ import { isManager } from "@/server/policies/access";
 import { dealOrganization } from "@/server/deal-continuity/identities";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
+import { dealGroup } from "@/lib/deal-dashboard";
+import { isRentalPathway } from "@/lib/rental-operations";
+import { legacyRentalReturnWithoutCompletion } from "@/server/deal-continuity/custody-selection";
 import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 
@@ -24,9 +27,20 @@ export async function changeDealPathway(actor: AuthenticatedUser | null, raw: Re
     if (!draft) throw new SalesDocumentsError("This saved deal is unavailable to your account.", 404);
     if (draft.pathway === target) return { id, pathway: target, status: draft.status, revision: draft.revision, unchanged: true };
     if (draft.revision !== raw.revision) throw new SalesDocumentsError("This deal changed. Refresh its details before changing the pathway.", 409);
+    if (draft.status === "SOLD" || object(draft.snapshot)["desk:soldVehicleId"]) throw new SalesDocumentsError("Resolve the sale through the sales unwind workflow before changing its pathway.", 409);
     const nextStatus = ["SOLD", "COMPLETED", "PENDING"].includes(draft.status) ? "PENDING" : "IN_PROGRESS";
-    const activeAssignment = await database.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
+    const activeAssignment = await database.vehicleUseBooking.count({ where: { contextId: id, OR: [{ status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, legacyRentalReturnWithoutCompletion] } });
+    if (activeAssignment && dealGroup(draft.pathway) === "USE" && ["SALES", "LEASING"].includes(dealGroup(target))) {
+      throw new SalesDocumentsError("Cancel the temporary reservation or complete the vehicle return and review before changing this deal to a sales or leasing pathway.", 409);
+    }
     const snapshot = object(draft.snapshot), jackets = object(snapshot.jackets), references = object(snapshot.references);
+    const currentJacketId = jackets[draft.pathway];
+    if (isRentalPathway(draft.pathway) && ["SALES", "LEASING"].includes(dealGroup(target)) && !activeAssignment &&
+      draft.status !== "CANCELLED" && typeof currentJacketId === "string" &&
+      await database.salesDocumentPacketVersion.count({ where: { jacketId: currentJacketId, phase: "CHECKOUT" } }) &&
+      !await database.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RETURNED", "CANCELLED"] } } })) {
+      throw new SalesDocumentsError("Review the signed checkout and reconcile actual vehicle custody before changing this deal to a sale.", 409);
+    }
     const jacketIds = Object.values(jackets).filter((value): value is string => typeof value === "string");
     const refs = Object.values(references).filter((value): value is string => typeof value === "string");
     const protectedPacket = await database.salesDocumentJacket.findFirst({ where: { organizationId, OR: [{ id: { in: jacketIds } }, { dealReference: { in: refs } }], AND: [{ OR: [{ state: { not: "WORKING" } }, { versions: { some: {} } }, { packet: { auditEvents: { some: { action: "DEAL_FINANCIAL_RECORDED" } } } }, { packet: { documents: { some: { document: { source: { not: "GENERATED" }, OR: [{ status: "ACCEPTED" }, { classificationSnapshot: { path: ["signed"], equals: true } }] } } } } }] }] }, select: { id: true } });
