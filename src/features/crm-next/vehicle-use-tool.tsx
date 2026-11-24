@@ -6,6 +6,7 @@ import { normalizeVehicleUseCommand } from "@/lib/deal-continuity";
 import { RENTAL_TIMEZONE, rentalCheckoutDefaults, rentalLocalTime, rentalTimeChoices, rentalTimeIso } from "@/lib/rental-checkout";
 import { RENTAL_OPERATIONS_CHANGED, rentalOperationsSummary, type RentalBooking } from "@/lib/rental-operations";
 import { validateRentalCoverage } from "@/lib/rental-lifecycle";
+import { SALES_DOCUMENT_CHECKOUT_FINALIZED } from "@/lib/sales-document-pathways";
 import { useDealDraft, useDealSaveState } from "./deal-draft-workspace";
 import styles from "./shared-deal-identities.module.css";
 
@@ -71,8 +72,8 @@ function RentalTimeField({ label, value, onChange, onOccurrence }: {
   </>;
 }
 
-export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
-  pathway: string; returnOnly?: boolean; onNavigate?: (section: DealWorkspaceSection) => void;
+export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, returnOnly = false }: {
+  pathway: string; returnOnly?: boolean; onNavigate?: (section: DealWorkspaceSection) => void; onPrepareCheckoutPacket?: () => void;
 }) {
   const draft = useDealDraft(), saveState = useDealSaveState(), draftId = draft?.draftId();
   const [model, setModel] = useState<Model | null>(null);
@@ -93,6 +94,7 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
   const [readinessConfirmation, setReadinessConfirmation] = useState("");
   const deepLinkConsumed = useRef(false);
   const booking = selectedBooking(model);
+  const agreementHref = model?.agreementHref;
   const loaner = pathway === "vehicle-loaner";
   const kind = loaner ? "Loaner" : "Rental";
   const isCancelled = cancelled || draft?.saleStatus === "CANCELLED" || model?.draftStatus === "CANCELLED";
@@ -122,12 +124,20 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
     };
     void reload();
     const onFocus = () => { void reload(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") void reload(); };
+    const packetChannel = agreementHref && typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(SALES_DOCUMENT_CHECKOUT_FINALIZED) : null;
+    packetChannel?.addEventListener("message", (event: MessageEvent<unknown>) => {
+      if (typeof event.data === "string" && agreementHref === `/sales-documents?jacketId=${encodeURIComponent(event.data)}`) void reload();
+    });
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       controller.abort();
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      packetChannel?.close();
     };
-  }, [draftId, returnOnly, saveState.record?.revision]);
+  }, [draftId, returnOnly, saveState.record?.revision, agreementHref]);
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 60000);
     return () => clearInterval(timer);
@@ -156,11 +166,13 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
         ? `The vehicle is unavailable for checkout. ${model.vehicleReadiness.detail}.`
         : "This VIN is registered. Complete Inventory Intake before reviewing rental readiness."
         : "",
-    model?.vehicleId && !model.agreements.length ? "Finalize the linked checkout packet in Documents before handing over the vehicle." : ""
+    model?.vehicleId && !model.agreements.length
+      ? model.agreementHref ? "Finalize the checkout packet in Sales Documents. Then return here to confirm handoff." : "Prepare and finalize the checkout packet before handing over the vehicle."
+      : ""
   ].filter(Boolean);
+  const checkoutBlocked = action === "HANDOFF" && checkoutBlockers.length > 0;
   const readinessReview = model?.vehicleReadiness?.review;
   const readinessKey = readinessReview ? JSON.stringify([draftId, readinessReview.vehicleId, readinessReview.inventoryUnitId, readinessReview.unitVersion, readinessReview.intakeRevisionId]) : "";
-  const blockedNotice = checkoutBlockers.length > 0 && notice === checkoutBlockers.join(" ");
   const timeField = (key: "startsAt" | "expectedReturnAt" | "occurredAt" | "insuranceValidUntil", fieldLabel: string, value = values[key] ?? "") =>
     <RentalTimeField label={fieldLabel} value={value} onChange={value => update(key, value)} onOccurrence={value => setOccurrences(current => ({ ...current, [key]: value }))} />;
   const displayTime = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: RENTAL_TIMEZONE, dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -206,7 +218,7 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
   }
 
   async function save(retryPrevious = false) {
-    if (!action || busy || stale && !retryPrevious) return;
+    if (!action || busy || !retryPrevious && (stale || checkoutBlocked)) return;
     setBusy(true);
     setNotice("");
     setRetryAvailable(false);
@@ -215,7 +227,6 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
       const id = draft?.draftId();
       if (!id) throw new Error("Save the deal before recording this action.");
       if (!retryPrevious) {
-        if (action === "HANDOFF" && checkoutBlockers.length) throw new Error(checkoutBlockers.join(" "));
         const custodyAction = action === "HANDOFF" || action === "RETURN";
         const payload = {
           ...values,
@@ -351,19 +362,23 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
         {action === "CANCEL" && <label><input type="checkbox" checked={values.noHandoffConfirmed} onChange={event => update("noHandoffConfirmed", event.target.checked)} />I confirmed the vehicle was never handed over</label>}
         {(action !== "HANDOFF" || historicalHandoff) && <label>{historicalHandoff ? "Why checkout is being recorded late" : values.settlementException ? "Exception reason" : "Reason"}<input required maxLength={500} value={values.reason} onChange={event => update("reason", event.target.value)} /></label>}
       </fieldset>
-      {action === "HANDOFF" && checkoutBlockers.length > 0 && <div><ul role={blockedNotice ? "alert" : undefined}>{checkoutBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
+      {checkoutBlocked && <div className={styles.checkoutBlocked}>
+        <div role="status"><strong>Checkout pending</strong><ul>{checkoutBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul></div>
+        {!model?.vehicleId && onNavigate && <button className={styles.rentalPrimary} type="button" onClick={() => onNavigate("identity")}>Review customer and vehicle</button>}
         {model?.vehicleId && model.vehicleReadiness?.eligible === false && !readinessReview && <p><a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.vehicleReadiness.inventoryUnitId ? `/vehicles/inventory/units?inventoryUnitId=${encodeURIComponent(model.vehicleReadiness.inventoryUnitId)}` : `/prototype/inventory-intake?vehicleId=${encodeURIComponent(model.vehicleId)}`}>{model.vehicleReadiness.inventoryUnitId ? "Review vehicle in Inventory" : "Open Inventory Intake for this vehicle"}</a></p>}
-        {!model?.agreements.length && (model?.agreementHref ? <a target="_blank" rel="noopener noreferrer" href={model.agreementHref}>Open checkout paperwork</a> : onNavigate ? <button type="button" onClick={() => onNavigate("documents")}>Open checkout paperwork</button> : null)}
+        {model?.vehicleId && !model.agreements.length && (model.agreementHref
+          ? <a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.agreementHref}>Review &amp; finalize checkout packet</a>
+          : (onPrepareCheckoutPacket || onNavigate) && <button type="button" className={styles.rentalPrimary} onClick={onPrepareCheckoutPacket ?? (() => onNavigate?.("documents"))}>Prepare checkout packet</button>)}
       </div>}
       {(action === "HANDOFF" || action === "RESERVE") && readinessReview && <fieldset>
         <legend>Ready to rent without repairs</legend>
         <label><input type="checkbox" disabled={busy} checked={readinessConfirmation === readinessKey} onChange={event => setReadinessConfirmation(event.target.checked ? readinessKey : "")} />The vehicle is on site, safe to rent, and needs no repairs.</label>
         <button className={styles.rentalPrimary} type="button" disabled={busy || readinessConfirmation !== readinessKey} onClick={() => void confirmReadiness()}>Confirm ready to rent</button>
       </fieldset>}
-      {notice && !blockedNotice && <p role="alert">{notice}</p>}
-      <button type="submit" className={styles.rentalPrimary} disabled={busy || !actions.includes(action) || stale || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
+      {notice && <p role="alert">{notice}</p>}
+      {!checkoutBlocked && <button type="submit" className={styles.rentalPrimary} disabled={busy || !actions.includes(action) || stale || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
         {busy ? "Saving…" : action === "HANDOFF" ? `Confirm checkout · ${loaner ? "Loaner Active" : "Rented Out"}` : action === "EXTEND" ? "Save new due-back time" : action === "CANCEL" ? "Confirm cancellation" : label(action)}
-      </button>
+      </button>}
       {retryAvailable && <button type="button" disabled={busy} onClick={() => void save(true)}>Retry previous submission</button>}
       <button type="button" disabled={busy} onClick={() => setAction(null)}>Close form</button>
     </form>}

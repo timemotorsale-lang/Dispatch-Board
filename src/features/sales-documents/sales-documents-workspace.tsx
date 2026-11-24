@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Search, Plus, X, Download, Check, RefreshCw, FileText, FolderOpen } from "lucide-react";
-import { SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-document-pathways";
+import { SALES_DOCUMENT_CHECKOUT_FINALIZED, SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import { ClosingReviewPanel } from "./closing-review-panel";
 import { DealDocumentWorkspace } from "./deal-document-workspace";
@@ -46,7 +46,13 @@ export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initi
   async function update(body: Record<string, unknown>) {
     if (!selected) return;
     await run(async () => {
-      accept(await request(`/api/sales-documents/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, revision: selected.revision }) }));
+      const updated = await request<SalesDocumentJacketView>(`/api/sales-documents/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, revision: selected.revision }) });
+      accept(updated);
+      if (body.action === "FINALIZE" && selected.phase === "CHECKOUT" && updated.state === "CHECKED_OUT" && typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel(SALES_DOCUMENT_CHECKOUT_FINALIZED);
+        channel.postMessage(updated.id);
+        channel.close();
+      }
       setWaiving(null); setFinalizing(false); setAdding(false); setMessage("Saved.");
     });
   }

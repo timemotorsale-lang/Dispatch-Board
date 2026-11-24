@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { PDFDocument } from "pdf-lib";
 import { rentalLocalTime } from "../../lib/rental-checkout";
 import { isValidVin } from "../../server/vehicle-registry/domain";
 
@@ -124,7 +125,11 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
       organizationId, vehicleId: vehicle.id, inventoryUnitId: unit.id, version: 1, status: "CONFIRMED", details: { condition: "Good" },
       pendingItems: [], costRecordIds: [], actorUserId: user.id, reason: "Test fixture"
     } });
-    const snapshot = { "desk:identity": { customerId: customer.id, vehicleId: vehicle.id, inventoryUnitId: unit.id } };
+    const snapshot = {
+      "desk:workflowId": "daily-rental",
+      "desk:form": { amount: "", customerId: customer.id, note: "", ownerUserId: user.id, vehicle: id },
+      "desk:identity": { customerId: customer.id, vehicleId: vehicle.id, inventoryUnitId: unit.id }
+    };
     const saved = await page.request.post("/api/crm/v1/deal-drafts", { data: {
       id, revision: 0, pathway: "daily-rental", customerName: name, customerId: customer.id, vehicleReference: id, snapshot
     } });
@@ -140,9 +145,14 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     await expect(checkout.getByLabel("Dated handoff record")).toBeVisible();
     await checkout.getByLabel("Actual checkout (Chicago)", { exact: true }).fill(rentalLocalTime(occurredAt));
     await expect(checkout.getByLabel("Dated handoff record")).toHaveCount(0);
-    await confirm.click();
-    await expect(checkout.getByRole("alert")).toContainText("Finalize the linked checkout packet");
-    await expect(checkout.getByRole("alert")).toContainText("Confirm the vehicle is ready to rent");
+    await expect(confirm).toHaveCount(0);
+    const pendingCheckout = checkout.getByRole("status").filter({ hasText: "Checkout pending" });
+    await expect(pendingCheckout).toContainText("Prepare and finalize the checkout packet");
+    await expect(pendingCheckout).toContainText("Confirm the vehicle is ready to rent");
+    await checkout.getByRole("button", { name: "Prepare checkout packet" }).click();
+    const drawer = page.getByRole("complementary", { name: "Daily Rental packet drawer" });
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("button", { name: "Close", exact: true }).click();
     expect(await prisma.vehicleUseBooking.count({ where: { contextId: id } })).toBe(0);
     const readinessButton = checkout.getByRole("button", { name: "Confirm ready to rent" });
     await expect(readinessButton).toBeDisabled();
@@ -153,7 +163,7 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     } });
     expect(staleConfirmation.status()).toBe(409);
     await checkout.getByLabel("The vehicle is on site, safe to rent, and needs no repairs.").check();
-    const confirmation = page.waitForRequest(request => request.url().endsWith(`/deal-continuity/${id}`) && request.method() === "POST");
+    const confirmation = page.waitForRequest(request => request.url().endsWith(`/deal-continuity/${id}`) && request.method() === "POST", { timeout: 10000 });
     await readinessButton.click();
     const readinessPayload = (await confirmation).postDataJSON();
     await expect(checkout.getByRole("status").filter({ hasText: "Rental readiness confirmed for this deal." })).toBeVisible();
@@ -168,21 +178,45 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     } });
     const jacket = await prisma.salesDocumentJacket.create({ data: {
       organizationId, packetId: packet.id, dealReference: id, dealNumber: String(draft.dealNumber), pathway: "daily-rental",
-      customerId: customer.id, customerName: name, vehicleReference: id, vin: vehicle.vin, state: "CHECKED_OUT", requirements: [], createdByUserId: user.id,
-      versions: { create: { version: 1, phase: "CHECKOUT", disposition: "CHECKED_OUT", snapshot: {}, finalizedByUserId: user.id } }
+      customerId: customer.id, customerName: name, vehicleReference: id, vin: vehicle.vin, state: "WORKING", requirements: [], createdByUserId: user.id
     } });
-    const documents = await Promise.all([
+    const proof = await PDFDocument.create();
+    proof.addPage().drawText("Synthetic rental checkout evidence");
+    const proofBytes = Buffer.from(await proof.save());
+    const documentIds = new Map<string, string>();
+    for (const { documentType, fileName } of [
       { documentType: "signed-agreement", fileName: "signed-agreement.pdf" },
       { documentType: "insurance-proof", fileName: "older-policy.pdf" },
-      { documentType: "insurance-proof", fileName: "renewal.pdf" }
-    ].map(document => prisma.documentLibraryDocument.create({ data: {
-        organizationId, ownerType: "CUSTOMER", ownerId: customer.id, ownerLabel: name, ...document,
-        status: "ACCEPTED", retentionCategory: "TEST_FIXTURE", storageProvider: "TEST_FIXTURE", storageReference: document.fileName,
-        classificationSnapshot: { signed: true }, packetLinks: { create: { organizationId, packetId: packet.id } }
-    } })));
+      { documentType: "insurance-proof", fileName: "renewal.pdf" },
+      { documentType: "driver-license", fileName: "test-license.pdf" },
+      { documentType: "release-condition", fileName: "condition.pdf" }
+    ]) {
+      const upload = await page.request.post(`/api/sales-documents/${jacket.id}/documents`, {
+        multipart: { documentType, file: { name: fileName, mimeType: "application/pdf", buffer: proofBytes } }
+      });
+      expect(upload.ok(), await upload.text()).toBe(true);
+      const uploaded = await upload.json();
+      const doc = (uploaded.documents as { id: string; fileName: string }[]).find(document => document.fileName === fileName)!;
+      const review = await page.request.patch(`/api/sales-documents/${jacket.id}`, {
+        data: { action: "REVIEW", revision: uploaded.revision, documentId: doc.id, signed: documentType === "signed-agreement" }
+      });
+      expect(review.ok(), await review.text()).toBe(true);
+      documentIds.set(fileName, doc.id);
+    }
     await prisma.dealDeskDraft.update({ where: { id }, data: { snapshot: { ...snapshot, jackets: { "daily-rental": jacket.id } } } });
     await checkout.getByRole("button", { name: "Refresh checkout status" }).click();
-    await expect(checkout.getByRole("button", { name: "Open checkout paperwork" })).toHaveCount(0);
+    const reviewPacket = checkout.getByRole("link", { name: "Review & finalize checkout packet" });
+    await expect(reviewPacket).toHaveAttribute("href", `/sales-documents?jacketId=${jacket.id}`);
+    await expect(reviewPacket).toHaveCSS("background-color", "rgb(49, 84, 174)");
+    await expect(confirm).toHaveCount(0);
+    const [paperwork] = await Promise.all([page.waitForEvent("popup"), reviewPacket.click()]);
+    await paperwork.getByRole("button", { name: "Finalize checkout packet", exact: true }).click();
+    await paperwork.getByRole("button", { name: "Finalize packet", exact: true }).click();
+    await expect(paperwork.getByRole("button", { name: "Final Packets (1)", exact: true })).toBeVisible();
+    await paperwork.close();
+    await page.bringToFront();
+    await expect(confirm).toBeEnabled({ timeout: 15000 });
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: id } })).toBe(0);
     await expect(checkout.getByLabel("Actual checkout (Chicago)", { exact: true })).toHaveValue(rentalLocalTime(occurredAt));
     await checkout.getByLabel("Due back (Chicago)", { exact: true }).fill(rentalLocalTime(due));
     await checkout.getByLabel("Odometer").fill("1200");
@@ -207,7 +241,8 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     await expect(checkout.getByRole("status").filter({ hasText: "Rented Out" })).toBeVisible();
     const bookings = await prisma.vehicleUseBooking.findMany({ where: { contextId: id } });
     expect(bookings).toHaveLength(1);
-    expect(bookings[0]).toMatchObject({ status: "CHECKED_OUT", departureSnapshot: { evidence: [`document:${documents[0].id}`, `document:${documents[2].id}`] } });
+    const evidence = ["signed-agreement.pdf", "renewal.pdf", "condition.pdf"].map(fileName => `document:${documentIds.get(fileName)}`);
+    expect(bookings[0]).toMatchObject({ status: "CHECKED_OUT", departureSnapshot: { evidence } });
     expect(await prisma.dealContinuityEvent.count({ where: { contextId: id, action: "HANDOFF" } })).toBe(1);
     expect(await prisma.repairOrder.count({ where: { vehicleId: vehicle.id } })).toBe(0);
   } finally {

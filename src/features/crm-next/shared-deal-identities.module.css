@@ -28,5 +28,7 @@
 .useTool a.rentalPrimary { display: inline-flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 4px; text-decoration: none; }
 .useTool a.rentalPrimary:hover { background: #24428d; }
 .useTool a.rentalPrimary:focus-visible { outline: 2px solid currentColor; outline-offset: -4px; }
+.checkoutBlocked { margin: 12px 0; padding: 10px 12px; border: 1px solid #aabed0; border-inline-start: 4px solid #3154ae; border-radius: 4px; background: var(--surface-muted, #f0f4fa); }
+.checkoutBlocked ul { margin: 4px 0 8px; padding-inline-start: 20px; }
 .picker [role=alert], .useTool [role=alert] { color: #a4262c; }
 @media(max-width:700px) { .identityGrid, .fields { grid-template-columns: minmax(0, 1fr); } }
