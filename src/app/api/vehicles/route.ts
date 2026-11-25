@@ -18,4 +18,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...registry, items: registry.items.map(item => ({ ...item, work: work[item.id] })) });
   } catch (error) { return failure(error); }
 }
-export async function POST(request: Request) { try { const result = await createRegistryVehicle(await getCurrentUser(), await request.json().catch(() => null)); return NextResponse.json(result, { status: result.duplicate ? 200 : 201 }); } catch (error) { return failure(error); } }
+export async function POST(request: Request) {
+  try {
+    const actor = await getCurrentUser();
+    const payload = await request.json().catch(() => null);
+    const result = payload?.rejectDuplicateIdentity === true
+      ? await createRegistryVehicle(actor, payload, {}, { rejectDuplicateIdentity: true, omitConflictingDerivedStock: payload.stockNumber == null })
+      : await createRegistryVehicle(actor, payload);
+    return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+  } catch (error) { return failure(error); }
+}

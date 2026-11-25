@@ -1,17 +1,70 @@
-.workspace { min-width: 0; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
-.registry { min-width: 0; }
-.registry h2 { font-size: 16px; margin: 0 0 12px; }
-.table { overflow-x: auto; border: 1px solid #d6dce4; background: white; }
-.table table { border-collapse: collapse; width: 100%; font-size: 13px; }
-.table th { text-align: left; background: #f4f6f8; color: #617080; font-weight: 600; }
-.table td, .table th { padding: 12px 14px; border-bottom: 1px solid #e1e5eb; vertical-align: middle; }
-.table td:first-child { width: 34%; overflow-wrap: anywhere; }
-.table small { display: block; color: #617080; font-size: 12px; margin-top: 6px; }
-.previewLink { padding: .35rem 0; border: 0; background: none; color: #22578c; cursor: pointer; text-decoration: underline; }
-.table tr[aria-selected="true"] { background: #edf5fc; }
-@media (max-width: 600px) {
-  .table th, .table td { padding: .55rem; }
-  .table td:first-child { width: 40%; }
+.workspace { min-width: 0; gap: 14px; color: var(--ink); }
+.heading, .actions, .resultActions, .searchRow { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; }
+.heading { justify-content: space-between; }
+.heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.65rem); line-height: 1.2; }
+.workspace a:not(.primary):not([class]) { color: var(--brand-strong); }
+.searchPanel, .results, .empty, .tools, .preview {
+  border: 1px solid var(--line-strong);
+  border-radius: .65rem;
+  background: var(--surface);
 }
-.preview { padding-block: 20px; border-block: 1px solid #d6dce4; }
+.searchPanel, .empty, .preview { padding: .875rem; }
+.searchPanel form { display: grid; gap: .35rem; }
+.searchPanel label, .tools summary { font-weight: 650; }
+.searchRow { flex-wrap: nowrap; max-width: 46rem; }
+.searchField {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: .5rem;
+  background: var(--surface-strong);
+}
+.searchField input, .searchField button, .primary, .secondary {
+  font: inherit;
+  font-size: var(--text-compact);
+  min-height: 2.5rem;
+  padding: .4rem .7rem;
+}
+.searchField input { width: 100%; min-width: 0; border: 0; border-radius: .45rem; background: transparent; color: inherit; }
+.searchField button { border: 0; border-inline-start: 1px solid var(--line); background: transparent; color: var(--brand-strong); }
+.primary, .secondary {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: .5rem;
+  text-decoration: none;
+  font-weight: 650;
+}
+.primary { background: var(--brand-strong); color: var(--app-primary-text); }
+.secondary { background: var(--surface-strong); color: var(--ink); }
+.primary:hover:not(:disabled) { background: var(--brand); color: var(--app-primary-text); }
+.workspace :is(button, summary) { cursor: pointer; }
+.workspace button:disabled { cursor: default; opacity: .6; }
+.workspace :is(a, button, input, summary):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.count { margin: .5rem 0 0; overflow-wrap: anywhere; }
+.count:empty { margin: 0; }
+.count, .identity span, .empty p { color: var(--muted); font-size: var(--text-compact); }
+.layout, .registry { display: grid; gap: .65rem; min-width: 0; }
+.results { list-style: none; margin: 0; padding: 0; }
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: center;
+  gap: .4rem 1rem;
+  padding: .7rem .875rem;
+}
+.result + .result { border-top: 1px solid var(--line); }
+.identity { display: grid; gap: .2rem; overflow-wrap: anywhere; }
+.identity .badge { justify-self: start; padding: .15rem .45rem; border-radius: .35rem; background: var(--warning-soft); color: var(--ink); text-transform: capitalize; }
+.resultActions { min-width: 0; overflow-wrap: anywhere; font-size: var(--text-compact); }
+.previewLink { min-height: 2.25rem; padding: 0; border: 0; background: none; color: var(--brand-strong); font: inherit; text-decoration: underline; }
+.empty h2 { margin: 0; font-size: 1rem; }
+.empty p { margin: .35rem 0 .7rem; }
+.tools { padding: .65rem .875rem; }
+.tools[open] > :not(summary) { margin-top: .65rem; }
+.tools .actions:empty { display: none; }
+@media (max-width: 640px) {
+  .result { grid-template-columns: minmax(0, 1fr); }
+  .searchField input { font-size: 1rem; }
+}
