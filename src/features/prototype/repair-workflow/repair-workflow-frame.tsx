@@ -8,7 +8,8 @@ import { laborGuideInvoiceHref, repairBillingHref } from "@/lib/service-billing-
 import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { findReconRepairPath, reconRepairPathOptions, type ReconRepairPath } from "@/lib/recon-repair-paths";
 import { VehicleWorkflowSwitch } from "./vehicle-workflow-switch";
-import { customerInventoryLifecycleNotice, inventoryLifecycleHref, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
+import { RepairTaskNavigationContext, type RepairTaskNavigation } from "./repair-task-navigation";
+import { customerInventoryLifecycleNotice, customerRepairShopNotice, inventoryLifecycleHref, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
 import styles from "./repair-workflow.module.css";
 
 const recordTools = [
@@ -40,6 +41,9 @@ type Props = {
   auxiliary?: boolean;
   activeTool?: string;
   canCompose?: boolean;
+  canViewAttachments?: boolean;
+  repairJobId?: string;
+  repairAction?: "progress";
   inventoryStage?: string;
   customerOwned?: boolean;
   repairPath?: string;
@@ -61,7 +65,7 @@ type Props = {
 
 export function RepairWorkflowFrame({
   repairOrderId, vehicleId, number, vehicle, stock, location, owner, concern, inventoryRecon,
-  current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose,
+  current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose, canViewAttachments, repairJobId, repairAction,
   inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, advisorRepairTab, stageOpen = true, custody, target, vendorAmount, nextAction, inlineNextAction, suppressFooterAction, recordedWork, stepStatus, children,
 }: Props) {
   const router = useRouter();
@@ -71,20 +75,24 @@ export function RepairWorkflowFrame({
   const menu = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
   const [pathOpen, setPathOpen] = useState(false);
+  const [liveRepairTask, setLiveRepairTask] = useState<RepairTaskNavigation | null>(null);
   const [pathPending, startPathTransition] = useTransition();
   const pathPanel = useRef<HTMLElement>(null);
   const pathToggle = useRef<HTMLButtonElement>(null);
   const mayLeave = () => !hasUnsavedChanges() || window.confirm("Leave this task without saving your entered changes?");
   const context = { returnTo, returnLabel, reconPath: chosenPath };
+  const taskContext = liveRepairTask ?? { repairJobId, repairAction };
   const workbenchHref = repairReviewHref(repairOrderId, undefined, context);
   const shopHref = repairReviewHref(repairOrderId, undefined, { ...context, workflow: "shop" });
   const currentStageHref = repairReviewHref(repairOrderId, current, { ...context, workflow: "shop" });
   const currentHref = shopView ? shopHref : workbenchHref;
   const workOrderReturn = repairReviewHref(repairOrderId, stageOpen ? selected : undefined, {
-    ...context, tool: activeTool, workflow: shopView ? "shop" : undefined
+    ...context, tool: activeTool, workflow: shopView ? "shop" : undefined, ...taskContext
   }) + (advisorRepairTab ? "&tab=repair" : "");
-  const inventoryHref = customerOwned ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workOrderReturn);
-  const lifecycleHref = shopReconLifecycleHref(repairOrderId, workbenchHref);
+  const inventoryUnavailableReason = !inventoryRecon ? customerRepairShopNotice : customerOwned ? customerInventoryLifecycleNotice : undefined;
+  const inventoryHref = inventoryUnavailableReason ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workOrderReturn);
+  const lifecycleHref = shopReconLifecycleHref(repairOrderId, workOrderReturn);
+  const pathType = inventoryRecon ? "recon" : "repair";
   const toolHref = (tool: string) => repairReviewHref(repairOrderId, undefined, { ...context, tool });
   const actionHref = nextAction?.href ?? (auxiliary || selected !== current ? `${currentHref}#repair-workflow-action` : "#repair-workflow-action");
   const actionLabel = nextAction?.label ?? repairWorkflowLabels[current];
@@ -128,7 +136,7 @@ export function RepairWorkflowFrame({
   const photosHref = `/vehicles/360/${encodeURIComponent(vehicleId)}?${new URLSearchParams({ section: "photos", returnTo: currentHref })}`;
   const billingHref = `/vehicles/service-billing?${new URLSearchParams({ repairOrderId, returnTo: currentHref })}`;
 
-  return <section ref={workspace} className={styles.workspace} aria-label="Repair workbench" onChangeCapture={event => {
+  return <RepairTaskNavigationContext.Provider value={setLiveRepairTask}><section ref={workspace} className={styles.workspace} aria-label="Repair workbench" onChangeCapture={event => {
     if (!(event.target as HTMLElement).closest("[data-repair-draft-owner]")) dirty.current = true;
   }} onClickCapture={event => {
     const link = (event.target as HTMLElement).closest("a");
@@ -146,9 +154,9 @@ export function RepairWorkflowFrame({
       </div>
       {canChoosePath ? <button aria-controls="recon-path-options" aria-expanded={pathOpen} className={styles.pathToggle}
         ref={pathToggle} type="button" onClick={() => setPathOpen(open => !open)}>
-        <strong>{chosenPath ? "Change recon path" : "Choose recon path"}</strong>
+        <strong>{chosenPath ? "Change" : "Choose"} {pathType} path</strong>
         {chosenPath && <small>{pathLabel}</small>}
-      </button> : pathLabel && <div className={styles.pathToggle}><strong>Recon path</strong><small>{pathLabel}</small></div>}
+      </button> : pathLabel && <div className={styles.pathToggle}><strong>{inventoryRecon ? "Recon path" : "Repair path"}</strong><small>{pathLabel}</small></div>}
       <details className={styles.toolsMenu} ref={menu} onKeyDown={event => {
         if (event.key === "Escape" && menu.current?.open) {
           menu.current.open = false;
@@ -159,6 +167,7 @@ export function RepairWorkflowFrame({
         <summary ref={trigger}>Tools <span aria-hidden="true">⋮</span></summary>
         <nav aria-label="Repair order tools">
           <strong>Documents &amp; photos</strong>
+          {canViewAttachments && <Link href={repairReviewHref(repairOrderId, stageOpen ? selected : undefined, { ...context, tool: "attachments", workflow: shopView ? "shop" : undefined, ...taskContext })}>Repair order attachments</Link>}
           <Link href={repairLaborGuideHref(repairOrderId, workOrderReturn)}>Labor Guide</Link>
           <Link href={`${toolHref("details")}#repair-order-document`}>View RO</Link>
           <a href={`/api/repair-orders/${encodeURIComponent(repairOrderId)}/print`} target="_blank" rel="noreferrer">Print RO</a>
@@ -193,7 +202,7 @@ export function RepairWorkflowFrame({
         setPathOpen(false);
         pathToggle.current?.focus();
       }}>
-      <h2 id="recon-path-title">Choose recon path</h2>
+      <h2 id="recon-path-title">Choose {pathType} path</h2>
       <div className={styles.pathOptions}>
         {reconRepairPathOptions.map(option => <button key={option.value} type="button" disabled={pathPending}
           aria-pressed={chosenPath === option.value} onClick={() => choosePath(option.value)}>
@@ -206,8 +215,8 @@ export function RepairWorkflowFrame({
     {concern && <p className={styles.concern}><strong>Concern</strong> {concern}</p>}
     <div className={shopView ? styles.workflowBar : styles.overview}>
       <VehicleWorkflowSwitch inventoryHref={inventoryHref} shopHref={lifecycleHref}
-        inventoryUnavailableReason={customerOwned ? customerInventoryLifecycleNotice : undefined}
-        overviewStages={shopView ? undefined : { inventory: inventoryStage, shop: closed ? "Closed" : repairWorkflowLabels[current] }} />
+        inventoryUnavailableReason={inventoryUnavailableReason}
+        overviewStages={shopView && !inventoryUnavailableReason ? undefined : { inventory: inventoryStage, shop: closed ? "Closed" : repairWorkflowLabels[current] }} />
       {shopView && (!stageOpen || selected !== current) && <Link href={currentStageHref}>Open current stage · {repairWorkflowLabels[current]}</Link>}
       {!shopView &&
       <section className={styles.nextAction} aria-label="Next action">
@@ -259,5 +268,5 @@ export function RepairWorkflowFrame({
       <Link href={queueHref}>All Repair Orders</Link>
       {!shopView && !suppressFooterAction && <Link className={styles.primaryAction} href={actionHref}>{actionLabel}</Link>}
     </footer>
-  </section>;
+  </section></RepairTaskNavigationContext.Provider>;
 }

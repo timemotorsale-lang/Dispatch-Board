@@ -5,6 +5,7 @@ import { prisma } from "@/server/db/client";
 import { SALES_PHOTO_LIMIT, SALES_VIDEO_LIMIT, sortVehicleTimeline, type Vehicle360TimelineItem } from "./domain";
 import { orderSalesMedia, validateSalesMediaOrder } from "./sales-media-domain";
 import { inferVehiclePhotoAngle } from "@/lib/vehicle-photo-coverage";
+import { repairOrderAttachmentSubject } from "@/lib/repair-order-attachments";
 
 const evidenceMetadataSelect = {
   id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, storageProvider: true,
@@ -66,6 +67,9 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
   return {
     async createEvidence(command: EnterpriseCommandCommitInput, data: EvidenceCreateData) {
       return database.$transaction(async (tx) => {
+        if (data.subjectType === repairOrderAttachmentSubject) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`repair-attachment:${command.organizationId}:${data.subjectId}`}, 0))`;
+        }
         const prior = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: command.organizationId, domain: command.domain, commandType: command.commandType, idempotencyKey: command.idempotencyKey } } });
         if (prior) {
           if (prior.requestHash !== command.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
@@ -74,6 +78,15 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         }
         const vehicle = await tx.vehicle.findFirst({ where: { id: data.vehicleId, organizationId: command.organizationId, mergedIntoVehicleId: null }, select: { id: true } });
         if (!vehicle) throw new Error("Vehicle was not found.");
+        if (data.subjectType === repairOrderAttachmentSubject) {
+          const order = await tx.repairOrder.findFirst({ where: { id: data.subjectId, organizationId: command.organizationId, vehicleId: data.vehicleId, locationId: command.locationId ?? undefined }, select: { id: true } });
+          if (!order) throw new Error("Repair order was not found.");
+          const existing = await tx.vehicleEvidenceLink.findFirst({
+            where: { organizationId: command.organizationId, vehicleId: data.vehicleId, subjectType: repairOrderAttachmentSubject, subjectId: data.subjectId, evidenceObject: { checksumSha256: data.checksumSha256, contentType: data.contentType, status: { not: "DELETED" } } },
+            select: { evidenceObject: { select: evidenceMetadataSelect } }
+          });
+          if (existing) return { duplicate: true, evidence: existing.evidenceObject };
+        }
         if (data.subjectType === "SALES_MEDIA") {
           await lockSalesVehicle(tx, command.organizationId, data.vehicleId);
           const collection = await readSalesCollection(tx, command.organizationId, data.vehicleId);
@@ -125,7 +138,11 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         if (current.retentionUntil > now) throw new Error("Evidence cannot be deleted before its retention date.");
         if (current.version !== command.expectedVersion) throw new EnterpriseCommandConflictError(`Expected version ${command.expectedVersion}, but current version is ${current.version}.`, "VERSION_CONFLICT");
         const version = await currentAggregateVersion(tx, command);
-        await tx.vehicleEvidenceObject.update({ where: { id: current.id }, data: { content: Buffer.alloc(0), deletedAt: now, status: "DELETED", version } });
+        const removed = await tx.vehicleEvidenceObject.updateMany({
+          where: { id: current.id, organizationId: command.organizationId, version: command.expectedVersion, legalHold: false, retentionUntil: { lte: now }, status: { not: "DELETED" } },
+          data: { content: Buffer.alloc(0), deletedAt: now, status: "DELETED", version }
+        });
+        if (!removed.count) throw new EnterpriseCommandConflictError("Evidence or its retention settings changed. Reload before removing the file.", "VERSION_CONFLICT");
         await tx.vehicleEvidenceEvent.create({ data: { organizationId: command.organizationId, evidenceObjectId: current.id, actorUserId, eventType: "DELETED", reason: command.reason, metadata: json({ checksumSha256: current.checksumSha256, deletedAt: now.toISOString(), version }) } });
         await recordEnterpriseEvidence(tx, command, version, { deletedAt: now.toISOString(), evidenceId: current.id, status: "DELETED", version });
         return { duplicate: false };
@@ -133,7 +150,24 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
     },
 
     async getEvidence(organizationId: string, evidenceId: string) {
-      return database.vehicleEvidenceObject.findFirst({ where: { id: evidenceId, organizationId }, include: { links: true } });
+      return database.vehicleEvidenceObject.findFirst({ where: { id: evidenceId, organizationId }, select: { ...evidenceMetadataSelect, links: true } });
+    },
+
+    getAvailableEvidenceBytes(organizationId: string, evidenceId: string, version: number) {
+      return database.vehicleEvidenceObject.findFirst({ where: { id: evidenceId, organizationId, version, status: "AVAILABLE", malwareStatus: "CLEAN" }, select: { content: true } });
+    },
+
+    findRepairOrderEvidenceContext(organizationId: string, repairOrderId: string) {
+      return database.repairOrder.findFirst({ where: { organizationId, id: repairOrderId }, select: { id: true, organizationId: true, vehicleId: true, locationId: true } });
+    },
+
+    async listRepairOrderAttachments(order: { organizationId: string; vehicleId: string; id: string }) {
+      const links = await database.vehicleEvidenceLink.findMany({
+        where: { organizationId: order.organizationId, vehicleId: order.vehicleId, subjectType: repairOrderAttachmentSubject, subjectId: order.id, evidenceObject: { status: { not: "DELETED" }, accessLevel: "INTERNAL" } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { evidenceObject: { select: { id: true, fileName: true, status: true, malwareStatus: true, version: true, legalHold: true, retentionUntil: true } } }
+      });
+      return links.map(link => link.evidenceObject);
     },
 
     async readSalesMedia(organizationId: string, vehicleId: string) {
@@ -190,7 +224,7 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         database.repairOrder.findMany({ where: { organizationId, vehicleId }, orderBy: { openedAt: "desc" }, include: { ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, name: true } }, customer: { select: { id: true, customerNumber: true, displayName: true } }, stateEvents: { take: 50, orderBy: { occurredAt: "desc" } }, repairJobs: { include: { partDemands: { include: { part: { select: { id: true, partNumber: true, description: true } }, reservations: true } }, laborEvents: true, qualityInspections: true } }, estimateVersions: { orderBy: { version: "desc" } }, authorizations: { orderBy: { decidedAt: "desc" } }, inspectionVersions: { orderBy: { version: "desc" } }, qualityInspections: { orderBy: { inspectedAt: "desc" } }, invoicePackages: { orderBy: { version: "desc" } }, closureEvents: { orderBy: { occurredAt: "desc" } } } }),
         database.appointmentVehicle.findMany({ where: { vehicleId, appointment: { organizationId } }, orderBy: { appointment: { startsAt: "desc" } }, include: { appointment: { include: { location: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, historyEvents: { take: 50, orderBy: { occurredAt: "desc" } } } } } }),
         database.task.findMany({ where: { vehicleId }, take: 100, orderBy: { dueAt: "desc" }, include: { assignedUser: { select: { id: true, name: true } }, boardDay: { select: { date: true } } } }),
-        database.vehicleEvidenceLink.findMany({ where: { organizationId, vehicleId }, orderBy: { createdAt: "desc" }, include: { evidenceObject: { select: evidenceMetadataSelect }, createdByUser: { select: { id: true, name: true } } } })
+        database.vehicleEvidenceLink.findMany({ where: { organizationId, vehicleId, subjectType: { not: repairOrderAttachmentSubject } }, orderBy: { createdAt: "desc" }, include: { evidenceObject: { select: evidenceMetadataSelect }, createdByUser: { select: { id: true, name: true } } } })
       ]);
       const repairOrderIds = repairOrders.map((item) => item.id), inventoryIds = inventory.map((item) => item.id), jobIds = repairOrders.flatMap((item) => item.repairJobs.map((job) => job.id)), evidenceIds = documents.map((item) => item.evidenceObjectId), customerIds = [...new Set(vehicle.registryRelationships.flatMap((item) => item.customerId ? [item.customerId] : []))];
       const [partCustody, communications, audit, warrantyCoverages, warrantyClaims, customerStatuses, commercialHandoffs, servicePromises, communicationPreferences, estimateApprovals] = await Promise.all([

@@ -70,4 +70,17 @@ describe("recorded work visibility", () => {
     expect(html).toContain("Pending · v2");
     expect(html).toContain("Not released");
   });
+  it("shows Shop & Recon directly for a customer order even without vehicle ownership evidence", () => {
+    const html = renderToStaticMarkup(<RepairWorkflowFrame repairOrderId="selected-ro" vehicleId="vehicle" owner="Advisor Morgan" concern="Brakes" customerOwned={false} inventoryRecon={false} number="RO-1" vehicle="Ford" stock="406095" location="Shop" current="inspection" selected="authorization" closed={false} canChoosePath canViewAttachments stepStatus={repairWorkflowEvidence(fixture())}><p>Repair form</p></RepairWorkflowFrame>);
+    expect(html).toContain("Open Shop &amp; Recon");
+    expect(html).toContain("view=lifecycle&amp;returnTo=");
+    expect(html).toContain("step%3Dauthorization");
+    expect(html).not.toContain("/inventory-planning?");
+    expect(html).toContain("Choose repair path");
+    expect(html).toContain("tool=attachments");
+  });
+  it("keeps the selected repair job and progress action when opening attachments", () => {
+    const html = renderToStaticMarkup(<RepairWorkflowFrame repairOrderId="selected-ro" vehicleId="vehicle" owner="Advisor Morgan" concern="Brakes" inventoryRecon={false} number="RO-1" vehicle="Ford" stock="406095" location="Shop" current="repair" selected="repair" closed={false} canViewAttachments repairJobId="job-2" repairAction="progress" stepStatus={repairWorkflowEvidence(fixture())}><p>Repair form</p></RepairWorkflowFrame>);
+    expect(html).toContain("step=repair&amp;tool=attachments&amp;repairJobId=job-2&amp;repairAction=progress");
+  });
 });

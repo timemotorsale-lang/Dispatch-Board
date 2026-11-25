@@ -127,18 +127,14 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   const stages = page.getByLabel("Repair workflow", { exact: true });
   const shopStateBefore = await prisma.shopReconLifecycle.findUnique({ where: { repairOrderId: order.id }, select: { stage: true, version: true } });
   const switcher = page.getByRole("navigation", { name: "Vehicle workflows" });
-  const chooseLifecycle = switcher.locator("summary");
-  const shopRecon = switcher.getByRole("link", { name: "Shop & Recon" });
+  const shopRecon = switcher.getByRole("link", { name: "Open Shop & Recon", exact: true });
   const nextAction = page.getByRole("region", { name: "Next action" });
   await expect(nextAction.getByRole("link", { name: "Open inspection checklist" })).toBeVisible();
   await expect(switcher).toContainText("Inspect");
   await expect(stages).toBeHidden();
-  await expect(shopRecon).toBeHidden();
-  await chooseLifecycle.focus();
-  await page.keyboard.press("Enter");
   const inventory = switcher.getByRole("link", { name: "Inventory Lifecycle" });
   await expect(inventory).toHaveCount(0);
-  const customerNotice = /Customer-owned vehicle.*update its status to dealership inventory/;
+  const customerNotice = /This customer repair order belongs in Shop & Recon/;
   await expect(switcher.getByText(customerNotice)).toBeVisible();
   await expect(shopRecon).toBeVisible();
   await page.goto(`/vehicles/${vehicle.id}/inventory-planning?view=lifecycle&repairOrderId=${order.id}`);
@@ -191,7 +187,7 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await page.goto(`/vehicles/repair-workbench?repairOrderId=${order.id}&step=qc&reconPath=OUTSIDE_VENDOR`);
   await expect(page.getByRole("heading", { name: "Repair Workbench", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Quality check", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Change recon path Outside vendor" })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "Change repair path Outside vendor" })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("navigation", { name: "Repair record tools" }).getByRole("link", { name: "Full tools" })).toBeVisible();
   await expect(stages).toBeHidden();
   const documentInspection = nextAction.getByRole("link", { name: "Document inspection", exact: true });
@@ -205,12 +201,12 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(page.getByRole("link", { name: "Back to source" })).toHaveAttribute("href", "/vehicles/advisor");
   const pathOptions = page.locator("header + #recon-path-options");
   const choosePath = async (label: string) => {
-    const picker = page.getByRole("button", { name: /^(Choose|Change) recon path/ });
+    const picker = page.getByRole("button", { name: /^(Choose|Change) repair path/ });
     if (await picker.getAttribute("aria-expanded") === "false") await picker.click();
     await expect(pathOptions).toBeVisible();
     await expect(pathOptions.getByRole("button")).toHaveCount(5);
     await pathOptions.getByRole("button", { name: new RegExp(`^${label}`) }).click();
-    await expect(page.getByRole("button", { name: `Change recon path ${label}`, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Change repair path ${label}`, exact: true })).toBeVisible();
   };
   await expect(pathOptions).toBeHidden();
   await choosePath("Inspection only");

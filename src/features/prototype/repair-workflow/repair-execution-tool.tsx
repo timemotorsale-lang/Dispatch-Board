@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { RepairProcedureEvidenceFields } from "@/features/technician/repair-procedure-evidence-fields";
 import { repairProcedureEvidenceRequirements } from "@/lib/repair-procedure-evidence";
-import { useRef, useState, type FormEvent } from "react";
+import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { notifyRepairReviewSaved, repairReviewHref } from "@/lib/repair-workflow-review";
 import { laborActionLabels, repairExecutionNextStep, technicianExecutionState, type LaborAction, type TechnicianExecutionJob } from "./technician-execution-state";
 import styles from "./repair-workflow.module.css";
+import { RepairTaskNavigationContext } from "./repair-task-navigation";
 
 const actions = {
   ...laborActionLabels,
@@ -48,6 +49,12 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager, ini
   if (canRecordProgress) available.push("PROGRESS");
   if (canRecordLabor && state?.executable) available.push("FINDING");
   const eventType = chosenAction && available.includes(chosenAction) ? chosenAction : available[0];
+  const reportTask = useContext(RepairTaskNavigationContext);
+  const selectedJobId = job?.id;
+  const progressOpen = chosenAction === "PROGRESS" && eventType === "PROGRESS";
+  useEffect(() => {
+    reportTask?.({ repairJobId: selectedJobId, repairAction: progressOpen ? "progress" : undefined });
+  }, [reportTask, selectedJobId, progressOpen]);
 
   function selectJob(id: string) {
     currentJobId.current = id;

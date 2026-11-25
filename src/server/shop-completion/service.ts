@@ -18,10 +18,20 @@ function command(input:{actorUserId:string;commandType:string;expectedVersion:nu
 export async function getShopCompletionWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await authorize(actor,false,null,context);return context.repository.overview(context.organizationId);}
 export async function getShopReconLanding(actor: AuthenticatedUser | null, input: Dependencies & { repairOrderId?: string } = {}) {
   const context = deps(input);
-  await authorize(actor, false, null, context);
+  const now = context.now();
+  if (input.repairOrderId) {
+    const { user, grants } = await assertRepairReadEntry(actor, context.organizationId, context.foundationRepository, now);
+    const order = await context.repository.findRepairOrderLocation(context.organizationId, input.repairOrderId);
+    if (!order) {
+      const empty = buildShopReconProjection([], now);
+      return { ...empty, reviews: { ...empty.reviews, comebacks: 0 } };
+    }
+    assertVehicleCapability({ actor: user, capability: "REPAIR_ORDER_VIEW", grants, locationId: order.locationId, now });
+  } else {
+    await authorize(actor, false, null, context);
+  }
   const overview = await context.repository.overview(context.organizationId, input.repairOrderId);
   const exactOrder = input.repairOrderId ? overview.repairOrders.find(order => order.id === input.repairOrderId) : undefined;
-  if (exactOrder) await authorize(actor, false, exactOrder.locationId, context);
   const scopedOrders = input.repairOrderId ? (exactOrder ? [exactOrder] : []) : overview.repairOrders;
   const evidence = await context.repository.workflowEvidence(context.organizationId, scopedOrders.map(order => order.id));
   const evidenceById = new Map(evidence.map(item => [item.id, item]));
@@ -34,7 +44,7 @@ export async function getShopReconLanding(actor: AuthenticatedUser | null, input
       shopReconLifecycle: detail?.shopReconLifecycle ?? null,
     };
   }).filter(order => input.repairOrderId || order.shopReconLifecycle?.operatingState !== "CLOSED");
-  const projection = buildShopReconProjection(orders, context.now());
+  const projection = buildShopReconProjection(orders, now);
   return { ...projection, reviews: {
     ...projection.reviews, comebacks: input.repairOrderId ? 0 : overview.comebacks.filter(item => item.status !== "CLOSED").length,
   } };

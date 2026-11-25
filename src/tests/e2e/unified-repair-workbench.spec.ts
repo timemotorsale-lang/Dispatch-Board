@@ -65,7 +65,7 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   await page.goto(`${workbench}&reconPath=INSPECTION_ONLY`);
   const nextAction = page.getByRole("region", { name: "Next action" });
   await expect(nextAction.getByRole("heading", { name: "Review parts readiness" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose recon path", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Choose (repair|recon) path$/ })).toHaveCount(0);
   await expect(page.getByLabel("Repair workflow", { exact: true })).toBeHidden();
   const switcher = page.getByRole("navigation", { name: "Vehicle workflows" });
   const chooseLifecycle = switcher.locator("summary");

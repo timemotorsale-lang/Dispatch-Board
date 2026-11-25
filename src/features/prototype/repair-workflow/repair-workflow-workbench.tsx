@@ -35,6 +35,8 @@ import { allocateApprovedJobParts, catalogJobRequirements, unmatchedApprovedJobD
 import { waitingJobPartsReady } from "@/lib/repair-job-parts-readiness";
 import { isCustomerOwnedForInventoryLifecycle } from "@/server/vehicle-registry/inventory-lifecycle-ownership";
 import { findReconRepairPath } from "@/lib/recon-repair-paths";
+import { getRepairOrderAttachments } from "@/server/vehicle-360/service";
+import { RepairOrderAttachments } from "./repair-order-attachments";
 import styles from "./repair-workflow.module.css";
 
 const serialized = (value: unknown) => JSON.parse(JSON.stringify(value));
@@ -362,10 +364,19 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     }
     return tool;
   }
-  const [tool, customerOwned] = await Promise.all([
-    stageOpen ? renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null,
-    isCustomerOwnedForInventoryLifecycle(order.vehicle.id, order.organizationId),
+  const attachmentsOpen = params.tool === "attachments";
+  const repairJobId = order.repairJobs.find(job => job.id === params.repairJobId)?.id;
+  const repairAction = params.repairAction === "progress" ? "progress" as const : undefined;
+  const [tool, customerOwned, attachments] = await Promise.all([
+    stageOpen && !attachmentsOpen ? renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null,
+    order.origin === "INVENTORY_RECON" ? isCustomerOwnedForInventoryLifecycle(order.vehicle.id, order.organizationId) : false,
+    getRepairOrderAttachments(user, order, attachmentsOpen).catch(() => null),
   ]);
+  const content = attachmentsOpen
+    ? !attachments ? <p role="alert">Attachments could not be loaded. Try opening this repair order again.</p>
+      : attachments.canView ? <RepairOrderAttachments repairOrderId={order.id} repairOrderNumber={order.repairOrderNumber} canUpload={attachments.canUpload} canGovern={attachments.canGovern} items={attachments.items} backHref={repairReviewHref(order.id, selected, { ...context, repairJobId, repairAction })} />
+        : <p role="status">You don’t have access to attachments for this repair order.</p>
+    : tool;
   return <RepairWorkflowFrame
     recordedWork={<RepairRecordedWork order={order} awaitingDiagnosis={Boolean(diagnosisWork?.request)} />}
     stepStatus={repairWorkflowEvidence(order)}
@@ -400,6 +411,9 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     auxiliary={Boolean(supportingTool)}
     activeTool={params.tool}
     canCompose={canCompose}
+    canViewAttachments={attachments?.canView}
+    repairJobId={repairJobId}
+    repairAction={repairAction}
     key={`${order.id}:${selected}:${stageOpen}:${params.tool ?? ""}:${order.version}`}
-  >{tool}{sourceContext}</RepairWorkflowFrame>;
+  >{content}{sourceContext}</RepairWorkflowFrame>;
 }
