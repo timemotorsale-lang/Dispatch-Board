@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { MoreVertical, ArrowRight, FilePlus2, Banknote, Gauge, ShoppingCart } from "lucide-react";
+import { MoreVertical, ArrowRight, FilePlus2, Banknote, Gauge, ShoppingCart, Wrench } from "lucide-react";
 import styles from "./frontline-preparation-workspace.module.css";
 
 export type VehicleRecordContext = {
@@ -11,10 +11,11 @@ export type VehicleRecordContext = {
   available: boolean;
 };
 
-export function VehicleTools({ vehicleId }: { vehicleId: string }) {
+export function VehicleTools({ vehicleId, reconHref, allowReconNavigation }: { vehicleId: string; reconHref?: string; allowReconNavigation?: () => boolean }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const id = encodeURIComponent(vehicleId);
   const actions = [
+    ...(reconHref ? [{ label: "Continue to Recon", href: reconHref, icon: Wrench }] : []),
     { label: "Start Deal", href: `/crm-next/deals/start?${new URLSearchParams({ vehicleId, pathway: "retail-sale", new: "1" })}`, icon: FilePlus2 },
     { label: "Start Desk", href: `/crm-next/deals/start?${new URLSearchParams({ vehicleId, pathway: "finance", new: "1" })}`, icon: FilePlus2 },
     { label: "Start As-Is Sale", href: `/vehicles/${id}/sale?mode=as-is`, icon: ShoppingCart },
@@ -25,7 +26,10 @@ export function VehicleTools({ vehicleId }: { vehicleId: string }) {
   ];
   return <details ref={menu} className={styles.tools} onKeyDown={event => {
     if (event.key === "Escape") { event.preventDefault(); if (menu.current) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } }
-  }}><summary aria-label="More vehicle tools" title="More vehicle tools"><MoreVertical size={18}/></summary><nav aria-label="Vehicle tools" onClick={() => { if (menu.current) menu.current.open = false; }}>{actions.map(({ label, href, icon: Icon }) => <Link key={label} href={href}><Icon size={16}/>{label}</Link>)}<button type="button" disabled title="Vehicle deletion is not supported by the governed inventory workflow">Mark as Deleted (unavailable)</button><button type="button" disabled title="A customer-safe public vehicle preview is not connected">Show Customer View (unavailable)</button></nav></details>;
+  }}><summary aria-label="More vehicle tools" title="More vehicle tools"><MoreVertical size={18}/></summary><nav aria-label="Vehicle tools">{actions.map(({ label, href, icon: Icon }) => <Link key={label} href={href} onNavigate={event => {
+    if (href === reconHref && allowReconNavigation?.() === false) { event.preventDefault(); return; }
+    if (menu.current) menu.current.open = false;
+  }}><Icon size={16}/>{label}</Link>)}<button type="button" disabled title="Vehicle deletion is not supported by the governed inventory workflow">Mark as Deleted (unavailable)</button><button type="button" disabled title="A customer-safe public vehicle preview is not connected">Show Customer View (unavailable)</button></nav></details>;
 }
 
 export function VehicleLogs({ context }: { context: VehicleRecordContext | null }) {

@@ -10,7 +10,7 @@ import { VehicleCostWorkspace, type VehicleCostModel } from "./vehicle-cost-work
 import styles from "./vehicle-intake-workspace.module.css";
 
 const dollars = (value: number | null) => value === null ? "" : (value / 100).toFixed(2);
-export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }: { model: VehicleIntakeModel; costs?: VehicleCostModel | null; embedded?: boolean }) {
+export function VehicleIntakeWorkspace({ model, costs = null, embedded = false, onDirtyChange }: { model: VehicleIntakeModel; costs?: VehicleCostModel | null; embedded?: boolean; onDirtyChange?: (dirty: boolean) => void }) {
   const router = useRouter(), [details, setDetails] = useState(model.details);
   const [purchase, setPurchase] = useState(dollars(model.details.purchaseCents)), [price, setPrice] = useState(dollars(model.details.proposedPriceCents));
   const [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
@@ -20,6 +20,7 @@ export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }
   const pending = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
   const costDialog = useRef<HTMLDialogElement>(null);
   const [dirty, setDirty] = useState(false);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
