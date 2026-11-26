@@ -307,6 +307,11 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
+function isActualArrivalTime(value: string) {
+  const arrivalTime = Date.parse(value);
+  return Number.isFinite(arrivalTime) && arrivalTime <= Date.now() + 5 * 60_000;
+}
+
 export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialCustomerId = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", earlyReconPath, earlyReconOrderId, options, returnTo, showAdvisorReturn = false, reviewWorkbench = false, sourceHandoff }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialCustomerId?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; earlyReconPath?: IntakeState["executionPath"]; earlyReconOrderId?: string; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean; sourceHandoff?: { taskId: string; requestToken: string; title: string } }) {
   const serviceIntakeDraftKey = serviceIntakeDraftStorageKey(currentUserId, initialCustomerId, initialVehicleId, initialVehicleRelationship, returnTo, earlyReconPath, sourceHandoff?.requestToken);
   const formRef = useRef<HTMLFormElement>(null);
@@ -1283,7 +1288,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       setCheckInError("Confirm actual arrival before recording vehicle custody. To plan future work, use the recon appointment.");
       return;
     }
-    if (earlyReconPath && (!form.arrivedAt || !Number.isFinite(Date.parse(form.arrivedAt)) || Date.parse(form.arrivedAt) > Date.now() + 5 * 60_000)) {
+    if (earlyReconPath && !isActualArrivalTime(form.arrivedAt)) {
       setCheckInError("Enter the actual arrival time before recording custody.");
       return;
     }
