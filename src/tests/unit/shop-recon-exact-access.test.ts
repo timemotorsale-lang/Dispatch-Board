@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getShopReconLanding } from "@/server/shop-completion/service";
-import { downloadVehicleEvidence } from "@/server/vehicle-360/service";
+import { downloadVehicleEvidence, uploadRepairOrderAttachment } from "@/server/vehicle-360/service";
 import { createVehicle360Repository } from "@/server/vehicle-360/repository";
 import { repairOrderAttachmentSubject } from "@/lib/repair-order-attachments";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -45,6 +45,26 @@ describe("repair order attachment download", () => {
     await expect(downloadVehicleEvidence(user, "file", context)).rejects.toThrow("Evidence object was not found");
     expect(getAvailableEvidenceBytes).toHaveBeenCalledTimes(1);
   });
+});
+
+it("applies the standard removal protection without an upload date and keeps retries stable across dates", async () => {
+  const createEvidence = vi.fn().mockResolvedValue({ duplicate: false, evidence: { id: "file" } });
+  const repository = {
+    findRepairOrderEvidenceContext: vi.fn().mockResolvedValue({ id: "order", organizationId: "org", vehicleId: "vehicle", locationId: "assigned-shop" }),
+    createEvidence,
+  } as never;
+  const foundationRepository = {
+    listCapabilityGrants: vi.fn().mockResolvedValue(grants(["REPAIR_ORDER_VIEW", "VEHICLE_EVIDENCE_VIEW", "VEHICLE_EVIDENCE_MANAGE"])),
+    listFeatureFlags: vi.fn().mockResolvedValue(["VEHICLE_OPERATIONS_MASTER", "VEHICLE_360"].map(code => ({ code, locationId: null, mode: "GENERAL", rolloutPercent: 100 }))),
+  } as never;
+  const form = new FormData();
+  form.set("file", new File(["%PDF-1.7\n"], "inspection.pdf", { type: "application/pdf" }));
+  form.set("idempotencyKey", "same-upload");
+  const context = { organizationId: "org", repository, foundationRepository };
+  await uploadRepairOrderAttachment(user, "order", form, { ...context, now: () => now });
+  await uploadRepairOrderAttachment(user, "order", form, { ...context, now: () => new Date("2026-11-26T12:00:00Z") });
+  expect(createEvidence.mock.calls[0][1].retentionUntil).toEqual(new Date("2029-11-25T23:59:59.999Z"));
+  expect(createEvidence.mock.calls[0][0].requestHash).toBe(createEvidence.mock.calls[1][0].requestHash);
 });
 
 it("does not delete bytes when a concurrent retention change wins the final write", async () => {

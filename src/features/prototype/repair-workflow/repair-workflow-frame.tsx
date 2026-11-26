@@ -102,6 +102,13 @@ export function RepairWorkflowFrame({
   const actionLabel = nextAction?.label ?? repairWorkflowLabels[current];
   const activeToolLabel = activeTool === "attachments" ? "Documents & photos" : activeTool === "partsOperations" ? "Parts Operations" : recordTools.find(([tool]) => tool === activeTool)?.[1];
   const stageToolHref = (tool: string) => repairReviewHref(repairOrderId, stageOpen ? selected : undefined, { ...context, tool, workflow, ...taskContext });
+  const rapidHref = repairReviewHref(repairOrderId, undefined, { ...context, workflow: "rapid" });
+  const shortcuts = [
+    { tool: "attachments", label: "Documents & photos", allowed: canViewAttachments },
+    { tool: "partsOperations", label: "Parts Operations", allowed: canViewParts },
+  ].filter(item => item.allowed);
+  const shortcutLinks = () => shortcuts.map(({ tool, label }) =>
+    <Link key={tool} aria-current={activeTool === tool ? "page" : undefined} href={stageToolHref(tool)}>{label}</Link>);
   const pathLabel = findReconRepairPath(chosenPath)?.label ?? repairPath;
   const guidedDiagnosis = current === "diagnosis" && Boolean(chosenPath);
   const actionContext = guidedDiagnosis ? pathLabel : [repairWorkflowLabels[current], pathLabel].filter(Boolean).join(" · ");
@@ -171,6 +178,11 @@ export function RepairWorkflowFrame({
       }}>
         <summary ref={trigger}>Tools <span aria-hidden="true">⋮</span></summary>
         <nav aria-label="Repair order tools">
+          {shortcutLinks()}
+          {!closed && <>
+            <Link href={rapidHref}>Rapid Shop Repair</Link>
+            <Link href={lifecycleHref}>Shop &amp; Recon</Link>
+          </>}
           <Link href={repairLaborGuideHref(repairOrderId, workOrderReturn)}>Labor Guide</Link>
           <Link href={`${toolHref("details")}#repair-order-document`}>View RO</Link>
           <a href={`/api/repair-orders/${encodeURIComponent(repairOrderId)}/print`} target="_blank" rel="noreferrer">Print RO</a>
@@ -187,7 +199,6 @@ export function RepairWorkflowFrame({
           </>}
           <Link href={toolHref("history")}>History</Link>
           <Link href={toolHref("details")}>Full RO details</Link>
-          {shopView && !closed && <Link href={`/vehicles/shop-recon/${encodeURIComponent(repairOrderId)}?${new URLSearchParams({ returnTo: currentHref })}`}>Detailed Shop &amp; Recon tools</Link>}
           {canCompose && <Link href={toolHref("advisor")}>Advisor tools</Link>}
           {!closed && <Link href={toolHref("close")}>Close without further work</Link>}
           <Link href={queueHref}>All Repair Orders</Link>
@@ -214,9 +225,8 @@ export function RepairWorkflowFrame({
 
     {concern && <p className={styles.concern}><strong>Concern</strong> {concern}</p>}
     <nav className={styles.recordTools} aria-label="Repair task shortcuts">
-      {canViewAttachments && <Link aria-current={activeTool === "attachments" ? "page" : undefined} href={stageToolHref("attachments")}>Documents &amp; photos</Link>}
-      {canViewParts && <Link aria-current={activeTool === "partsOperations" ? "page" : undefined} href={stageToolHref("partsOperations")}>Parts Operations</Link>}
-      {rapid ? <Link href={shopHref}>Full repair stages</Link> : !closed && <Link href={repairReviewHref(repairOrderId, undefined, { ...context, workflow: "rapid" })}>Rapid Shop Repair</Link>}
+      {shortcutLinks()}
+      {rapid ? <Link href={shopHref}>Full repair stages</Link> : !closed && <Link href={rapidHref}>Rapid Shop Repair</Link>}
     </nav>
     <div className={shopView ? styles.workflowBar : styles.overview}>
       <VehicleWorkflowSwitch inventoryHref={inventoryHref} shopHref={lifecycleHref}

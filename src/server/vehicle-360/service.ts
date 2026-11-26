@@ -90,8 +90,8 @@ export async function getRepairOrderAttachments(actor: AuthenticatedUser, order:
   };
 }
 
-export async function uploadRepairOrderAttachment(actor: AuthenticatedUser | null, repairOrderId: string, form: FormData) {
-  const context = deps({});
+export async function uploadRepairOrderAttachment(actor: AuthenticatedUser | null, repairOrderId: string, form: FormData, input: Dependencies = {}) {
+  const context = deps(input);
   const user = assertAuthenticatedUser(actor);
   const order = await context.repository.findRepairOrderEvidenceContext(context.organizationId, repairOrderId);
   if (!order) throw new Error("Repair order was not found.");
@@ -104,19 +104,24 @@ export async function uploadRepairOrderAttachment(actor: AuthenticatedUser | nul
   if (file.size > repairOrderAttachmentMaxBytes) throw new Error("Attachments cannot exceed 9 MB.");
   if (!repairOrderAttachmentTypes.some(type => type === file.type)) throw new Error("Choose a PDF, JPEG, PNG, or WebP file.");
   const retryKey = required(form.get("idempotencyKey"), "Upload retry key", 100);
+  const requestedRetention = form.get("retentionUntil");
+  const defaultRetention = new Date(context.now());
+  defaultRetention.setUTCFullYear(defaultRetention.getUTCFullYear() + 3);
+  defaultRetention.setUTCHours(23, 59, 59, 999);
   return saveEvidenceUpload(context, user, {
     vehicleId: order.vehicleId, subjectType: repairOrderAttachmentSubject, subjectId: order.id,
     fileName: file.name, contentType: file.type, contentBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
     category: file.type.startsWith("image/") ? "PHOTO" : "REPAIR", accessLevel: "INTERNAL", relationship: "SUPPORTS",
-    retentionUntil: form.get("retentionUntil"), idempotencyKey: `repair-attachment:${order.id}:${retryKey}`,
+    retentionUntil: requestedRetention ?? defaultRetention.toISOString(), idempotencyKey: `repair-attachment:${order.id}:${retryKey}`,
     reason: "Attach a document or photo to the repair order."
-  }, order.locationId);
+  }, order.locationId, requestedRetention === null);
 }
 
-function saveEvidenceUpload(context: ReturnType<typeof deps>, user: AuthenticatedUser, value: unknown, locationId?: string) {
+function saveEvidenceUpload(context: ReturnType<typeof deps>, user: AuthenticatedUser, value: unknown, locationId?: string, defaultRetention = false) {
   const data = normalizeEvidenceUpload(value, context.now()), id = stableEvidenceId(context.organizationId, data.idempotencyKey);
   const subjectId = data.subjectId ?? data.vehicleId;
-  const payload = { accessLevel: data.accessLevel, byteSize: data.content.length, category: data.category, checksumSha256: data.checksumSha256, contentType: data.contentType, fileName: data.fileName, malwareStatus: data.scan.malwareStatus, relationship: data.relationship, retentionUntil: data.retentionUntil.toISOString(), subjectId, subjectType: data.subjectType, vehicleId: data.vehicleId };
+  // The default is set at the first save, so crossing midnight during a retry must not change the request hash.
+  const payload = { accessLevel: data.accessLevel, byteSize: data.content.length, category: data.category, checksumSha256: data.checksumSha256, contentType: data.contentType, fileName: data.fileName, malwareStatus: data.scan.malwareStatus, relationship: data.relationship, retentionUntil: defaultRetention ? null : data.retentionUntil.toISOString(), subjectId, subjectType: data.subjectType, vehicleId: data.vehicleId };
   return context.repository.createEvidence(command({ actorUserId: user.id, commandType: "UPLOAD_VEHICLE_EVIDENCE", expectedVersion: 0, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, locationId, payload, reason: data.reason, subjectId: id }), { ...payload, actorUserId: user.id, content: data.content, malwareScanner: data.scan.malwareScanner, reasonCode: data.scan.reasonCode, retentionUntil: data.retentionUntil });
 }
 

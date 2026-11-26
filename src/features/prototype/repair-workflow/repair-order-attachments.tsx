@@ -20,11 +20,6 @@ export function RepairOrderAttachments({ repairOrderId, repairOrderNumber, backH
   const fileInput = useRef<HTMLInputElement>(null);
   const retryKey = useRef("");
   const [file, setFile] = useState<File | null>(null);
-  const [retainThrough, setRetainThrough] = useState(() => {
-    const date = new Date();
-    date.setUTCFullYear(date.getUTCFullYear() + 3);
-    return date.toISOString().slice(0, 10);
-  });
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(null);
 
@@ -40,7 +35,6 @@ export function RepairOrderAttachments({ repairOrderId, repairOrderNumber, backH
     try {
       const form = new FormData();
       form.set("file", file);
-      form.set("retentionUntil", new Date(`${retainThrough}T23:59:59.999Z`).toISOString());
       if (!retryKey.current) retryKey.current = crypto.randomUUID();
       form.set("idempotencyKey", retryKey.current);
       const response = await fetch(repairOrderAttachmentsEndpoint(repairOrderId), { method: "POST", body: form });
@@ -94,7 +88,6 @@ export function RepairOrderAttachments({ repairOrderId, repairOrderNumber, backH
     <header><div><h2>Repair order attachments</h2><p>Documents and photos for {repairOrderNumber}.</p></div><Link href={backHref}>Back to repair task</Link></header>
     {canUpload ? <form onSubmit={upload}>
       <label>Document or photo<input ref={fileInput} type="file" accept={repairOrderAttachmentTypes.join(",")} disabled={busy} onChange={event => { retryKey.current = ""; setFile(event.target.files?.[0] ?? null); setFeedback(null); }} required /></label>
-      <label>Retain through<input type="date" value={retainThrough} disabled={busy} onChange={event => { retryKey.current = ""; setRetainThrough(event.target.value); }} required /></label>
       <button className={styles.primaryAction} disabled={!file || busy} type="submit">{busy ? "Attaching…" : "Attach document or photo"}</button>
       <small>PDF, JPEG, PNG, or WebP up to 9 MB. Staff access only.</small>
     </form> : <p>Uploads are not available for your role or this location.</p>}
@@ -102,13 +95,14 @@ export function RepairOrderAttachments({ repairOrderId, repairOrderNumber, backH
     {items.length ? <ul>{items.map(item => <li key={item.id}>{item.downloadUrl
       ? <a href={item.downloadUrl} target="_blank" rel="noreferrer">{item.fileName}</a>
       : <span>{item.fileName} · {item.status === "QUARANTINED" ? "Quarantined" : "Unavailable"}</span>}
-      {canGovern && <details><summary>Retention · {item.legalHold ? "Legal hold" : `through ${item.retentionUntil.slice(0, 10)}`}</summary>
+      {canGovern && <details><summary>Manager retention settings{item.legalHold ? " · Legal hold" : ""}</summary>
+        <p>Protected from removal until <time dateTime={item.retentionUntil.slice(0, 10)}>{item.retentionUntil.slice(0, 10)}</time>. This date does not delete the file automatically.</p>
         <form key={item.version} onSubmit={event => void changeRetention(event, item)}>
-          <label>New retention date<input name="retainThrough" type="date" disabled={busy} /></label>
+          <label>Protected from removal until<input name="retainThrough" type="date" disabled={busy} /><small>Leave blank to keep the current date.</small></label>
           <label><input name="legalHold" type="checkbox" defaultChecked={item.legalHold} disabled={busy} /> Legal hold</label>
           <label>Reason<input name="reason" required maxLength={500} disabled={busy} /></label>
           <button type="submit" disabled={busy}>Save retention</button>
-          {item.canDelete && <button type="submit" value="remove" disabled={busy}>Remove expired file</button>}
+          {item.canDelete && <button type="submit" value="remove" disabled={busy}>Remove attachment</button>}
         </form>
       </details>}
     </li>)}</ul> : <p>No attachments yet.</p>}

@@ -24,6 +24,20 @@ it("uses the same order and current step in Rapid Shop Repair and keeps real too
   expect(html).not.toContain("<strong>Repair record</strong>");
 });
 
+it("lists working shortcuts in the Tools menu without exposing restricted links", () => {
+  const stepStatus = Object.fromEntries(repairWorkflowSteps.map(step => [step, "Not recorded"])) as Record<RepairWorkflowStep, string>;
+  const props = { repairOrderId: "ro-42", vehicleId: "v-42", vehicle: "Honda", number: "RO-42", stock: "42", location: "Shop", owner: "Advisor", concern: "", inventoryRecon: true, current: "estimate", selected: "estimate", closed: false, stepStatus } as const;
+  const getMenu = (html: string) => html.split('aria-label="Repair order tools">')[1].split("</nav>")[0];
+  const menu = getMenu(renderToStaticMarkup(<RepairWorkflowFrame {...props} canViewParts canViewAttachments><p>Estimate</p></RepairWorkflowFrame>));
+  expect(menu).toContain("tool=partsOperations");
+  expect(menu).toContain("tool=attachments");
+  expect(menu).toContain("repairOrderId=ro-42&amp;workflow=rapid");
+  expect(menu).toContain("/vehicles/shop-recon/ro-42?view=lifecycle&amp;returnTo=");
+  const restrictedMenu = getMenu(renderToStaticMarkup(<RepairWorkflowFrame {...props}><p>Estimate</p></RepairWorkflowFrame>));
+  expect(restrictedMenu).not.toContain("tool=partsOperations");
+  expect(restrictedMenu).not.toContain("tool=attachments");
+});
+
 const empty = { stage: "INTAKE", inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [] };
 it("keeps a started job on Repair and opens QC when the last unfinished job is completed", () => {
   const jobs = [{ id: "J001", status: "QC_PASSED" }, { id: "J002", status: "DISPATCHED" }];
