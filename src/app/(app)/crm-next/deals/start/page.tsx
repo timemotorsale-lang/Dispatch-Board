@@ -6,10 +6,11 @@ import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { searchDealCustomers } from "@/server/deal-continuity/identities";
 import type { DealCustomerList } from "@/lib/deal-continuity";
 import { notFound } from "next/navigation";
+import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 import { canUseOwnDeals } from "@/server/policies/access";
 
 type CrmNextDealStartPageProps = {
-  searchParams?: Promise<{ customerId?: string; pathway?: string; vehicleId?: string; review?: string }>;
+  searchParams?: Promise<{ customerId?: string; pathway?: string; vehicleId?: string; review?: string; fromCustomer?: string }>;
 };
 
 export default async function CrmNextDealStartPage({ searchParams }: CrmNextDealStartPageProps = {}) {
@@ -33,5 +34,5 @@ export default async function CrmNextDealStartPage({ searchParams }: CrmNextDeal
       items: [], nextCursor: null, error: "The customer list could not be loaded. Choose Find customer to retry; your deal entries are retained."
     }))
   ]);
-  return <CrmNextDealStartView initialCustomerList={initialCustomerList} reviewTestDrive={resolvedSearchParams?.review === "test-drive"} initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />;
+  return <CrmNextDealStartView captureEnabled={canOpenDocumentLibrary(user)} initialCustomerList={initialCustomerList} reviewTestDrive={resolvedSearchParams?.review === "test-drive"} initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} backToCustomerId={resolvedSearchParams?.fromCustomer === "1" ? resolvedSearchParams.customerId : undefined} />;
 }

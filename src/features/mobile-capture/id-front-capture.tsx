@@ -13,7 +13,7 @@ export function IdFrontCapture({ onClose, onComplete }: { onClose: () => void; o
   const titleId = useId();
   const [phase, setPhase] = useState<"FRONT" | "REVIEW" | "BACK">("FRONT");
   const [front, setFront] = useState<File | null>(null);
-  const [back, setBack] = useState<{ scan: ScanResult; image?: File } | null>(null);
+  const [back, setBack] = useState<{ scan?: ScanResult; image?: File } | null>(null);
   const [fields, setFields] = useState<FrontIdFields>(emptyIdFields);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -64,7 +64,7 @@ export function IdFrontCapture({ onClose, onComplete }: { onClose: () => void; o
     } finally { clearTimeout(timeout); if (activeRef.current && controllerRef.current === controller) setBusy(false); }
   }
 
-  const backFields = back ? idFromBarcode(back.scan.value) : null;
+  const backFields = back?.scan ? idFromBarcode(back.scan.value) : null;
   const comparison = backFields ? compareIdSides(fields, backFields) : [];
   const mismatch = comparison.some((item) => item.status === "MISMATCH");
 
@@ -74,7 +74,7 @@ export function IdFrontCapture({ onClose, onComplete }: { onClose: () => void; o
     try {
       const { PDFDocument } = await import("pdf-lib");
       const document = await PDFDocument.create();
-      document.setSubject(mismatch ? "ID capture: front/back mismatch; manual review required. Not identity verification." : "Reviewed ID capture. OCR and barcode reading do not verify identity.");
+      document.setSubject(mismatch ? "ID capture: front/back mismatch; manual review required. Not identity verification." : back && !back.scan ? "Back photo retained. Barcode unread. Not identity verification." : "Reviewed ID capture. OCR and barcode reading do not verify identity.");
       for (const file of [front, back?.image].filter((file): file is File => Boolean(file))) {
         let bytes = new Uint8Array(await file.arrayBuffer());
         if (!["image/jpeg", "image/png"].includes(file.type)) {
@@ -101,7 +101,8 @@ export function IdFrontCapture({ onClose, onComplete }: { onClose: () => void; o
   }
 
   if (phase === "FRONT") return <DocumentScanner onClose={onClose} onImageComplete={(file) => void readFront(file)} />;
-  if (phase === "BACK") return <BarcodeScanner idOnly onClose={() => setPhase("REVIEW")} onConfirm={(scan, image) => { setBack({ scan, image }); setConfirmed(false); setMismatchConfirmed(false); setPhase("REVIEW"); setNotice("Back barcode read. Review the comparison; unread fields are not treated as matches."); }} />;
+  if (phase === "BACK") return <BarcodeScanner idOnly onClose={() => setPhase("REVIEW")} onConfirm={(scan, image) => { setBack({ scan, image }); setConfirmed(false); setMismatchConfirmed(false); setPhase("REVIEW"); setNotice("Back barcode read. Review the comparison; unread fields are not treated as matches."); }}
+    onUnreadablePhoto={image => { setBack({ image }); setConfirmed(false); setMismatchConfirmed(false); setPhase("REVIEW"); setNotice("Back photo kept. The barcode was not read, so check the details against the physical ID."); }} />;
   return createPortal(<div className={styles.backdrop}><div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialogRef}>
     <header><div><span>ID capture · review before use</span><h2 id={titleId}>Review front-of-ID details</h2></div><button aria-label="Close ID capture" onClick={onClose} type="button">Close</button></header>
     <p role="status">{notice}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bell, Building2, CalendarDays, Columns3, House, Menu, Moon, Search, Sun } from "lucide-react";
+import { ArrowLeft, Bell, Building2, CalendarDays, Columns3, House, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -26,12 +26,15 @@ import { isAppointmentConsolePath, isInventoryConsolePath } from "./console-navi
 import { useAppearance } from "./appearance";
 import inventoryStatusStyles from "./inventory-status.module.css";
 import crmHeaderStyles from "./crm-topbar.module.css";
+import { WorkspaceNavigationToggle } from "./workspace-navigation";
 
 type AppTopbarProps = {
   collectionsNavigation?: boolean;
   commandCenterHome: boolean;
   containedWorkspace?: boolean;
-  onMenuOpen(): void;
+  onMenuOpen(event: React.MouseEvent<HTMLButtonElement>): void;
+  navigationId?: string;
+  navigationExpanded?: boolean;
   preferredWorkspace?: WorkspaceKey | null;
   showNavigationMenu: boolean;
   user: AuthenticatedUser;
@@ -94,7 +97,7 @@ function formatBusinessDate() {
   }).format(new Date());
 }
 
-export function AppTopbar({ collectionsNavigation = false, commandCenterHome, containedWorkspace = false, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
+export function AppTopbar({ collectionsNavigation = false, commandCenterHome, containedWorkspace = false, onMenuOpen, navigationId, navigationExpanded = false, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -290,9 +293,7 @@ export function AppTopbar({ collectionsNavigation = false, commandCenterHome, co
   return (
     <header className={`app-topbar ccc-topbar${showInventoryStatus ? ` ${inventoryStatusStyles.inventoryHeader}` : ""}${showCrmModeSwitch ? ` ${crmHeaderStyles.header}` : ""}`}>
       {showNavigationMenu ? (
-        <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
-          <Menu size={20} />
-        </button>
+        <WorkspaceNavigationToggle className="topbar-icon topbar-menu" id={navigationId} expanded={navigationExpanded} label="Open navigation" onClick={onMenuOpen} />
       ) : null}
       <Link aria-label={roleWorkspace ? `${activeWorkspaceDefinition.label} Home` : "Time Motor Sales Command Control Center Home"} className="ccc-topbar-brand" href={roleWorkspace ? workspaceHome : "/command-center"}>
         <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />

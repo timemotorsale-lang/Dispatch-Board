@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveCrmNextAccess } from "./access";
 import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
 import { evaluateUnifiedCrmCapability } from "@/server/policies/unified-crm-access";
+import { canUseStaffCalendar, canViewAppointmentSchedule } from "@/server/policies/access";
 import { createUnifiedCrmCustomerReadRepository } from "@/server/repositories/unified-crm-customer-read-repository";
 import { isAllowedUnifiedCrmOpportunityTransition, listAllowedUnifiedCrmOpportunityTransitions, type UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 import { requireSalesDocumentsUser } from "@/server/sales-documents/service";
@@ -14,7 +15,7 @@ import { persistDealContext } from "@/server/deal-continuity/service";
 import { pipelinePolicy } from "./pipeline-policy";
 import { effectivePipelineTemplate, readPipelineTemplateVersions } from "./pipeline-templates";
 import { PIPELINE_EVIDENCE_CODES, pipelineContactRestrictions, pipelineContactRestrictionWhere, reconcilePipelineEvidence } from "./pipeline-evidence";
-import { localPipelineDate, pipelineMidnight, pipelineSignals, activePipelineRow, pipelineLabel, PIPELINE_PATHS, PIPELINE_DISPOSITIONS, PIPELINE_SEQUENCES, type PipelineRelatedWork, type PipelineRow, type PipelineWorkspace, type PipelineSequenceCode } from "@/lib/crm-pipeline";
+import { localPipelineDate, maskPipelineContactText, pipelineMidnight, pipelineSignals, activePipelineRow, pipelineLabel, PIPELINE_PATHS, PIPELINE_DISPOSITIONS, PIPELINE_SEQUENCES, type CustomerPipeline, type PipelineRelatedWork, type PipelineRow, type PipelineWorkspace, type PipelineSequenceCode } from "@/lib/crm-pipeline";
 import { latestPipelineInteraction, pipelineDealScope, pipelineInteraction, readPipelineDealJackets, readPipelineRelatedWork } from "./pipeline-related-work";
 
 type Db = Prisma.TransactionClient;
@@ -58,7 +59,7 @@ function where(a: Access): Prisma.UnifiedCrmOpportunityRecordWhereInput {
   const ownerOnly = a.scope.kind === "OWNER";
   return {
     organizationId: a.organizationId,
-    OR: [{ customerId: null }, { customer: { organizationId: a.organizationId, ...(ownerOnly ? { ownerUserId: a.actor.id } : {}) } }],
+    OR: [{ customerId: null }, { customer: { organizationId: a.organizationId, archivedAt: null, mergedIntoCustomerId: null, ...(ownerOnly ? { ownerUserId: a.actor.id } : {}) } }],
     ...(ownerOnly ? { AND: [{ OR: [{ ownerUserId: a.actor.id }, { pipelineState: { pendingOwnerId: a.actor.id } }] }] } : {}),
   };
 }
@@ -70,10 +71,15 @@ const include = {
   pipelineEnrollments: { orderBy: { createdAt: "desc" as const }, take: 1 },
   taskLinks: { where: { archivedAt: null }, include: { task: true }, orderBy: { createdAt: "desc" as const }, take: 40 },
   stageEvents: { orderBy: { occurredAt: "desc" as const }, take: 1 },
-  appointmentLinks: { where: { archivedAt: null }, include: { appointment: true }, take: 20, orderBy: { createdAt: "desc" as const } }
+  appointmentLinks: { where: { archivedAt: null }, include: { appointment: { include: {
+    participants: { where: { customerId: { not: null } }, select: { customerId: true } },
+  } } }, take: 20, orderBy: { createdAt: "desc" as const } }
 } satisfies Prisma.UnifiedCrmOpportunityRecordInclude;
 type RecordRow = Prisma.UnifiedCrmOpportunityRecordGetPayload<{ include: typeof include }>;
-function row(record: RecordRow): PipelineRow {
+function currentCustomerTaskLinks(record: RecordRow) {
+  return record.taskLinks.filter(link => link.organizationId === record.organizationId && link.task.customerId === record.customerId);
+}
+function row(record: RecordRow, access?: Access): PipelineRow {
   const state = record.pipelineState, receipt = record.pipelineReceipts[0], enrollment = record.pipelineEnrollments[0], meta = object(state?.metadata);
   const sourceLead = record.sourceLead?.organizationId === record.organizationId ? record.sourceLead : null;
   return {
@@ -82,11 +88,11 @@ function row(record: RecordRow): PipelineRow {
     inquiryReviewedAt: typeof meta.inquiryReviewedAt === "string" ? meta.inquiryReviewedAt : null,
     responseTargetMinutes: pipelinePolicy().responseMinutes,
     followUpPushCount: typeof meta.followUpPushCount === "number" ? meta.followUpPushCount : 0,
-    appointments: record.appointmentLinks.filter(l => l.appointment.organizationId === record.organizationId).map(({ appointment: p }) => ({ id: p.id, title: p.title, startsAt: iso(p.startsAt), attendance: p.attendanceStatus, status: p.bookingStatus })),
+    appointments: record.appointmentLinks.filter(l => l.appointment.organizationId === record.organizationId).map(({ appointment: p }) => ({ id: p.id, number: p.appointmentNumber, title: p.title, startsAt: iso(p.startsAt), attendance: p.attendanceStatus, status: p.bookingStatus })),
     contact: { phone: record.customer?.phoneNumber ?? String(object(receipt?.payload).phone ?? ""), email: record.customer?.email ?? String(object(receipt?.payload).email ?? "") },
     firstResponseAt: typeof meta.firstResponseAt === "string" ? meta.firstResponseAt : null,
     stalledAfterDays: pipelinePolicy().stalledDays,
-    id: record.id, opportunityNumber: record.opportunityNumber, title: record.title, summary: record.summary, stage: record.stage, version: record.version,
+    id: record.id, opportunityNumber: record.opportunityNumber, title: record.title, summary: record.summary, lostReason: record.lostReason, stage: record.stage, version: record.version,
     customerId: record.customerId, customerName: record.customer?.displayName ?? record.title, ownerUserId: record.ownerUserId, ownerName: record.ownerUser?.name ?? "Intake queue", ownerActive: record.ownerUser?.isActive ?? false,
     sourceCode: receipt?.sourceCode ?? sourceLead?.sourceCode ?? "LEGACY", sourceLeadId: sourceLead?.id ?? null, vehicle: sourceLead?.vehicleInterest ?? String(meta.vehicle ?? ""),
     pathway: state?.pathway ?? "retail-sale", temperature: state?.temperature ?? "WARM", disposition: state?.disposition ?? "ACTIVE",
@@ -94,7 +100,7 @@ function row(record: RecordRow): PipelineRow {
     receivedAt: (receipt?.receivedAt ?? sourceLead?.createdAt ?? record.createdAt).toISOString(), updatedAt: record.updatedAt.toISOString(), stageEnteredAt: iso(record.stageEvents[0]?.occurredAt),
     soldAt: null, completedAt: null, reviewAt: iso(state?.reviewAt), pushCount: state?.pushCount ?? 0, pendingOwnerId: state?.pendingOwnerId ?? null, handoffDueAt: iso(state?.handoffDueAt), dealId: state?.dealId ?? null, dealStatus: null,
     exceptions: record.pipelineExceptions.map(e => ({ ...e, firstSeenAt: e.firstSeenAt.toISOString(), lastSeenAt: e.lastSeenAt.toISOString(), reviewDueAt: e.reviewDueAt.toISOString(), resolvedAt: iso(e.resolvedAt) })),
-    tasks: record.taskLinks.map(({ task }) => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, completedAt: iso(task.completedAt), requiresManagerApproval: task.requiresManagerApproval, assignedUserId: task.assignedUserId })),
+    tasks: currentCustomerTaskLinks(record).filter(link => !access || access.canManage || link.task.assignedUserId === access.actor.id || link.task.ownerUserId === access.actor.id).map(({ task }) => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, completedAt: iso(task.completedAt), requiresManagerApproval: task.requiresManagerApproval, assignedUserId: task.assignedUserId })),
     history: [], sequence: enrollment ? { taskId: enrollment.taskId, id: enrollment.id, code: enrollment.code as PipelineSequenceCode, version: enrollment.templateVersion, step: enrollment.step, state: enrollment.state, nextRunAt: iso(enrollment.nextRunAt), reason: enrollment.reason, steps: enrollment.steps as string[] } : null
   };
 }
@@ -122,13 +128,53 @@ async function reconcile(db: Db, a: Access, record: RecordRow, now = new Date())
   const r = row(record), signals = pipelineSignals(r, now);
   if (activePipelineRow(r) || r.dealId) await reconcilePipelineEvidence(db, { id: record.id, opportunityNumber: record.opportunityNumber, organizationId: a.organizationId, customerId: record.customerId, ownerUserId: record.ownerUserId, ownerActive: r.ownerActive, createdAt: record.createdAt, metadata: record.pipelineState?.metadata, actorId: a.actor.id }, now);
   for (const [code, reason] of signals) await db.crmPipelineException.upsert({ where: { opportunityId_code: { opportunityId: r.id, code } }, create: { id: randomUUID(), opportunityId: r.id, organizationId: a.organizationId, code, reason, ownerUserId: r.ownerActive ? r.ownerUserId : null, reviewDueAt: new Date(now.getTime() + (code === "UNASSIGNED" ? pipelinePolicy().assignmentMinutes : pipelinePolicy().responseMinutes) * 60000) }, update: { state: "OPEN", reason, ownerUserId: r.ownerActive ? r.ownerUserId : null, lastSeenAt: now, resolvedAt: null, resolution: null } });
-  const managed = ["UNASSIGNED", "INACTIVE_OWNER", "CONTACT_REVIEW", "NO_NEXT_ACTION", "OVERDUE", "REVIEW_DUE", "HANDOFF_OVERDUE", "CLOSE_OVERDUE", "REPEATED_PUSH", "REPEATED_SNOOZE", "FIRST_RESPONSE_OVERDUE", "STALLED"];
+  const managed = ["UNASSIGNED", "INACTIVE_OWNER", "CONTACT_REVIEW", "NO_NEXT_ACTION", "OVERDUE", "REVIEW_DUE", "HANDOFF_PENDING", "HANDOFF_OVERDUE", "CLOSE_OVERDUE", "REPEATED_PUSH", "REPEATED_SNOOZE", "FIRST_RESPONSE_OVERDUE", "STALLED"];
   const transitions = [
     ...signals.filter(([code]) => !record.pipelineExceptions.some(e => e.code === code)).map(([code, reason]) => ({ code, reason, state: "OPEN" })),
     ...record.pipelineExceptions.filter(e => managed.includes(e.code) && !signals.some(([code]) => code === e.code)).map(e => ({ code: e.code, reason: "Underlying condition corrected", state: "RESOLVED" }))
   ];
   for (const event of transitions) await db.enterpriseAuditEvent.create({ data: { organizationId: a.organizationId, actorUserId: a.actor.id, domain: "CRM_PIPELINE", subjectType: "OPPORTUNITY", subjectId: record.opportunityNumber, eventType: event.state === "OPEN" ? "EXCEPTION_OPENED" : "EXCEPTION_RESOLVED", reason: event.reason, priorValue: { code: event.code, state: event.state === "OPEN" ? "NOT_OPEN" : "OPEN" }, newValue: event, metadata: {}, correlationId: randomUUID() } });
   await db.crmPipelineException.updateMany({ where: { opportunityId: r.id, state: "OPEN", code: { in: managed, notIn: signals.map(([code]) => code) } }, data: { state: "RESOLVED", resolvedAt: now, resolution: "Underlying condition corrected", lastSeenAt: now } });
+}
+type PipelineAudit = Prisma.EnterpriseAuditEventGetPayload<{ include: { actorUser: { select: { name: true } } } }>;
+async function hydratePipelineRows(a: Access, visible: RecordRow[], audits: PipelineAudit[], includeChoices: boolean, verifyCustomerLinks = false) {
+  const now = new Date();
+  const calendarEnabled = canUseStaffCalendar(a.actor);
+  const locationIds = [...new Set(visible.flatMap(record => record.appointmentLinks.map(link => link.appointment.locationId)))];
+  const grants = new Map((calendarEnabled && locationIds.length ? await prisma.userLocationAccess.findMany({
+    where: { userId: a.actor.id, locationId: { in: locationIds }, location: { organizationId: a.organizationId }, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gte: now } }] },
+  }) : []).map(grant => [grant.locationId, grant]));
+  const rows = visible.map(record => {
+    const value = row(record, a);
+    value.appointments = record.appointmentLinks.filter(link => {
+      const p = link.appointment, locationAccess = grants.get(p.locationId);
+      if ((verifyCustomerLinks || p.participants.length > 0) && !p.participants.some(participant => participant.customerId === record.customerId)) return false;
+      return link.organizationId === a.organizationId && p.organizationId === a.organizationId && locationAccess
+        && (a.canManage || p.ownerUserId === a.actor.id)
+        && (p.ownerUserId === a.actor.id || canViewAppointmentSchedule({ actor: a.actor, locationAccess }));
+    }).map(({ appointment: p }) => ({ id: p.id, number: p.appointmentNumber, title: p.title, startsAt: iso(p.startsAt), attendance: p.attendanceStatus, status: p.bookingStatus }));
+    if (!value.appointments.some(p => p.attendance === "NO_SHOW")) value.exceptions = value.exceptions.filter(exception => exception.code !== "MISSED_APPOINTMENT");
+    value.history = audits.filter(e => e.subjectId === record.opportunityNumber).slice(0, 35).map(e => ({ id: e.id, eventType: e.eventType, reason: e.reason, actor: e.actorUser.name, occurredAt: e.occurredAt.toISOString(), priorValue: e.priorValue, newValue: e.newValue }));
+    return value;
+  });
+  const dealScope = pipelineDealScope(a.actor, a.organizationId, a.canManage);
+  const deals = dealScope ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, id: { in: rows.flatMap(r => r.dealId ? [r.dealId] : []) } }, select: { id: true, customerId: true, ownerUserId: true, dealNumber: true, status: true, statusHistory: true, snapshot: true, pathway: true } }) : [];
+  const jackets = await readPipelineDealJackets(resolveDocumentStorageRuntimeFromEnv().organizationId, deals);
+  for (const r of rows) {
+    const deal = deals.find(d => d.id === r.dealId && d.customerId === r.customerId);
+    r.dealId = deal?.id ?? null;
+    r.history = r.history.map(event => ({ ...event, priorValue: pipelineHistoryValue(event.priorValue, r.dealId), newValue: pipelineHistoryValue(event.newValue, r.dealId) }));
+    if (!deal) continue;
+    r.dealStatus = deal.status;
+    r.dealHref = deal.ownerUserId === a.actor.id ? `/crm-next/deals/start?draftId=${encodeURIComponent(deal.id)}` : `/crm-next/deals?${new URLSearchParams({ workspace: "TEAM", area: "all", search: String(deal.dealNumber) })}`;
+    r.dealReviewState = jackets.get(deal.id)?.state ?? null;
+    const events = Array.isArray(deal.statusHistory) ? deal.statusHistory.map(object) : [];
+    r.soldAt = typeof events.find(e => e.to === "SOLD")?.at === "string" ? String(events.find(e => e.to === "SOLD")!.at) : null;
+    r.completedAt = typeof events.find(e => e.action === "FINISH")?.at === "string" ? String(events.find(e => e.action === "FINISH")!.at) : null;
+  }
+  const choices = dealScope && includeChoices ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, ownerUserId: a.actor.id, customerId: { in: rows.flatMap(r => r.customerId ? [r.customerId] : []) }, status: { in: ["IN_PROGRESS", "PENDING", "SOLD"] } }, select: { id: true, customerId: true, status: true, vehicleReference: true, pathway: true }, take: 500 }) : [];
+  for (const r of rows) r.dealChoices = choices.filter(d => d.customerId === r.customerId).map(d => ({ id: d.id, status: d.status, vehicle: d.vehicleReference, pathway: d.pathway }));
+  return rows;
 }
 export async function readPipeline(actor: AuthenticatedUser | null, page: { cursor?: string; leadPage?: number; skipOpportunities?: boolean } = {}): Promise<PipelineWorkspace> {
   const a = await pipelineAccess(actor), now = new Date();
@@ -150,29 +196,7 @@ export async function readPipeline(actor: AuthenticatedUser | null, page: { curs
     prisma.enterpriseProjectionCheckpoint.findFirst({ where: { organizationId: a.organizationId, projectionCode: "CRM_PIPELINE_WORKER" }, select: { lastSuccessAt: true } }),
     readPipelineRelatedWork(a.actor, a.organizationId, a.canManage, leadPage, where(a)),
   ]);
-  const rows = visible.map(record => {
-    const value = row(record);
-    if (!a.canManage) value.appointments = record.appointmentLinks.filter(l => l.appointment.organizationId === a.organizationId && l.appointment.ownerUserId === a.actor.id).map(({ appointment: p }) => ({ id: p.id, title: p.title, startsAt: iso(p.startsAt), attendance: p.attendanceStatus, status: p.bookingStatus }));
-    value.history = audits.filter(e => e.subjectId === record.opportunityNumber).slice(0, 35).map(e => ({ id: e.id, eventType: e.eventType, reason: e.reason, actor: e.actorUser.name, occurredAt: e.occurredAt.toISOString(), priorValue: e.priorValue, newValue: e.newValue }));
-    return value;
-  });
-  const dealScope = pipelineDealScope(a.actor, a.organizationId, a.canManage);
-  const deals = dealScope ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, id: { in: rows.flatMap(r => r.dealId ? [r.dealId] : []) } }, select: { id: true, customerId: true, ownerUserId: true, dealNumber: true, status: true, statusHistory: true, snapshot: true, pathway: true } }) : [];
-  const jackets = await readPipelineDealJackets(resolveDocumentStorageRuntimeFromEnv().organizationId, deals);
-  for (const r of rows) {
-    const deal = deals.find(d => d.id === r.dealId && d.customerId === r.customerId);
-    r.dealId = deal?.id ?? null;
-    r.history = r.history.map(event => ({ ...event, priorValue: pipelineHistoryValue(event.priorValue, r.dealId), newValue: pipelineHistoryValue(event.newValue, r.dealId) }));
-    if (!deal) continue;
-    r.dealStatus = deal.status;
-    r.dealHref = deal.ownerUserId === a.actor.id ? `/crm-next/deals/start?draftId=${encodeURIComponent(deal.id)}` : `/crm-next/deals?${new URLSearchParams({ workspace: "TEAM", area: "all", search: String(deal.dealNumber) })}`;
-    r.dealReviewState = jackets.get(deal.id)?.state ?? null;
-    const events = Array.isArray(deal.statusHistory) ? deal.statusHistory.map(object) : [];
-    r.soldAt = typeof events.find(e => e.to === "SOLD")?.at === "string" ? String(events.find(e => e.to === "SOLD")!.at) : null;
-    r.completedAt = typeof events.find(e => e.action === "FINISH")?.at === "string" ? String(events.find(e => e.action === "FINISH")!.at) : null;
-  }
-  const choices = dealScope ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, ownerUserId: a.actor.id, customerId: { in: rows.flatMap(r => r.customerId ? [r.customerId] : []) }, status: { in: ["IN_PROGRESS", "PENDING", "SOLD"] } }, select: { id: true, customerId: true, status: true, vehicleReference: true, pathway: true }, take: 500 }) : [];
-  for (const r of rows) r.dealChoices = choices.filter(d => d.customerId === r.customerId).map(d => ({ id: d.id, status: d.status, vehicle: d.vehicleReference, pathway: d.pathway }));
+  const rows = await hydratePipelineRows(a, visible, audits, true);
   const imports = await prisma.enterpriseCommandLedger.findMany({ where: { organizationId: a.organizationId, domain: "CRM_PIPELINE_IMPORT", status: "FAILED", ...(a.canManage ? {} : { actorUserId: a.actor.id }) }, orderBy: { createdAt: "asc" }, take: 25 });
   const importBatches = imports.map(batch => ({ id: batch.id, receivedAt: batch.createdAt.toISOString(), ownerUserId: batch.actorUserId, remaining: Array.isArray(object(batch.resultSnapshot).rows) ? (object(batch.resultSnapshot).rows as Array<{ ok: boolean }>).filter(r => !r.ok).length : 0, reason: batch.errorMessage ?? "Import needs review" }));
   const tail = visible.at(-1), nextCursor = records.length > 250 && tail ? Buffer.from(JSON.stringify({ updatedAt: tail.updatedAt.toISOString(), id: tail.id })).toString("base64url") : null;
@@ -208,6 +232,78 @@ export async function readPipeline(actor: AuthenticatedUser | null, page: { curs
     }
   }
   return { templateVersions: await readPipelineTemplateVersions(a.organizationId), importBatches, generatedAt: now.toISOString(), actorId: a.actor.id, organizationId: a.organizationId, canManage: a.canManage, canWrite: process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed, scope: a.canManage ? "Authorized organization records" : "Your owned records and accessible handoffs", rows, owners, customers: customers.map(c => ({ id: c.id, name: c.displayName })), truncated: Boolean(nextCursor) || unlinked.length > 500 || related.more, nextCursor, moreLeads: unlinked.length > 500, relatedWork, moreRelatedWork: related.more, unlinkedLeads: unlinked.slice(0, 500).map(l => ({ id: l.id, title: l.customer.displayName, customerId: l.customerId, ownerUserId: l.ownerUserId, sourceCode: l.sourceCode, stage: l.stage, nextActionAt: l.nextActionAt.toISOString(), createdAt: l.createdAt.toISOString() })), health: { pending, failed, oldestPendingAt: iso(oldest?.createdAt), lastWorkerAt: iso(last?.lastSuccessAt) } };
+}
+
+function pipelineCanWrite(a: Access) {
+  return process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(a.actor, "crm.mutate").allowed;
+}
+async function scopedCustomer(a: Access, id: string) {
+  const customer = await prisma.customer.findFirst({
+    where: { id, organizationId: a.organizationId, archivedAt: null, mergedIntoCustomerId: null, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id } : {}) },
+    select: { id: true, displayName: true },
+  });
+  if (!customer) throw new PipelineError("NOT_AVAILABLE", "This customer is unavailable in your authorized scope.", 404);
+  return { id: customer.id, name: customer.displayName };
+}
+
+async function scopedRows(a: Access, records: RecordRow[], includeChoices: boolean, verifyCustomerLinks = false) {
+  const [audits, restrictions, suppressed] = await Promise.all([
+    prisma.enterpriseAuditEvent.findMany({
+      where: { organizationId: a.organizationId, subjectType: "OPPORTUNITY", subjectId: { in: records.map(r => r.opportunityNumber) }, domain: { in: ["CRM_PIPELINE", "UNIFIED_CRM"] } },
+      include: { actorUser: { select: { name: true } } }, orderBy: { occurredAt: "desc" }, take: 1800,
+    }),
+    prisma.customerCommunicationPreference.findMany({ where: { ...pipelineContactRestrictionWhere(a.organizationId, new Date()), customerId: { in: records.flatMap(r => r.customerId ? [r.customerId] : []) } }, distinct: ["customerId"], select: { customerId: true } }),
+    prisma.unifiedCrmOpportunityRecord.findMany({ where: { organizationId: a.organizationId, customerId: { in: records.flatMap(r => r.customerId ? [r.customerId] : []) }, pipelineState: { disposition: "DO_NOT_CONTACT" } }, distinct: ["customerId"], select: { customerId: true } }),
+  ]);
+  const rows = await hydratePipelineRows(a, records, audits, includeChoices, verifyCustomerLinks);
+  for (const row of rows) {
+    row.contactSuppressed = row.disposition === "DO_NOT_CONTACT" || suppressed.some(item => item.customerId === row.customerId);
+    row.contactReview = row.contactSuppressed ? "Internal review · do not contact" : restrictions.some(item => item.customerId === row.customerId) ? "Review contact permissions before outreach" : undefined;
+  }
+  return rows;
+}
+
+export async function readPipelineOpportunity(actor: AuthenticatedUser | null, id: string) {
+  const a = await pipelineAccess(actor);
+  const [value] = await scopedRows(a, [await current(prisma, a, text(id, "Opportunity", true, 200))], true);
+  return value;
+}
+
+export async function readPipelineCustomerIdentity(actor: AuthenticatedUser | null, customerId: string) {
+  return scopedCustomer(await pipelineAccess(actor), text(customerId, "Customer", true, 200));
+}
+
+export async function readCustomerPipeline(actor: AuthenticatedUser | null, customerId: string, opportunityId?: string): Promise<CustomerPipeline> {
+  const a = await pipelineAccess(actor), now = new Date();
+  const customer = await scopedCustomer(a, text(customerId, "Customer", true, 200));
+  const scope = { ...where(a), customerId: customer.id };
+  const [records, selected, legacy] = await Promise.all([
+    prisma.unifiedCrmOpportunityRecord.findMany({ where: scope, include, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 51 }),
+    opportunityId ? prisma.unifiedCrmOpportunityRecord.findFirst({ where: { ...scope, id: text(opportunityId, "Opportunity", true, 200) }, include }) : null,
+    prisma.customerLead.findMany({ where: { organizationId: a.organizationId, customerId: customer.id, unifiedCrmOpportunities: { none: {} }, stage: { notIn: ["WON", "LOST"] }, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id } : {}) }, select: { id: true, leadNumber: true, stage: true, nextActionAt: true }, orderBy: { createdAt: "desc" }, take: 51 }),
+  ]);
+  const visible = records.slice(0, 50);
+  if (selected && !visible.some(r => r.id === selected.id)) visible.push(selected);
+  const rows = await scopedRows(a, visible, false, true);
+  return { canWrite: pipelineCanWrite(a), more: records.length > 50 || legacy.length > 50,
+    legacyLeads: legacy.slice(0, 50).map(l => ({ id: l.id, number: l.leadNumber, stage: l.stage, dueAt: l.nextActionAt.toISOString() })),
+    opportunities: rows.map(r => {
+      const warnings = new Map(r.exceptions.map(e => [e.code, e.reason]));
+      // Computed blockers are shown immediately without waiting for reconciliation.
+      for (const key of ["HANDOFF_PENDING", "HANDOFF_OVERDUE", "NO_NEXT_ACTION", "UNASSIGNED", "OVERDUE", "INACTIVE_OWNER"]) warnings.delete(key);
+      for (const [code, reason] of pipelineSignals(r, now)) warnings.set(code, reason);
+      if (r.contactReview) warnings.set("CONTACT_PERMISSION", r.contactReview);
+      return { id: r.id, opportunityNumber: r.opportunityNumber, ownerName: r.ownerName, title: maskPipelineContactText(r.title), vehicle: maskPipelineContactText(r.vehicle), pathway: r.pathway,
+        stage: r.stage, disposition: r.disposition, active: activePipelineRow(r), dealHref: r.dealHref, dealStatus: r.dealStatus, dealReviewState: r.dealReviewState,
+        nextActionLabel: r.contactReview ?? (r.nextActionLabel ? maskPipelineContactText(r.nextActionLabel) : null), dueAt: ["WAITING", "NURTURE"].includes(r.disposition) ? r.reviewAt : r.nextActionDueAt,
+        lostReason: r.lostReason ? maskPipelineContactText(r.lostReason) : null, handoffDueAt: r.pendingOwnerId ? r.handoffDueAt : null,
+        tasks: r.contactReview ? [] : r.tasks.map(task => ({ ...task, title: maskPipelineContactText(task.title) })),
+        appointments: r.appointments?.map(appointment => ({ ...appointment, title: maskPipelineContactText(appointment.title) })),
+        warnings: [...warnings].map(([code, reason]) => ({ code, reason: maskPipelineContactText(reason) })),
+        activity: r.history.slice(0, 15).map(({ id, eventType, occurredAt }) => ({ id, eventType, occurredAt })),
+      };
+    }),
+  };
 }
 
 export async function findPipelineMatches(actor: AuthenticatedUser | null, query: string) {
@@ -275,6 +371,11 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
       await followUp(db, a, record, initialAction, dueAt);
     } else {
       record = await current(db, a, id); prior = { stage: record.stage, ownerUserId: record.ownerUserId, nextActionDueAt: iso(record.nextActionDueAt), nextActionLabel: record.nextActionLabel, expectedCloseAt: iso(record.expectedCloseAt), estimatedValueCents: record.estimatedValueCents, state: record.pipelineState };
+      // Mutations follow all authoritative links, never the limited task preview.
+      const taskScope: Prisma.TaskWhereInput = {
+        customerId: record.customerId,
+        unifiedCrmOpportunityLinks: { some: { opportunityId: id, organizationId: a.organizationId, archivedAt: null } },
+      };
       if (record.version !== input.expectedVersion) throw new PipelineError("VERSION_CONFLICT", "This opportunity changed. Refresh and review it; your form entries remain available.", 409);
       if (record.ownerUserId !== a.actor.id && !a.canManage && !(action === "ACCEPT_HANDOFF" && record.pipelineState?.pendingOwnerId === a.actor.id)) throw new PipelineError("NOT_AUTHORIZED", "Only the responsible owner or an authorized manager can change this work.", 403);
       if (record.archivedAt && action !== "REOPEN") throw new PipelineError("ARCHIVED", "Reopen this archived opportunity before changing it.", 409);
@@ -298,11 +399,11 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
         }
         if (action === "SKIP_STEP" && (!input.taskId || record.pipelineEnrollments[0]?.taskId !== input.taskId || record.pipelineEnrollments[0]?.state !== "ACTIVE")) throw new PipelineError("SEQUENCE_STEP_CHANGED", "Choose the current active sequence task before skipping it.", 409);
         if (input.taskId) {
-          const task = record.taskLinks.find(l => l.taskId === input.taskId)?.task;
+          const task = typeof input.taskId === "string" ? await db.task.findFirst({ where: { ...taskScope, id: input.taskId } }) : null;
           if (!task || ["COMPLETED", "CANCELLED"].includes(task.status)) throw new PipelineError("TASK_CONFLICT", "This activity is no longer open. Refresh the opportunity.", 409);
           if ((task.requiresManagerApproval || task.assignedUserId !== a.actor.id) && !a.canManage) throw new PipelineError("TASK_APPROVAL", "This task requires its assigned owner or a manager review.", 403);
           if (task.requiresManagerApproval || await db.taskChecklistItem.count({ where: { taskId: task.id, isRequired: true, completed: false } })) throw new PipelineError("TASK_REQUIREMENTS", "Complete this task's required checklist and approval in the staff task workspace before closing it here.", 409);
-          await db.task.update({ where: { id: task.id }, data: { status: "COMPLETED", completedAt: now, ...(task.requiresManagerApproval ? { reviewedByUserId: a.actor.id } : {}) } });
+          await db.task.update({ where: { ...taskScope, id: task.id }, data: { status: "COMPLETED", completedAt: now, ...(task.requiresManagerApproval ? { reviewedByUserId: a.actor.id } : {}) } });
         }
         if (record.customerId && action === "OUTCOME") await db.customerInteraction.create({ data: { customerId: record.customerId, actorUserId: a.actor.id, channel: contactChannel, direction: input.outcome === "Internal review" ? "INTERNAL" : "OUTBOUND", summary: reason, outcome: text(input.outcome, "Outcome", true, 100), nextStep: text(input.nextActionLabel, "Next action", false, 240), occurredAt: now } });
         if (action === "OUTCOME") {
@@ -342,16 +443,21 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
         const temperature = text(input.temperature, "Temperature", true, 10), pathway = text(input.pathway, "Pathway", true, 60);
         if (record.pipelineState?.dealId && pathway !== record.pipelineState.pathway) throw new PipelineError("LINKED_DEAL_PATHWAY", "Open the linked deal to change its revenue path so its packet and history stay together.", 409, "Pathway");
         if (!["HOT", "WARM", "COLD"].includes(temperature) || !(PIPELINE_PATHS as readonly string[]).includes(pathway)) throw new PipelineError("INVALID_INPUT", "Choose an available temperature and pathway.");
+        // Carry an unverified inquiry's own work to its first verified customer.
+        // A correction from one verified customer to another never moves that customer's prior work.
+        if (!record.customerId && customerId) {
+          await db.task.updateMany({ where: taskScope, data: { customerId } });
+        }
         await db.unifiedCrmOpportunityRecord.update({ where: { id }, data: { customerId, expectedCloseAt: expected, estimatedValueCents: amount } });
         await db.crmPipelineState.update({ where: { opportunityId: id }, data: { temperature, pathway, ...(record.expectedCloseAt && expected && expected > record.expectedCloseAt ? { pushCount: { increment: 1 } } : {}) } });
       } else if (action === "DISPOSITION") {
         const disposition = text(input.disposition, "Disposition", true, 30);
         if (!(PIPELINE_DISPOSITIONS as readonly string[]).includes(disposition)) throw new PipelineError("INVALID_INPUT", "Choose a relationship disposition.");
-        if (disposition === "ARCHIVED" && (record.taskLinks.some(l => !["COMPLETED", "CANCELLED"].includes(l.task.status)) || record.pipelineState?.dealId)) throw new PipelineError("OPEN_OBLIGATIONS", "Resolve or transfer open activities and linked deal obligations before archiving. Use the deal archive workflow for linked deals.", 409);
+        if (disposition === "ARCHIVED" && (record.pipelineState?.dealId || await db.task.count({ where: { ...taskScope, status: { not: "COMPLETED" } } }))) throw new PipelineError("OPEN_OBLIGATIONS", "Resolve or transfer open activities and linked deal obligations before archiving. Use the deal archive workflow for linked deals.", 409);
         const reviewAt = ["WAITING", "NURTURE"].includes(disposition) ? future(input.reviewAt, "Review date") : null;
         await db.crmPipelineState.update({ where: { opportunityId: id }, data: { disposition, reviewAt } });
         if (["WAITING", "NURTURE", "DO_NOT_CONTACT"].includes(disposition)) {
-          await db.task.updateMany({ where: { id: { in: record.taskLinks.map(l => l.taskId) }, status: { not: "COMPLETED" } }, data: { status: "BLOCKED", blockerReason: `Relationship ${disposition}: ${reason}. Review before any contact.` } });
+          await db.task.updateMany({ where: { ...taskScope, status: { not: "COMPLETED" } }, data: { status: "BLOCKED", blockerReason: `Relationship ${disposition}: ${reason}. Review before any contact.` } });
           const dueAt = reviewAt ?? new Date(now.getTime() + 30 * 86400000), title = disposition === "DO_NOT_CONTACT" ? "Internal review · contact suppressed" : `Review ${disposition.toLowerCase()} relationship`;
           await db.unifiedCrmOpportunityRecord.update({ where: { id }, data: { nextActionLabel: title, nextActionDueAt: dueAt } });
           await followUp(db, a, record, title, dueAt);
@@ -371,9 +477,9 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
         if (!owner || owner !== a.actor.id && !a.canManage) throw new PipelineError("HANDOFF_NOT_AVAILABLE", "Only the receiving owner or an authorized manager can accept this transfer.", 403);
         await eligibleOwner(db, a, owner, record.customer?.ownerUserId);
         await db.unifiedCrmOpportunityRecord.update({ where: { id }, data: { ownerUserId: owner } });
-        await db.task.updateMany({ where: { id: { in: record.taskLinks.map(l => l.taskId) }, status: { notIn: ["COMPLETED"] } }, data: { assignedUserId: owner, ownerUserId: owner } });
+        const transferred = await db.task.updateMany({ where: { ...taskScope, status: { not: "COMPLETED" } }, data: { assignedUserId: owner, ownerUserId: owner } });
         await db.crmPipelineState.update({ where: { opportunityId: id }, data: { pendingOwnerId: null, handoffDueAt: null } });
-        if (!record.taskLinks.length && record.nextActionLabel && record.nextActionDueAt) await followUp(db, a, await current(db, a, id), record.nextActionLabel, record.nextActionDueAt);
+        if (!transferred.count && record.nextActionLabel && record.nextActionDueAt) await followUp(db, a, await current(db, a, id), record.nextActionLabel, record.nextActionDueAt);
       } else if (action === "STAGE" || action === "REOPEN") {
         const toStage = action === "REOPEN" ? "NEW_INQUIRY" : text(input.toStage, "Stage", true, 40) as UnifiedCrmOpportunityStage;
         if (action === "REOPEN") { if (!a.canManage || !["WON", "LOST"].includes(record.stage) && !record.archivedAt) throw new PipelineError("REOPEN_NOT_ALLOWED", "A manager can reopen terminal or archived opportunities.", 403); }

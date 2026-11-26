@@ -43,11 +43,11 @@ export async function listSavedDealLibrary(actor: AuthenticatedUser | null, para
   return { items, total, page, pages: Math.max(1, Math.ceil(total / 25)), counts: Object.fromEntries(groups.map((group) => [group.status, group._count._all])) };
 }
 
-export async function readDealDeskDraft(actor: AuthenticatedUser | null, id: string, rentalActionOnly = false) {
+export async function readDealDeskDraft(actor: AuthenticatedUser | null, id: string, rentalActionOnly = false, database: Prisma.TransactionClient = prisma) {
   const access = scope(actor);
-  const draft = await prisma.dealDeskDraft.findFirst({ where: { ...access, id } });
+  const draft = await database.dealDeskDraft.findFirst({ where: { ...access, id } });
   if (!draft && rentalActionOnly && isManager(actor)) {
-    const assignment = await prisma.dealDeskDraft.findFirst({
+    const assignment = await database.dealDeskDraft.findFirst({
       where: { id, organizationId: access.organizationId, pathway: { in: ["daily-rental", "vehicle-loaner"] } },
       select: { id: true, dealNumber: true, pathway: true, customerName: true, vehicleReference: true, status: true, revision: true, updatedAt: true }
     });

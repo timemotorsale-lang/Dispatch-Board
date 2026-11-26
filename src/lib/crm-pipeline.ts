@@ -72,6 +72,7 @@ export type PipelineRelatedWork = {
   updatedAt: string; activity?: PipelineActivity | null; href: string; sold?: boolean; completed?: boolean; taskId?: string;
 };
 export type PipelineRow = {
+  lostReason?: string | null;
   customerActivity?: PipelineActivity | null;
   contactReview?: string;
   contactSuppressed?: boolean;
@@ -81,7 +82,7 @@ export type PipelineRow = {
   dealReviewState?: string | null;
   responseTargetMinutes?: number;
   followUpPushCount?: number;
-  appointments?: { id: string; title: string; startsAt: string | null; attendance: string; status: string }[];
+  appointments?: { id: string; number?: string; title: string; startsAt: string | null; attendance: string; status: string }[];
   contact?: { phone: string; email: string };
   firstResponseAt?: string | null;
   stalledAfterDays?: number;
@@ -98,6 +99,30 @@ export type PipelineRow = {
   sequence: { taskId?: string | null; id: string; code: PipelineSequenceCode; version: number; step: number; state: string; nextRunAt: string | null; reason: string | null; steps: string[] } | null;
 };
 export type PipelineWorkspace = { templateVersions?: PipelineTemplateVersion[]; importBatches?: { id: string; receivedAt: string; ownerUserId: string; remaining: number; reason: string }[]; generatedAt: string; actorId: string; organizationId: string; canManage: boolean; canWrite: boolean; scope: string; rows: PipelineRow[]; owners: { id: string; name: string }[]; customers: { id: string; name: string }[]; truncated: boolean; nextCursor?: string | null; moreLeads?: boolean; relatedWork?: PipelineRelatedWork[]; moreRelatedWork?: boolean; unlinkedLeads: { id: string; title: string; customerId: string; ownerUserId: string; sourceCode: string; stage?: string; nextActionAt: string; createdAt: string }[]; health: { pending: number; failed: number; oldestPendingAt: string | null; lastWorkerAt: string | null }; };
+export type CustomerPipelineOpportunity = Pick<PipelineRow, "id" | "title" | "opportunityNumber" | "stage" | "ownerName" | "vehicle" | "pathway" | "disposition" | "nextActionLabel" | "lostReason" | "dealHref" | "dealReviewState" | "dealStatus" | "tasks" | "appointments"> & {
+  dueAt: string | null;
+  handoffDueAt: string | null;
+  active: boolean;
+  warnings: { code: string; reason: string }[];
+  activity: { id: string; eventType: string; occurredAt: string }[];
+};
+export type CustomerPipeline = {
+  opportunities: CustomerPipelineOpportunity[];
+  legacyLeads: { id: string; number: string; stage: string; dueAt: string }[];
+  canWrite: boolean;
+  more: boolean;
+};
+export function customerPipelineHref(customerId: string, opportunityId?: string) {
+  return `/crm-next/customers/${encodeURIComponent(customerId)}${opportunityId ? `?opportunity=${encodeURIComponent(opportunityId)}` : ""}#pipeline`;
+}
+export function companyPipelineHref(opportunityId: string) {
+  return `/crm-next/pipeline?opportunity=${encodeURIComponent(opportunityId)}`;
+}
+export function maskPipelineContactText(value: string): string {
+  return value.replace(/[^\s<>@]+@[^\s<>@]+\.\p{L}{2,}/gu, "[email hidden]")
+    .replace(/(?:\+\s*)?\p{Nd}(?:[\p{Nd}\p{Zs}\p{Pd}().\u2212]*\p{Nd})?/gu,
+      match => (match.match(/\p{Nd}/gu)?.length ?? 0) >= 7 ? "[phone hidden]" : match);
+}
 export const activePipelineRow = (r: PipelineRow) => !["WON", "LOST"].includes(r.stage) && r.disposition !== "ARCHIVED";
 export function pipelineSignals(row: PipelineRow, now: Date) {
   const codes: [string, string][] = [];
@@ -108,10 +133,13 @@ export function pipelineSignals(row: PipelineRow, now: Date) {
   if (row.contact && !(/^\+?[\d ()-]{7,}$/.test(row.contact.phone) && row.contact.phone.replace(/\D/g, "").length >= 7 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.contact.email))) codes.push(["CONTACT_REVIEW", "Verify a usable phone number or email. Keep the inquiry in review until contact details are corrected."]);
   if (!row.firstResponseAt && Date.parse(row.receivedAt) < now.getTime() - (row.responseTargetMinutes ?? 30) * 60000) codes.push(["FIRST_RESPONSE_OVERDUE", "No first response is recorded within the configured response target. Review the inquiry and contact eligibility."]);
   if ((row.followUpPushCount ?? 0) >= 3) codes.push(["REPEATED_SNOOZE", "Follow-up has been postponed at least three times without a recorded outcome. Review the blocker."]);
-  if (row.disposition === "ACTIVE" && (!row.nextActionDueAt || !row.nextActionLabel)) codes.push(["NO_NEXT_ACTION", "Set a dated next action or an explicit waiting or nurture review."]);
+  if (["ACTIVE", "DO_NOT_CONTACT"].includes(row.disposition) && (!row.nextActionDueAt || !row.nextActionLabel)) codes.push(["NO_NEXT_ACTION", row.disposition === "DO_NOT_CONTACT" ? "Set a dated internal review. Do not contact the customer." : "Set a dated next action or an explicit waiting or nurture review."]);
   if (row.nextActionDueAt && row.nextActionDueAt < now.toISOString()) codes.push(["OVERDUE", "The next action is overdue and remains assigned."]);
   if (["NURTURE", "WAITING"].includes(row.disposition) && (!row.reviewAt || row.reviewAt < now.toISOString())) codes.push(["REVIEW_DUE", "The waiting or nurture review is due."]);
-  if (row.pendingOwnerId && row.handoffDueAt && row.handoffDueAt < now.toISOString()) codes.push(["HANDOFF_OVERDUE", "The receiving owner has not accepted this handoff."]);
+  if (row.pendingOwnerId) {
+    if (row.handoffDueAt && row.handoffDueAt < now.toISOString()) codes.push(["HANDOFF_OVERDUE", "The receiving owner has not accepted this handoff. The current owner remains responsible."]);
+    else codes.push(["HANDOFF_PENDING", "Awaiting acceptance. The current owner remains responsible."]);
+  }
   if (row.expectedCloseAt && row.expectedCloseAt < pipelineMidnight(localPipelineDate(now)).toISOString()) codes.push(["CLOSE_OVERDUE", "The expected closing date has passed. Record a decision or a revised plan."]);
   if (row.pushCount >= 3) codes.push(["REPEATED_PUSH", "This closing plan has been moved at least three times. Manager review is needed."]);
   if (row.stageEnteredAt && Date.parse(row.stageEnteredAt) < now.getTime() - (row.stalledAfterDays ?? 14) * 86400000) codes.push(["STALLED", `More than ${row.stalledAfterDays ?? 14} calendar days in this stage. Review the blocker.`]);

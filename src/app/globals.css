@@ -33223,3 +33223,59 @@ html[data-app-theme="dark"] .app-content :where(
 @media (max-width: 700px) {
   .repair-frontline-preview .frontline-checklist-section article { grid-template-columns: 1fr; }
 }
+.workspace-navigation-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 1px solid rgb(147 197 253 / 35%);
+  border-radius: 9px;
+  background: rgb(148 163 184 / 12%);
+  color: inherit;
+  cursor: pointer;
+}
+.workspace-navigation-toggle:hover { background: rgb(148 163 184 / 25%); }
+.workspace-navigation-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.workspace-navigation-overlay { position: fixed; inset: 0; z-index: 1090; border: 0; padding: 0; background: rgb(3 11 22 / 55%); }
+.app-topbar .workspace-navigation-toggle.topbar-menu { display: none; }
+.app-frame[data-focused-navigation] > .app-workspace > .app-topbar .workspace-navigation-toggle.topbar-menu { display: inline-grid; }
+/* A nested CRM workspace already provides its own navigation, including on phones. */
+.app-frame[data-focused-navigation]:has(.crm-next-shell) > .app-workspace > .app-topbar .workspace-navigation-toggle.topbar-menu { display: none; }
+.focused-workspace-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1100;
+  width: min(86vw, 318px);
+  height: 100dvh;
+}
+.focused-workspace-drawer[hidden] { display: none; }
+.focused-workspace-drawer > .app-sidebar {
+  display: flex;
+  position: static;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  transform: none;
+  box-shadow: 18px 0 40px rgb(4 12 24 / 22%);
+  overscroll-behavior: contain;
+}
+.focused-workspace-drawer .sidebar-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.appointment-schedule-heading { display: flex; align-items: center; gap: .65rem; }
+.appointment-schedule-heading > div { min-width: 0; }
+.app-sidebar > .workspace-navigation-desktop { margin-block-end: 6px; }
+@media (min-width: 981px) {
+  .app-frame[data-workspace-nav="collapsed"]:has(> .app-sidebar) { grid-template-columns: 60px minmax(0, 1fr); }
+  .app-frame[data-workspace-nav="collapsed"] > .app-sidebar { width: 60px; padding-inline: 7px; }
+  .app-frame[data-workspace-nav="collapsed"] > .app-sidebar > :not(.workspace-navigation-toggle) { display: none; }
+  .app-frame[data-workspace-nav="collapsed"]:has(.sic-reference-v2) .sic-footer { left: 60px; }
+}
+@media (max-width: 980px) {
+  .app-frame[data-workspace-nav] > .app-sidebar:not(.app-sidebar-open) { visibility: hidden; }
+  .app-frame[data-workspace-nav] > .app-sidebar.app-sidebar-open { display: flex; width: min(86vw, 318px); }
+  .app-frame[data-workspace-nav] .app-topbar .workspace-navigation-toggle.topbar-menu { display: inline-grid; }
+  .app-frame[data-workspace-nav]:has(.sic-reference-v2) .app-topbar { display: flex; }
+  .app-frame[data-workspace-nav]:has(.sic-reference-v2) .sic-footer { left: 0; }
+  .app-sidebar > .workspace-navigation-desktop { display: none; }
+}

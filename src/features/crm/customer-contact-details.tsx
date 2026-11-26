@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import styles from "./customer-contact-details.module.css";
-type Props = {customerId:string; phone?:string; email?:string; maskedValues?:string[]; surface?:"legacy"|"crm-next"; autoReveal?:boolean};
+type Props = {customerId:string; phone?:string; email?:string; maskedValues?:string[]; surface?:"legacy"|"crm-next"; autoReveal?:boolean; quickReference?: boolean};
 type Contact = {type:"PHONE"|"EMAIL";value:string};
 export function CustomerContactDetails(props:Props) { return <ContactDetails key={props.customerId} {...props} />; }
-function ContactDetails({customerId,phone,email,maskedValues,surface="legacy",autoReveal=false}:Props) {
+function ContactDetails({customerId,phone,email,maskedValues,surface="legacy",autoReveal=false,quickReference=false}:Props) {
  const id=useId();const [contacts,setContacts]=useState<Contact[]|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const pending=useRef<AbortController|null>(null);
  const container=useRef<HTMLDivElement|null>(null);
@@ -30,6 +31,30 @@ function ContactDetails({customerId,phone,email,maskedValues,surface="legacy",au
   const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();start();}});
   observer.observe(container.current);return()=>observer.disconnect();
  },[autoReveal,reveal]);
+ if (quickReference) return <div ref={container} className={styles.reference}>
+   <strong>Contact</strong>
+   <dl id={id} className={styles.referenceFields}>
+    {(["PHONE", "EMAIL"] as const).map(type => {
+     const values = contacts?.filter(contact => contact.type === type) ?? [];
+     const masked = type === "PHONE" ? phone : email;
+     return <div key={type}>
+      <dt>{type === "PHONE" ? "Phone" : "Email"}</dt>
+      {values.length ? values.map(({value}) => <dd key={value}>
+       <span>{value}</span>
+       {type === "PHONE" && /^\+?[\d ()-]{7,}$/.test(value) && <>
+        <a href={`tel:${value.replace(/[^+\d]/g,"")}`}>Call</a>
+        <Link href={`/crm-next/actions/send-text?customerId=${encodeURIComponent(customerId)}`}>Text options</Link>
+       </>}
+       {type === "EMAIL" && /^[^\s@]+@[^\s@]+$/.test(value) && <a href={`mailto:${encodeURIComponent(value)}`}>Email</a>}
+      </dd>) : <dd>{contacts === null && masked ? masked : "Not recorded"}</dd>}
+     </div>;
+    })}
+   </dl>
+   <button className={styles.action} type="button" aria-controls={id} aria-expanded={contacts !== null}
+    onClick={() => { if (contacts !== null) { setContacts(null); setError(""); } else void reveal(); }}
+    disabled={busy}>{contacts !== null ? "Hide contact details" : busy ? "Loading…" : error ? "Retry contact details" : "Show contact details"}</button>
+   {error && <span role="alert" className={styles.error}>{error}</span>}
+ </div>;
  return <div ref={container} id={id} className={styles.contact}>
   {contacts===null ? <>
    <button className={styles.masked} type="button" title="Click or double-click to show full contact details" aria-label="Reveal customer phone and email" onClick={()=>void reveal()} onDoubleClick={()=>void reveal()} disabled={busy}>{(maskedValues ?? [phone,email]).filter(Boolean).join(" · ") || "Contact details"}</button>

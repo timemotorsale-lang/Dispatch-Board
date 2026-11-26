@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
+import { CaptureShortcut } from "@/features/mobile-capture/capture-shortcut";
 import { useEffect, useState, type ReactNode } from "react";
 import { DEAL_WORKSPACE_SECTIONS, dealNextAction, type DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
 import { SAVED_DEAL_STATUSES } from "@/lib/saved-deal-status";
 import styles from "./deal-workspace-overview.module.css";
 
-export function DealWorkspaceOverview({ savedSummary, customer, vehicle, pathway, pathwayLabel, owner, status, finalized, saved, saveStatus, section, onNavigate, pathwayOptions = [], selectedPreset, onPathway }: {
- savedSummary?: ReactNode;
+export function DealWorkspaceOverview({ captureHref, savedSummary, customer, vehicle, pathway, pathwayLabel, owner, status, finalized, saved, saveStatus, section, onNavigate, pathwayOptions = [], selectedPreset, onPathway }: {
+ captureHref?: string; savedSummary?: ReactNode;
  pathwayOptions?: Array<{id:string;label:string}>; selectedPreset?: string; onPathway?: (id:string)=>void;
  customer: string; vehicle: string; pathway: string; pathwayLabel: string; owner: string; status: keyof typeof SAVED_DEAL_STATUSES; finalized: boolean; saved: boolean; saveStatus: string; section: DealWorkspaceSection; onNavigate: (section: DealWorkspaceSection) => void;
 }) {
@@ -20,7 +21,7 @@ export function DealWorkspaceOverview({ savedSummary, customer, vehicle, pathway
  const next = dealNextAction({ customer: Boolean(customer), vehicle: Boolean(vehicle), pathway, status, finalized });
  const statusLabel = rental ? pathwayLabel : status === "SOLD" ? finalized ? "Sold · finalized" : "Sold · paperwork pending" : SAVED_DEAL_STATUSES[status];
  return <div className={styles.workspace}>
-  <header className={styles.heading}><div><h1>{repair ? "Repair deal" : pathway === "daily-rental" ? "Daily Rental" : savedSummary ? "Deal summary" : "Deal overview"}</h1><p>{pathway === "daily-rental" ? "Prepare checkout, activate the rental, monitor due-back and record return." : saved ? "Continue this saved deal" : "Prepare the deal; it is saved when you select a customer or save your work."}</p></div><div className={styles.links}><Link href="/crm-next/deals">Deals Home</Link><span className={styles.status} data-state={status === "SOLD" ? finalized ? "complete" : "pending" : undefined}>{statusLabel}</span></div></header>
+  <header className={styles.heading}><div><h1>{repair ? "Repair deal" : pathway === "daily-rental" ? "Daily Rental" : savedSummary ? "Deal summary" : "Deal overview"}</h1><p>{pathway === "daily-rental" ? "Prepare checkout, activate the rental, monitor due-back and record return." : saved ? "Continue this saved deal" : "Prepare the deal; it is saved when you select a customer or save your work."}</p></div><div className={styles.links}>{captureHref && <CaptureShortcut href={captureHref} newTab />}<Link href="/crm-next/deals">Deals Home</Link><span className={styles.status} data-state={status === "SOLD" ? finalized ? "complete" : "pending" : undefined}>{statusLabel}</span></div></header>
   {(!savedSummary || section !== "overview") && <div className={styles.identity} aria-label="Deal identity summary"><div><small>Customer</small>{customer ? <strong>{customer}</strong> : <button type="button" onClick={() => onNavigate("identity")}>Choose customer</button>}</div><div><small>Vehicle</small><strong>{vehicle || "Choose vehicle"}</strong></div><div><small>Pathway</small><strong>{pathwayLabel}</strong></div><div><small>Assigned staff</small><strong>{owner}</strong><small>{saveStatus}</small></div></div>}
   {pathwayOptions.length > 0 && <details open={!saved} className={styles.advanced} aria-label="Revenue pathway chooser"><summary>Choose or change revenue pathway</summary><div className={styles.actions}>{pathwayOptions.map(option=><button key={option.id} type="button" aria-pressed={selectedPreset === option.id} onClick={event=>{onPathway?.(option.id);const chooser=event.currentTarget.closest("details");if(chooser)chooser.open=false;}}>{option.label}</button>)}</div></details>}
   <nav className={styles.nav} role="tablist" aria-label="Deal workspace sections" onKeyDown={event => {

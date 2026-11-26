@@ -11,13 +11,14 @@ type MutationResult = { result: unknown; previous?: unknown };
 
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
 
-async function executeRegistryMutation(database: PrismaClient, input: EnterpriseCommandCommitInput, mutate: (tx: Tx, version: number) => Promise<MutationResult>) {
+async function executeRegistryMutation(database: PrismaClient, input: EnterpriseCommandCommitInput, mutate: (tx: Tx, version: number) => Promise<MutationResult>, validate?: (tx: Tx) => Promise<void>) {
   return database.$transaction(async (tx) => {
     const existing = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: input.organizationId, domain: input.domain, commandType: input.commandType, idempotencyKey: input.idempotencyKey } } });
     if (existing) {
       if (existing.requestHash !== input.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
       return { duplicate: true, result: existing.resultSnapshot, version: existing.resultingVersion ?? input.expectedVersion };
     }
+    await validate?.(tx);
     if (input.locationId) {
       const location = await tx.location.findFirst({ where: { id: input.locationId, organizationId: input.organizationId }, select: { id: true } });
       if (!location) throw new Error("Location does not belong to the command organization.");
@@ -149,7 +150,7 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
         return { previous, result: { color: vehicle.color, id: vehicle.id, version } };
       });
     },
-    addRelationship(command: EnterpriseCommandCommitInput, data: Prisma.VehicleRelationshipUncheckedCreateInput) {
+    addRelationship(command: EnterpriseCommandCommitInput, data: Prisma.VehicleRelationshipUncheckedCreateInput, validate?: (tx: Tx) => Promise<void>) {
       return executeRegistryMutation(database, command, async (tx, version) => {
         const relationship = await tx.vehicleRelationship.create({ data });
         if (data.customerId) await tx.customerVehicle.upsert({
@@ -159,7 +160,7 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
         });
         await tx.vehicle.update({ where: { id: command.subjectId }, data: { version } });
         return { result: { id: relationship.id, relationshipType: relationship.relationshipType, version } };
-      });
+      }, validate);
     },
     addExternalIdentity(command: EnterpriseCommandCommitInput, data: Prisma.VehicleExternalIdentityUncheckedCreateInput) {
       return executeRegistryMutation(database, command, async (tx, version) => {

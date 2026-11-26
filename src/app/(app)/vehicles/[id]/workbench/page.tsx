@@ -1,4 +1,6 @@
 import { VehicleExecutionWorkbench } from "@/features/inventory/vehicle-execution-workbench";
+import { vehicleCaptureHref } from "@/features/mobile-capture/capture-navigation";
+import { canCaptureForVehicle } from "@/server/document-library/capture-archive";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getVehicleExecutionWorkbench } from "@/server/inventory-execution/workbench-service";
 import Link from "next/link";
@@ -44,5 +46,6 @@ export default async function VehicleWorkbenchPage({ params }: { params: Promise
   const projection = await getVehicleExecutionWorkbench(user, id).catch(() => null);
   if (!projection) return <VehicleWorkbenchUnavailable vehicleId={id} />;
   const work = await listVehicleWorkActions(user, [id]);
-  return <VehicleExecutionWorkbench initial={JSON.parse(JSON.stringify(projection))} work={work[id]} />;
+  const captureHref = await canCaptureForVehicle(user, id) ? vehicleCaptureHref(id, `/vehicles/${encodeURIComponent(id)}/workbench`) : undefined;
+  return <VehicleExecutionWorkbench captureHref={captureHref} initial={JSON.parse(JSON.stringify(projection))} work={work[id]} />;
 }

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/server/auth/current-user";
-import { pipelineCommand, PipelineError, readPipeline, findPipelineMatches } from "@/server/crm-next/pipeline-service";
+import { pipelineCommand, PipelineError, readPipeline, findPipelineMatches, readCustomerPipeline, readPipelineOpportunity, readPipelineCustomerIdentity } from "@/server/crm-next/pipeline-service";
 import { runPipelineRecovery } from "@/server/crm-next/pipeline-worker";
 import { processPipelineImport, readPipelineImport } from "@/server/crm-next/pipeline-import";
 import { savePipelineTemplate } from "@/server/crm-next/pipeline-templates";
@@ -15,7 +15,16 @@ function failure(error: unknown) {
 export async function GET(request: Request) {
   const importId = new URL(request.url).searchParams.get("importId");
   if (importId) { try { return Response.json(await readPipelineImport(await getCurrentUser(), importId), { headers: { "Cache-Control": "private, no-store" } }); } catch (error) { return failure(error); } }
-  try { const params = new URL(request.url).searchParams, q = params.get("match"); return Response.json(q === null ? await readPipeline(await getCurrentUser(), { cursor: params.get("cursor") ?? undefined, leadPage: Number(params.get("leadPage") ?? 0), skipOpportunities: params.get("skipOpportunities") === "1" }) : await findPipelineMatches(await getCurrentUser(), q), { headers: { "Cache-Control": "private, no-store" } }); }
+  try {
+    const params = new URL(request.url).searchParams, actor = await getCurrentUser();
+    const customer = params.get("customer"), opportunity = params.get("opportunity"), identity = params.get("customerIdentity"), match = params.get("match");
+    const payload = customer !== null ? await readCustomerPipeline(actor, customer, opportunity ?? undefined)
+      : opportunity !== null ? await readPipelineOpportunity(actor, opportunity)
+      : identity !== null ? await readPipelineCustomerIdentity(actor, identity)
+      : match !== null ? await findPipelineMatches(actor, match)
+      : await readPipeline(actor, { cursor: params.get("cursor") ?? undefined, leadPage: Number(params.get("leadPage") ?? 0), skipOpportunities: params.get("skipOpportunities") === "1" });
+    return Response.json(payload, { headers: { "Cache-Control": "private, no-store" } });
+  }
   catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {

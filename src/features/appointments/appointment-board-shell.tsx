@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { RichTextComposer } from "@/components/ui/rich-text-composer";
+import { FocusedWorkspaceNavigationButton } from "@/components/layout/workspace-navigation";
 import {
   buildAppointmentNotificationContractHarness,
   buildAppointmentNotificationInboundContracts,
@@ -12606,9 +12607,12 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
         <div className="appointment-enterprise-main">
       <div className="appointment-board-toolbar">
-        <div>
-          <h1 id="appointment-board-title">Appointment Board</h1>
-          <p title={`${boardAddress} · ${boardPhone} · ${boardBusinessHours}`}>{boardAddress}</p>
+        <div className="appointment-schedule-heading">
+          <FocusedWorkspaceNavigationButton />
+          <div>
+            <h1 id="appointment-board-title">Appointment Board</h1>
+            <p title={`${boardAddress} · ${boardPhone} · ${boardBusinessHours}`}>{boardAddress}</p>
+          </div>
         </div>
         <div className="appointment-toolbar-actions">
           {showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : <Link href="/appointments?section=today">Exit schedule</Link>}

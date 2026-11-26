@@ -1,5 +1,7 @@
 "use client";
 
+import type { WorkspaceSidebarControls } from "./workspace-navigation";
+
 import { BarChart3, ChevronDown, Gauge, Inbox, Landmark, ListChecks, LogOut, Route, Search, Sparkles, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -10,7 +12,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { captureToolHref, MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
 
 type ManagerMode = "CEO" | "COO" | "WORK";
-type Props = { isOpen: boolean; onClose(): void; user: AuthenticatedUser };
+type Props = { isOpen: boolean; onClose(): void; user: AuthenticatedUser; navigation?: WorkspaceSidebarControls };
 
 const views = [
   { href: "/manager-workspace?mode=ceo", label: "CEO Direction", mode: "CEO" as const, icon: Landmark },
@@ -49,20 +51,21 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function ManagerWorkspaceSidebar({ isOpen, onClose, user }: Props) {
+export function ManagerWorkspaceSidebar({ isOpen, onClose, user, navigation }: Props) {
   const searchParams = useSearchParams();
   const requestedMode = String(searchParams.get("mode") ?? "CEO").toUpperCase();
   const activeMode: ManagerMode = requestedMode === "COO" || requestedMode === "WORK" ? requestedMode : "CEO";
   const modeQuery = activeMode.toLowerCase();
 
   return (
-    <aside className={["app-sidebar", "manager-workspace-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+    <aside id={navigation?.id} aria-label="Manager Workspace sidebar" className={["app-sidebar", "manager-workspace-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+      {navigation?.desktopToggle}
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales Manager Workspace" className="sidebar-brand" href={`/manager-workspace?mode=${modeQuery}`} onClick={onClose}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>TIME MOTOR SALES</strong><small>MANAGER WORKSPACE</small></span>
         </Link>
-        <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
+        <button className="sidebar-close" data-navigation-close aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 
       <div className="sidebar-navigation">

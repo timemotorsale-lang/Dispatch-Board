@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import { vehicleCaptureHref } from "@/features/mobile-capture/capture-navigation";
+import { canCaptureForVehicle } from "@/server/document-library/capture-archive";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { getVehicleCosts, getVehiclePricing } from "@/server/inventory-unit/service";
@@ -35,5 +37,6 @@ export default async function VehicleDetailsPage({ params, searchParams }: { par
     getVehicleIntake(user, id).catch(() => null),
     getVehicleSalesMedia(user, id).catch(() => null)
   ]);
-  return <FrontlinePreparationWorkspace journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia} initialTab={query?.tab === "media" ? "Media" : "Vehicle Info"} initialMediaKind={query?.purpose === "intake" ? "intake" : "photos"}/>;
+  const captureHref = await canCaptureForVehicle(user, id) ? vehicleCaptureHref(id, `/vehicles/${encodeURIComponent(id)}/details`) : undefined;
+  return <FrontlinePreparationWorkspace captureHref={captureHref} journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia} initialTab={query?.tab === "media" ? "Media" : "Vehicle Info"} initialMediaKind={query?.purpose === "intake" ? "intake" : "photos"}/>;
 }

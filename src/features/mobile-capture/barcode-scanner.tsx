@@ -10,11 +10,12 @@ import styles from "./barcode-scanner.module.css";
 
 export type { ScanResult } from "./live-barcode-reader";
 
-export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onConfirm }: {
+export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onConfirm, onUnreadablePhoto }: {
   vinOnly?: boolean;
   idOnly?: boolean;
   onClose: () => void;
   onConfirm: (result: ScanResult, image?: File) => void;
+  onUnreadablePhoto?: (image: File) => void;
 }) {
   const titleId = useId();
   const [facing, setFacing] = useState("environment");
@@ -26,6 +27,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
   const [status, setStatus] = useState("Starting camera…");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [image, setImage] = useState<File>();
+  const [unreadablePhoto, setUnreadablePhoto] = useState<File>();
   const [manual, setManual] = useState("");
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torch, setTorch] = useState(false);
@@ -172,6 +174,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     if (!file) return;
     if (!file.type.startsWith("image/") || !file.size || file.size > 25 * 1024 * 1024) { setStatus("Choose a nonempty image under 25 MB."); return; }
     const sequence = ++fileSequence.current;
+    setUnreadablePhoto(undefined);
     manualCapture.current = true;
     if (!liveCapture) { stopRef.current(); setCameraReady(false); }
     setReading(true);
@@ -201,7 +204,10 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       }
       if (sequence !== fileSequence.current) return;
       const value = vinOnly ? vinFromBarcode(decoded.getText()) : decoded.getText().trim();
-      if (idOnly && !idFromBarcode(decoded.getText())) { setStatus("This barcode did not contain recognizable ID fields. Use a clear photo of the barcode on the back of the ID."); return; }
+      if (idOnly && !idFromBarcode(decoded.getText())) {
+        if (onUnreadablePhoto) setUnreadablePhoto(file);
+        setStatus("This barcode did not contain recognizable ID fields. Use a clear photo of the barcode on the back of the ID."); return;
+      }
       if (!value) { setStatus("No VIN in this code. Choose a VIN barcode photo or enter the VIN."); return; }
       stopRef.current();
       setCameraReady(false);
@@ -209,7 +215,10 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       setResult({ format: BarcodeFormat[decoded.getBarcodeFormat()], value });
       setStatus("Code found. Check the result before continuing.");
     } catch {
-      if (sequence === fileSequence.current) setStatus("No readable code found. Choose a sharper photo with the whole code visible, or try the camera again.");
+      if (sequence === fileSequence.current) {
+        if (onUnreadablePhoto) setUnreadablePhoto(file);
+        setStatus("No readable code found. Choose a sharper photo with the whole code visible, or try the camera again.");
+      }
     } finally {
       URL.revokeObjectURL(url);
       if (sequence === fileSequence.current) { manualCapture.current = false; setReading(false); }
@@ -258,6 +267,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     setReading(false);
     setResult(null);
     setImage(undefined);
+    setUnreadablePhoto(undefined);
     setTorch(false);
     setIdConfirmed(false);
     setRevealId(false);
@@ -286,6 +296,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
         {result ? <div className={styles.result}><Check size={36} /><strong>{idOnly ? "Review ID details" : result.format === "MANUAL" ? vinOnly ? "VIN entered" : "Code entered" : "Code found"}</strong>{idOnly ? <dl className={styles.idDetails}><div><dt>Name</dt><dd>{idFields?.name || "Not available"}</dd></div><div><dt>Issuing state</dt><dd>{idFields?.state || "Not available"}</dd></div><div><dt>ID number</dt><dd>{revealId ? idFields?.number : `•••• ${idFields?.number.slice(-4) ?? ""}`}</dd></div></dl> : <code>{result.value}</code>}<p>{idOnly ? "Compare these fields with the front of the card. Reading a barcode does not verify identity or card authenticity." : "Confirm against the vehicle or label. Scanned links are never opened automatically."}</p></div> : <div aria-hidden="true" className={`${styles.guide} ${idOnly ? styles.idGuide : ""}`}><Camera /><span>{idOnly ? "Back of ID · wide barcode" : vinOnly ? "VIN barcode / QR" : "Barcode / QR code"}</span></div>}
       </div>
       <p className={styles.status} role="status">{status}</p>
+      {!result && unreadablePhoto && onUnreadablePhoto && <div className={styles.controls}><button disabled={reading} onClick={() => { stopRef.current(); onUnreadablePhoto(unreadablePhoto); }} type="button">Keep back photo without barcode</button></div>}
       {result ? <>{idOnly ? <div className={styles.idReview}><button aria-pressed={revealId} onClick={() => setRevealId(!revealId)} type="button">{revealId ? "Hide ID number" : "Show ID number"}</button><label><input checked={idConfirmed} onChange={(event) => setIdConfirmed(event.target.checked)} type="checkbox" /> I checked these details against the front of the ID.</label><p>Details stay in this capture session until you choose an action. No customer record is changed automatically.</p></div> : null}<div className={styles.controls}><button className={styles.primary} disabled={idOnly && (!idFields || !idConfirmed)} onClick={() => onConfirm(result, image)} type="button"><Check />{idOnly ? "Use reviewed ID" : vinOnly ? "Use this VIN" : "Use this code"}</button><button onClick={retry} type="button"><RotateCcw />Scan again</button></div></> : <>
         <div className={styles.controls}><button disabled={reading || !cameraReady} onClick={() => void captureBarcode()} type="button"><Camera />{reading ? "Reading photo…" : "Capture barcode"}</button><button disabled={reading} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose photo</button></div>
         <div className={styles.controls}>{!cameraReady ? <><button disabled={reading} onClick={retry} type="button"><RotateCcw />Try again</button><button disabled={reading} onClick={() => nativeRef.current?.click()} type="button">Use device camera</button></> : <button disabled={reading} onClick={() => { retry(); setCameraId(""); setFacing((current) => current === "environment" ? "user" : "environment"); }} type="button"><SwitchCamera />Flip camera</button>}{cameraReady && torchAvailable ? <button aria-pressed={torch} onClick={() => void toggleTorch()} type="button"><Flashlight />Light {torch ? "on" : "off"}</button> : null}</div>

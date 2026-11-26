@@ -10,7 +10,7 @@ export const PIPELINE_VIEWS = {
   overdue: "Overdue", unassigned: "Unassigned", no_activity: "No next activity", missing_date: "Missing closing date",
   waiting: "Waiting review", nurture: "Nurture review", exceptions: "Needs attention", archived: "Archived and closed"
 } as const;
-export type PipelineFilters = { q: string; owner: string; pathway: string; period: string; basis: string; view: string; start: string; end: string; mode: string; history: string; };
+export type PipelineFilters = { q: string; owner: string; pathway: string; period: string; basis: string; view: string; start: string; end: string; mode: string; history: string; stage?: string; source?: string };
 export const defaultPipelineFilters: PipelineFilters = { q: "", owner: "mine", pathway: "all", period: "today", basis: "due", view: "all", start: "", end: "", mode: "queue", history: "current" };
 
 export function latestPipelineActivity(row: PipelineRow): PipelineActivity | null {
@@ -25,6 +25,8 @@ export function latestPipelineActivity(row: PipelineRow): PipelineActivity | nul
 }
 
 export function filterPipelineRelatedWork(work: PipelineRelatedWork[], filters: PipelineFilters, actorId: string) {
+  // Older source work has no canonical opportunity stage or receipt classification.
+  if (filters.stage && filters.stage !== "all" || filters.source && filters.source !== "all") return [];
   const search = filters.q.trim().toLowerCase();
   return work.filter(item =>
     (filters.owner === "all" || item.ownerId === (filters.owner === "mine" ? actorId : filters.owner)) &&
@@ -57,6 +59,8 @@ export function filterPipelineRows(rows: PipelineRow[], f: PipelineFilters, acto
   return rows.filter(r => {
     if (f.owner === "mine" && r.ownerUserId !== actorId && r.pendingOwnerId !== actorId || f.owner !== "mine" && f.owner !== "all" && r.ownerUserId !== f.owner) return false;
     if (f.pathway !== "all" && r.pathway !== f.pathway) return false;
+    if (f.stage && f.stage !== "all" && r.stage !== f.stage) return false;
+    if (f.source && f.source !== "all" && r.sourceCode !== f.source) return false;
     if (f.q && !`${r.title} ${r.customerName} ${r.vehicle} ${r.opportunityNumber} ${r.sourceCode}`.toLowerCase().includes(f.q.toLowerCase())) return false;
     if (f.view === "continuity") return r.stage !== "LOST" && r.dealStatus !== "LOST" &&
       (r.sourceLeadStage !== "LOST" || r.stage === "WON" || Boolean(r.dealId && r.dealStatus));
@@ -66,7 +70,7 @@ export function filterPipelineRows(rows: PipelineRow[], f: PipelineFilters, acto
       if (!accountable) return false;
       if (f.view === "overdue") return Boolean(due && due < now.toISOString());
       if (f.view === "unassigned") return !r.ownerUserId || !r.ownerActive;
-      if (f.view === "no_activity") return r.disposition === "ACTIVE" && (!r.nextActionDueAt || !r.nextActionLabel);
+      if (f.view === "no_activity") return signals.some(([code]) => code === "NO_NEXT_ACTION");
       if (f.view === "missing_date") return !r.expectedCloseAt;
       if (f.view === "waiting") return r.disposition === "WAITING";
       if (f.view === "nurture") return r.disposition === "NURTURE";
@@ -86,6 +90,23 @@ export function filterPipelineRows(rows: PipelineRow[], f: PipelineFilters, acto
     const urgency = (r: PipelineRow) => pipelineSignals(r, now).length + r.exceptions.length;
     return urgency(b) - urgency(a) || (a.nextActionDueAt ?? "9999").localeCompare(b.nextActionDueAt ?? "9999") || a.id.localeCompare(b.id);
   });
+}
+
+export function pipelineRecoveryCandidates(data: Pick<PipelineWorkspace, "rows" | "relatedWork">, now: Date) {
+  const candidates: { id: string; title: string; reason: string; href: string | null; opportunityId?: string }[] = [];
+  for (const row of data.rows) {
+    if (!activePipelineRow(row) || row.contactSuppressed || row.contactReview) continue;
+    const missed = row.exceptions.some(item => item.code === "MISSED_APPOINTMENT");
+    if (missed) candidates.push({ id: row.id, title: row.vehicle || row.title, reason: "Missed appointment · review whether to reschedule", href: null, opportunityId: row.id });
+  }
+  for (const item of data.relatedWork ?? []) {
+    if (item.completed || !item.customerId || /do not contact|contact permissions/i.test(item.nextAction)) continue;
+    if (item.kind === "lead") candidates.push({ id: item.id, title: item.name, reason: "Existing inquiry not yet in the pipeline · review and link the original lead", href: item.href + "#pipeline" });
+    else if (item.kind === "customer" && item.dueAt && item.dueAt <= now.toISOString() && !data.rows.some(row => row.customerId === item.customerId && activePipelineRow(row))) {
+      candidates.push({ id: item.id, title: item.name, reason: "Recorded customer follow-up is due · review existing work and confirm the next step", href: item.href });
+    }
+  }
+  return candidates.slice(0, 12);
 }
 export function applyPipelineView(f: PipelineFilters, view: string): PipelineFilters {
   const common = { ...f, view, history: "current" };
