@@ -26,5 +26,5 @@ export default async function ShopReconVehicleCardPage({ params, searchParams }:
   ]);
   const inventoryUnavailableReason = customerRepair ? customerRepairShopNotice : customerOwned ? customerInventoryLifecycleNotice : undefined;
   const inventoryHref = item.vehicleId && !inventoryUnavailableReason ? inventoryLifecycleHref(item.vehicleId, repairOrderId, returnTo) : undefined;
-  return <ShopReconVehicleCard focused={focused} inventoryHref={inventoryHref} inventoryUnavailableReason={inventoryUnavailableReason} initialStage={query?.stage} item={JSON.parse(JSON.stringify(item))} lifecycleWorkspace={JSON.parse(JSON.stringify(lifecycleWorkspace))} returnTo={returnTo} titlePreparationWorkspace={JSON.parse(JSON.stringify(titlePreparationWorkspace))} />;
+  return <ShopReconVehicleCard focused={focused} inventoryHref={inventoryHref} inventoryUnavailableReason={inventoryUnavailableReason} initialStage={query?.stage} item={JSON.parse(JSON.stringify(item))} lifecycleWorkspace={JSON.parse(JSON.stringify(lifecycleWorkspace))} returnTo={returnTo} titlePreparationWorkspace={customerOwned ? null : JSON.parse(JSON.stringify(titlePreparationWorkspace))} />;
 }

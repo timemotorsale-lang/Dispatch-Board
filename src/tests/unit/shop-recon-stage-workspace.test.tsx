@@ -74,15 +74,11 @@ describe("Shop Recon unified vehicle-card design", () => {
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={item} lifecycleWorkspace={lifecycleWorkspace} />);
     expect(html).toContain("Unified vehicle card for 2024 Toyota RAV4");
-    expect(html).toContain("Assign &amp; Dispatch");
-    expect(html).toContain("Assigned to Walter Hernandez");
-    expect(html).toContain("Change technician");
-    expect(html).toContain("Open Shop Dispatch");
-    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1");
-    expect(html).toContain("vehicleId=vehicle-1#assignment");
-    expect(html).toContain("/vehicles/shop-dispatch?repairOrderId=ro-1");
-    expect(html).toContain("Current Shop Stage");
-    expect(html).toContain("Viewing Stage 1 of 16");
+    expect(html).toContain("Current task");
+    expect(html).toContain("Save stage work");
+    expect(html).toContain("Review &amp; complete");
+    expect(html).not.toContain("Assign &amp; Dispatch");
+    expect(html).not.toContain("Priority");
     expect(html).toContain("Service / Recon Job Intake");
     expect(html).toContain("Approved Stage 1 Checklist");
     expect(html).toContain("Inventory-to-Shop Handoff Summary");
@@ -99,16 +95,11 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Open Inventory Vehicle Card");
     expect(html).toContain("Open Inventory-to-Shop Handoff");
     expect(html).toContain("Correct in Inventory Handoff");
-    expect(html).toContain("Source &amp; Return Path");
-    expect(html).toContain("Pending Shop exit sync");
-    expect(html).toContain("Governed operational workspace");
-    expect(html).toContain("Work to Perform");
-    expect(html).toContain("Stage Activity");
-    expect(html).toContain("Documents &amp; Evidence");
-    expect(html).toContain("Stage Completion");
-    expect(html).toContain("Perform the work here");
-    expect(html).toContain("Working as Brock");
-    expect(html).toContain("No governed stage events yet");
+    expect(html).toContain("Details");
+    expect(html).toContain("History");
+    expect(html).toContain("Evidence");
+    expect(html).not.toContain("Source &amp; Return Path");
+    expect(html).not.toContain("Policy Guardrails");
   });
 
   it("renders Stage 2 with the approved Scope Builder clearance checklist", () => {
@@ -173,31 +164,47 @@ describe("Shop Recon unified vehicle-card design", () => {
     const stageFourLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_INTAKE_CUSTODY" as const, nextAction: "Accept physical custody" } };
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageFourItem} lifecycleWorkspace={stageFourLifecycle} />);
 
-    expect(html).toContain("Official Stage 4 Tool");
     expect(html).toContain("Vehicle Intake &amp; Custody");
+    expect(html).toContain("Open custody form");
     expect(html).toContain("/vehicles/shop-recon/ro-1/vehicle-intake-custody");
-    expect(html).toContain("Vehicle identity matched");
-    expect(html).toContain("Arrival condition recorded");
-    expect(html).toContain("Keys counted and tagged");
-    expect(html).toContain("Photos/evidence captured");
-    expect(html).toContain("Physical location assigned");
-    expect(html).toContain("Movement restriction noted");
-    expect(html).toContain("Custody accepted");
+    expect(html).not.toContain("Vehicle identity matched");
+    expect(html).not.toContain("Source tool sync");
+    expect(html).not.toContain("Current Vehicle Context");
   });
 
   it("renders the official Vehicle Intake & Custody form as the source of truth", () => {
     const stageFourLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_INTAKE_CUSTODY" as const } };
     const html = renderToStaticMarkup(<ShopReconVehicleIntakeCustody item={item} lifecycleWorkspace={stageFourLifecycle} returnTo="/vehicles/shop-recon/ro-1" />);
 
-    expect(html).toContain("Physical Check-In Form");
     expect(html).toContain("Match the vehicle");
     expect(html).toContain("Keys &amp; custody");
     expect(html).toContain("Arrival condition");
     expect(html).toContain("Physical location");
     expect(html).toContain("I confirm this exact vehicle is now under Shop custody.");
-    expect(html).toContain("Stage 4 checklist");
-    expect(html).toContain("Save Custody Draft");
-    expect(html).toContain("Complete Vehicle Intake");
+    expect(html).toContain("Save custody &amp; return");
+    expect(html).not.toContain("Stage 4 checklist");
+    expect(html).not.toContain("KT-0417");
+    expect(html).not.toContain('selected="">Match confirmed');
+    expect(html).not.toContain("Complete Vehicle Intake");
+  });
+
+  it("keeps parts a separate exact-order tool and previews future stages without completion controls", () => {
+    const html = renderToStaticMarkup(<ShopReconVehicleCard focused initialStage="10" item={item} lifecycleWorkspace={{ ...lifecycleWorkspace, permissions: { ...lifecycleWorkspace.permissions, canViewParts: true } }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
+    expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");
+    expect(html).toContain("Still to finish:");
+    expect(html).toContain("Resume Service / Recon Job Intake");
+    expect(html).not.toContain("Save stage work");
+    expect(html).not.toContain("Complete stage &amp; advance");
+  });
+
+  it("does not offer custody writes to read-only staff", () => {
+    const workspace = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_INTAKE_CUSTODY" as const }, permissions: { ...lifecycleWorkspace.permissions, canSave: false } };
+    const card = renderToStaticMarkup(<ShopReconVehicleCard item={item} lifecycleWorkspace={workspace} />);
+    expect(card).toContain("View custody form");
+    expect(card).not.toContain("/vehicles/service-close-parts");
+    const form = renderToStaticMarkup(<ShopReconVehicleIntakeCustody item={item} lifecycleWorkspace={workspace} returnTo="/vehicles/shop-recon/ro-1" />);
+    expect(form).toContain("disabled");
+    expect(form).not.toContain("Save custody &amp; return");
   });
 
   it("renders Stage 5 with Safety & Mobility Triage above the safety checklist", () => {
@@ -356,9 +363,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     };
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTenItem} lifecycleWorkspace={stageTenLifecycle} />);
 
-    expect(html).toContain("Source tool sync");
-    expect(html).toContain("4 checklist lines cleared from saved tool facts or published evidence.");
-    expect(html).toContain("4/6 ready");
+    expect(html).toContain("4 checks filled from saved records");
+    expect(html).toContain("4/6 recorded");
   });
 
   it("renders Stage 11 with Shop Dispatch and Repair Workbench above the dispatch checklist", () => {
@@ -442,7 +448,6 @@ describe("Shop Recon unified vehicle-card design", () => {
 
     expect(html).toContain("Parts blocker: keep the vehicle out of dispatch until Parts Ordering shows ready or no parts required.");
     expect(html).toContain("Active blocker: BLK-PARTS-NOT_READY.");
-    expect(html).toContain("0/6 blocked");
   });
 
   it("renders Stage 15 with lane-aware release readiness tools above the checklist", () => {
@@ -475,6 +480,6 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Receiving-party acceptance captured");
     expect(html).toContain("Final location and exit recorded");
     expect(html).toContain("Return path synced");
-    expect(html).toContain("Complete handoff checklist");
+    expect(html).toContain("Finalize repair order");
   });
 });

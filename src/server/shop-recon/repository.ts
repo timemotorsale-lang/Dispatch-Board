@@ -1,5 +1,5 @@
 import { assertDiagnosticAuthorization } from "@/server/repair-order/diagnostic-authorization";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
@@ -19,6 +19,19 @@ function orderInclude() {
 function nextAction(stage: ShopReconStageCode) { return getShopReconStageWorkspace(stage).purpose; }
 function targetAt(stage: ShopReconStageCode, now: Date, fallback: Date) { const minutes = SHOP_RECON_TARGETS.stageMinutes[stage]; return minutes == null ? fallback : addShopStaffedMinutes(now, minutes); }
 function draftRecord(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+export function effectiveShopCustodyKeys(evidence: unknown, originalKeys: number) {
+  const payload = draftRecord(evidence), count = payload.keyCount;
+  return payload.custodyAccepted === true && typeof payload.custodyEventId === "string" && payload.custodyEventId &&
+    typeof count === "number" && Number.isInteger(count) && count >= 1 && count <= 20 ? count : originalKeys;
+}
+async function acceptedShopKeys(tx: Prisma.TransactionClient, lifecycleId: string, originalKeys: number) {
+  const custody = await tx.shopReconStageEvidence.findFirst({
+    where: { lifecycleId, stage: "VEHICLE_INTAKE_CUSTODY" },
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+    select: { payload: true }
+  });
+  return effectiveShopCustodyKeys(custody?.payload, originalKeys);
+}
 function draftText(form: Record<string, unknown>, key: string, label: string) { const value = typeof form[key] === "string" ? form[key].trim() : ""; if (!value) throw new Error(`${label} is required before operational evidence can be published.`); return value; }
 function draftNumber(form: Record<string, unknown>, key: string, label: string) { const value = Number(form[key]); if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be a non-negative number.`); return Math.round(value); }
 function draftMoneyCents(form: Record<string, unknown>, key: string, label: string) { const value = Number(form[key]); if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be a non-negative amount.`); return Math.round(value * 100); }
@@ -40,7 +53,7 @@ function authoritativeFacts(order: FactOrder, lifecycle: FactLifecycle) {
   const qcVersions = draftRecord(quality.qcVersions), qcCurrent = jobs.length > 0 && jobs.every(job => { const inspection = job.qualityInspections[0]; return inspection && qcVersions[inspection.id] === inspection.version && inspection.disposition === "PASSED"; });
   return {
     JOB_INTAKE_COMPLETE: published.has("SERVICE_RECON_JOB_INTAKE"), JOB_SCOPE_DEFINED: published.has("JOB_SCOPE_DEFINITION"), WORK_ORDER_CREATED: published.has("WORK_ORDER_CREATION") && Boolean(order.id),
-    IDENTITY_MATCHED: published.has("VEHICLE_INTAKE_CUSTODY") && Boolean(order.vehicleId), CUSTODY_ACCEPTED: published.has("VEHICLE_INTAKE_CUSTODY") && (order.serviceVisit?.keysReceivedCount ?? 0) > 0, SAFETY_TRIAGED: published.has("SAFETY_MOBILITY_TRIAGE"),
+    IDENTITY_MATCHED: published.has("VEHICLE_INTAKE_CUSTODY") && Boolean(order.vehicleId), CUSTODY_ACCEPTED: published.has("VEHICLE_INTAKE_CUSTODY") && effectiveShopCustodyKeys(stagePayload("VEHICLE_INTAKE_CUSTODY"), order.serviceVisit?.keysReceivedCount ?? 0) > 0, SAFETY_TRIAGED: published.has("SAFETY_MOBILITY_TRIAGE"),
     INSPECTION_COMPLETE: published.has("INSPECTION_CONCERN_VERIFICATION") && Boolean(order.inspectionVersions?.length), DIAGNOSIS_COMPLETE: published.has("DIAGNOSIS") && Boolean(order.diagnosisVersions?.length), PLAN_CURRENT: published.has("FINDINGS_REPAIR_PLAN") && Boolean(latestEstimate) && plan.estimateId === latestEstimate.id && plan.estimateVersion === latestEstimate.version, AUTHORIZATION_CURRENT: published.has("AUTHORIZATION") && authorized,
     PARTS_READY: published.has("PARTS_RESOURCE_READINESS") && readiness.partsReady === true && currentJobsMatch && currentPartsMatch, TECHNICIAN_ELIGIBLE: published.has("PARTS_RESOURCE_READINESS") && readiness.technicianEligible === true && currentJobsMatch, BAY_ELIGIBLE: published.has("PARTS_RESOURCE_READINESS") && readiness.bayEligible === true && currentJobsMatch, PROCEDURE_CURRENT: published.has("PARTS_RESOURCE_READINESS") && readiness.procedureCurrent === true && currentJobsMatch, DISPATCH_READY: published.has("DISPATCH_WORK_STAGING") && dispatch.dispatchReady === true && currentJobsMatch, DISPATCH_CONFIRMED: published.has("DISPATCH_WORK_STAGING") && dispatch.dispatchConfirmed === true && currentDispatchesMatch,
     EXECUTION_COMPLETE: published.has("REPAIR_EXECUTION") && execution.executionComplete === true && executionCurrent && jobs.every(job => ["READY_FOR_QC", "QC_PASSED"].includes(job.status)), COMPLETION_EVIDENCE: published.has("REPAIR_EXECUTION") && execution.completionEvidence === true && executionCurrent && jobs.every(job => Array.isArray(job.executionEvidence) && job.executionEvidence.length > 0), TECHNICIAN_SIGNOFF: published.has("TECHNICIAN_COMPLETION") && technicianSignoff.technicianSignoff === true && signoffCurrent, QC_PASSED: published.has("QUALITY_CONTROL_ROAD_TEST") && quality.qcPassed === true && qcCurrent && jobs.every(job => job.status === "QC_PASSED"), ROAD_TEST_PASSED_OR_NOT_REQUIRED: published.has("QUALITY_CONTROL_ROAD_TEST") && qcCurrent && latestInspections.length === jobs.length && latestInspections.every(inspection => ["PASSED", "NOT_REQUIRED"].includes(inspection.roadTestOutcome)), RELEASE_READY: published.has("RELEASE_HANDOVER_READINESS") && releaseReadiness.releaseReady === true, HANDOFF_ACCEPTED: Boolean(order.releaseAuthorization) && releaseReadiness.releaseAuthorizationId === order.releaseAuthorization?.id,
@@ -110,10 +123,11 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         } else if (lifecycle.stage === "VEHICLE_INTAKE_CUSTODY") {
           const observed = draftText(form, "observedIdentifier", "Observed vehicle identifier").replace(/[^A-Z0-9]/gi, "").toUpperCase(), expected = [vehicle.vin, vehicle.vehicleNumber, order.repairOrderNumber].filter(Boolean).map(value => String(value).replace(/[^A-Z0-9]/gi, "").toUpperCase());
           if (!expected.includes(observed)) throw new Error("Observed vehicle identity does not match the VIN, vehicle number, or repair order.");
-          const keyCount = draftNumber(form, "keyCount", "Keys received"), keyTag = draftText(form, "keyTag", "Key tag"); if (keyCount < 1) throw new Error("At least one key is required to accept Shop custody.");
-          await tx.serviceVisit.update({ where: { id: order.serviceVisit.id }, data: { keysReceivedCount: keyCount, keyTag, intakeNotes: draftText(form, "intakeNotes", "Intake notes") } });
+          const keyCount = Number(form.keyCount), keyTag = draftText(form, "keyTag", "Key tag"), intakeNotes = draftText(form, "intakeNotes", "Intake notes");
+          if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 20) throw new Error("Enter a whole count from 1 through 20 keys to accept Shop custody.");
+          // Shop custody is recorded separately from the immutable original service intake.
           const custody = await tx.vehicleCustodyEvent.create({ data: { organizationId: command.organizationId, vehicleId: order.vehicleId, locationId: order.locationId, eventType: "CHECK_IN", custodianType: "SHOP_USER", custodianId: actor.id, positionLabel: draftText(form, "custodyLocation", "Custody location"), occurredAt: now, sourceCode: "SHOP_RECON_STAGE_4", sourceReference: order.id, reason, recordedByUserId: actor.id } });
-          payload = { ...payload, canonicalVehicleId: vehicle.id, keyCount, keyTag, identityMatched: true, custodyAccepted: true, custodyEventId: custody.id };
+          payload = { ...payload, canonicalVehicleId: vehicle.id, keyCount, keyTag, intakeNotes, identityMatched: true, custodyAccepted: true, custodyEventId: custody.id };
           sourceReferences.push({ type: "VEHICLE", id: vehicle.id }, { type: "SERVICE_VISIT", id: order.serviceVisit.id }, { type: "VEHICLE_CUSTODY_EVENT", id: custody.id });
         } else if (lifecycle.stage === "SAFETY_MOBILITY_TRIAGE") {
           const mobility = draftText(form, "mobility", "Vehicle mobility"), hazards = draftText(form, "hazards", "Observed hazards"), priority = draftText(form, "priority", "Operational priority"), restricted = mobility === "Do not move";
@@ -228,7 +242,8 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
           if (!deliveryReadiness || deliveryReadiness.disposition !== "READY" || deliveryReadiness.releaseAuthorizationId !== release.id) throw new Error("Release readiness requires a current READY delivery evaluation tied to the release authorization.");
           if (destination !== expectedDestination) throw new Error(`The release destination must follow the ${order.origin === "INVENTORY_RECON" ? "Inventory Recon" : "Customer Repair"} lane: ${expectedDestination}.`);
           const readyKeys = draftNumber(form, "keyCountReady", "Keys ready");
-          if (readyKeys !== order.serviceVisit.keysReceivedCount) throw new Error(`Keys ready must reconcile to the ${order.serviceVisit.keysReceivedCount} keys accepted at intake.`);
+          const acceptedKeys = await acceptedShopKeys(tx, lifecycle.id, order.serviceVisit.keysReceivedCount);
+          if (readyKeys !== acceptedKeys) throw new Error(`Keys ready must reconcile to the ${acceptedKeys} keys accepted at check-in.`);
           payload = { ...payload, releaseReady: true, releaseAuthorizationId: release.id, deliveryReadinessId: deliveryReadiness.id, deliveryReadinessVersion: deliveryReadiness.version, destination, readyKeys, finalCostCents: draftMoneyCents(form, "finalCost", "Final cost"), readinessNotes: draftText(form, "readinessNotes", "Readiness notes") };
           sourceReferences.push({ type: "REPAIR_RELEASE_AUTHORIZATION", id: release.id }, { type: "DELIVERY_READINESS_EVALUATION", id: deliveryReadiness.id, version: deliveryReadiness.version });
         } else if (lifecycle.stage === "VEHICLE_HANDOVER_SHOP_EXIT") {
@@ -237,8 +252,9 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
           if (!release) throw new Error("Shop exit requires a governed release authorization.");
           if (!deliveryReadiness || deliveryReadiness.disposition !== "READY" || deliveryReadiness.releaseAuthorizationId !== release.id) throw new Error("Shop exit requires a current READY delivery evaluation tied to the release authorization.");
           if (destination !== expectedDestination) throw new Error(`The handoff destination must follow the ${order.origin === "INVENTORY_RECON" ? "Inventory Recon" : "Customer Repair"} lane: ${expectedDestination}.`);
-          const releasedKeys = form.keyCountReleased == null || form.keyCountReleased === "" ? order.serviceVisit.keysReceivedCount : draftNumber(form, "keyCountReleased", "Keys released");
-          if (releasedKeys !== order.serviceVisit.keysReceivedCount) throw new Error(`Keys released must reconcile to the ${order.serviceVisit.keysReceivedCount} keys accepted at check-in.`);
+          const acceptedKeys = await acceptedShopKeys(tx, lifecycle.id, order.serviceVisit.keysReceivedCount);
+          const releasedKeys = form.keyCountReleased == null || form.keyCountReleased === "" ? acceptedKeys : draftNumber(form, "keyCountReleased", "Keys released");
+          if (releasedKeys !== acceptedKeys) throw new Error(`Keys released must reconcile to the ${acceptedKeys} keys accepted at check-in.`);
           const handoffNote = typeof form.receiverAcceptance === "string" && form.receiverAcceptance.trim()
             ? form.receiverAcceptance.trim()
             : evidenceReferences[0] ?? reason;

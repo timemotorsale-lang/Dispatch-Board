@@ -132,7 +132,7 @@ export function partsEntryRecoveryGuidance(saved: SavedCompactEntry, purchaseOrd
   return saved.nextAction ?? "Review the saved parts records. Resume any unfinished request unchanged.";
 }
 
-type Props = { initial: Model; compactStage?: boolean; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
+type Props = { initial: Model; compactStage?: boolean; initialRepairOrderId?: string; parallelTask?: boolean; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
 type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
 type BudgetRequestStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "DENIED";
 
@@ -324,7 +324,7 @@ function Notice({ value }: { value: string }) {
   return <div className={`scp-notice ${danger ? "danger" : "success"}`} role="status">{value}</div>;
 }
 
-export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo, reviewOrderId, compactStage = false }: Props) {
+export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, parallelTask = false, returnLabel, returnTo, reviewOrderId, compactStage = false }: Props) {
   const router = useRouter();
   const initialOrderId = initialRepairOrderId ?? first(initial.repairOrders);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1382,7 +1382,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     {!compactStage && <p>{unfinished.length > 0 ? "Use Retry save above to finish recording the existing entries. This form is for a different part." : <>To record a purchase, check <strong>Purchased</strong> below.</>} Saved purchase orders appear in {scopedPurchaseOrders.length || scopedDemands.length ? <a href="#saved-parts-records">Recent parts records</a> : "Recent parts records after saving"}.</p>}
     <CompactPartsEntry usageEnabled linkNewPartsToJob={compactStage} key={`${orderId}:${formRevision}`} receivedParts={receivedParts.filter(part => part.quantity > 0)} preferredPartsJobId={compactStage ? preferredPartsJobId : undefined} jobs={entryJobs.map(job => ({ id: job.id, label: compactStage && job.description ? `${job.jobNumber} · ${job.description}` : job.jobNumber }))} selection={entrySelection} repairOrderId={selectedOrder?.id ?? ""} disabled={busy || resumingParts || !storageReady || refreshNeeded || Boolean(selectedOrder?.closedAt)} neededParts={(compactPartsModel(model).demands ?? []).filter(demand => demand.repairOrderId === orderId && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status) && demand.quantityRequired > demand.quantityReserved).map(demand => ({ id: demand.id, partId: demand.partId, part: model.parts.find(part => part.id === demand.partId)?.description || model.parts.find(part => part.id === demand.partId)?.partNumber || "Needed repair part", quantity: demand.quantityRequired - demand.quantityReserved }))} suppliers={model.vendors.filter(vendor => vendor.status !== "INACTIVE").map(vendor => ({ id: vendor.id, name: vendor.name ?? "Saved supplier" }))} purchaseOrders={compactPurchaseOptions(model, orderId)} stockLocations={model.stockLocations.filter(stock => stock.locationId === selectedOrder?.locationId && stock.isActive !== false && stock.status !== "INACTIVE" && stock.type !== "DAMAGED").map(stock => ({ id: stock.id, label: [stock.code, stock.name].filter(Boolean).join(" · ") || "Receiving bin" }))} onSave={entry => saveCompact(entry)} />
     </div>
-    {selectedOrder && !selectedOrder.closedAt && <section className={compactStyles.recent} aria-label="Finish parts stage">
+    {!parallelTask && selectedOrder && !selectedOrder.closedAt && <section className={compactStyles.recent} aria-label="Finish parts stage">
       {!compactStage && <h2>Finish parts stage</h2>}
       {unfinished.length > 0 ? <p><a href="#unfinished-parts-entry">Finish saving the pending parts entries</a> before continuing.</p>
         : !selectedOrder.repairJobs?.length ? <p>Release the approved repair job before continuing.</p>
@@ -1390,7 +1390,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           ? <p>Resolve the remaining parts requirements before continuing to assignment.</p>
           : !busy && !resumingParts && !refreshNeeded && <Link href={repairReviewHref(selectedOrder.id, selectedOrder.repairJobs.some(job => ["WAITING_PARTS", "READY_FOR_REPAIR"].includes(job.status ?? "")) ? "assignment" : "repair")}>{compactStage ? (selectedOrder.repairJobs.some(job => ["WAITING_PARTS", "READY_FOR_REPAIR"].includes(job.status ?? "")) ? "Continue to assignment" : "Continue repair") : "Finish parts & continue repair"}</Link>}
     </section>}
-    {!compactStage && selectedOrder && <section className={compactStyles.recent} aria-label="Invoice and vehicle handoff">
+    {!parallelTask && !compactStage && selectedOrder && <section className={compactStyles.recent} aria-label="Invoice and vehicle handoff">
       <h2>Invoice, payment &amp; handoff</h2>
       <p>Open billing to check what this repair order still needs before you can issue the invoice. After recording payment, open the repair workflow to check readiness and record the handoff.</p>
       <nav className={compactStyles.receiptActions} aria-label="Repair closeout">
@@ -1445,7 +1445,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       </section>
     ) : null}
 
-    <section className="scp-workflow-handoff" aria-label="Continue your workflow">
+    {parallelTask ? returnTo && <p><Link className="scp-return-action" href={returnTo}><ArrowLeft size={17} />{returnLabel ?? "Return to current Shop task"}</Link></p> : <section className="scp-workflow-handoff" aria-label="Continue your workflow">
       <div className="scp-workflow-copy">
         <ListChecks aria-hidden="true" size={24} />
         <div><span>What happens next</span><strong>{workflowStep.title}</strong><small>{workflowStep.detail}</small></div>
@@ -1456,7 +1456,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           : <button className="scp-return-action" onClick={returnToPreviousWork} type="button"><ArrowLeft size={17} />Return to previous work</button>}
         <button className="scp-next-step-action" onClick={openWorkflowStep} type="button">{workflowStep.label}<ArrowRight size={17} /></button>
       </div>
-    </section>
+    </section>}
 
     <section className="scp-context">
       <Field label="Repair order">
@@ -1673,10 +1673,10 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     </main>
     </details>
 
-    <section className="scp-panel scp-close">
+    {!parallelTask && <section className="scp-panel scp-close">
       <div><span>Financial close</span><strong>{closeGuidance.length ? `Package v${activeInvoice?.version} · Review required` : activeInvoice ? `Package v${activeInvoice.version} · Recheck before closing` : "No invoice package yet"}</strong>{closeGuidance.length ? <ul>{closeGuidance.map((item, index) => <li key={index}>{item.label} <Link href={item.href}>{item.actionLabel}</Link></li>)}</ul> : <small>Review current repair, QC and billing requirements before closing.</small>}</div>
       <button disabled={busy || !selectedOrder || Boolean(selectedOrder.closedAt)} onClick={() => selectedOrder && void run(() => request({ action: "GENERATE_INVOICE_PACKAGE", generatedAt: now(), reason: reason("GENERATE_INVOICE_PACKAGE"), subjectId: selectedOrder.id }), "Invoice package generated.")} type="button">Generate package</button>
       <Link href="/vehicles/parts-operations">Back to parts overview</Link>
-    </section>
+    </section>}
   </section>;
 }
