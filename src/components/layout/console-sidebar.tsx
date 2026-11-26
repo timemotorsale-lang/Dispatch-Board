@@ -1,5 +1,7 @@
 "use client";
 
+import type { WorkspaceSidebarControls } from "./workspace-navigation";
+
 import { CarFront, ChevronDown, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -18,6 +20,7 @@ type ConsoleSidebarProps = {
   onClose(): void;
   preserveAdvisorLaunch?: boolean;
   user: AuthenticatedUser;
+  navigation?: WorkspaceSidebarControls;
 };
 
 function initials(name: string) {
@@ -45,7 +48,7 @@ function preserveBoardDate(href: string, selectedBoardDate: string | null) {
   return hash ? `${datedDestination}#${hash}` : datedDestination;
 }
 
-export function ConsoleSidebar({ console, isOpen, managerContext, onClose, preserveAdvisorLaunch = false, user }: ConsoleSidebarProps) {
+export function ConsoleSidebar({ console, isOpen, managerContext, onClose, preserveAdvisorLaunch = false, user, navigation }: ConsoleSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedBoardDate = searchParams.get("date");
@@ -56,13 +59,14 @@ export function ConsoleSidebar({ console, isOpen, managerContext, onClose, prese
     : href;
 
   return (
-    <aside aria-label={`${console.subtitle} sidebar`} className={["app-sidebar", "app-sidebar-navigation-pane", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+    <aside id={navigation?.id} aria-label={`${console.subtitle} sidebar`} className={["app-sidebar", "app-sidebar-navigation-pane", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+      {navigation?.desktopToggle}
       <div className="sidebar-brand-row">
         <Link aria-label={`${console.subtitle} home`} className="sidebar-brand" href={containedHref(console.homeHref)} onClick={onClose}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>{console.title}</strong><small>{console.subtitle}</small></span>
         </Link>
-        <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
+        <button className="sidebar-close" data-navigation-close aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 
       <div className="console-sidebar-status">

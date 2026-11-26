@@ -4,7 +4,8 @@ import type { DealCustomerList } from "@/lib/deal-continuity";
 
 import Link from "next/link";
 import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useWorkspaceNavigation, WorkspaceNavigationClose, WorkspaceNavigationScrim, WorkspaceNavigationToggle } from "@/components/layout/workspace-navigation";
 import { useId, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
@@ -19,7 +20,6 @@ import {
   FileText,
   LayoutDashboard,
   Mail,
-  Menu,
   MessageSquare,
   Phone,
   Search,
@@ -602,19 +602,9 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-const CRM_COMPACT_NAV = "(max-width: 1100px)";
-function subscribeCompactNavigation(listener: () => void) {
-  const query = window.matchMedia(CRM_COMPACT_NAV);
-  query.addEventListener("change", listener);
-  return () => query.removeEventListener("change", listener);
-}
-
 export function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "customers" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "forms" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
-  const collapsible = active === "customer";
-  const navId = useId();
-  const compact = useSyncExternalStore(subscribeCompactNavigation, () => window.matchMedia(CRM_COMPACT_NAV).matches, () => false);
-  const [navigationOpen, setNavigationOpen] = useState<boolean | null>(null);
-  const expanded = !collapsible || (navigationOpen ?? !compact);
+  const pathname = usePathname();
+  const navigation = useWorkspaceNavigation({ breakpoint: 1100, routeKey: pathname ?? active });
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
@@ -632,15 +622,19 @@ export function CrmNextFrame({ active, children, userName }: { active: "command"
 
   return (
     <section className={`${styles.shell} crm-next-shell`}>
-      <div className={styles.frame} data-customer-nav={collapsible ? (expanded ? "expanded" : "collapsed") : undefined}>
-        <aside className={styles.sidebar} aria-label="Customer Console navigation">
-          {collapsible && <button
-            className={styles.sidebarToggle} type="button" aria-controls={navId} aria-expanded={expanded}
-            aria-label={expanded ? "Collapse customer navigation" : "Expand customer navigation"}
-            onClick={() => setNavigationOpen(!expanded)}>
-            <Menu size={19} aria-hidden="true" />
-          </button>}
-          <div className={styles.sidebarItems} id={navId} hidden={!expanded}>
+      <div className={styles.frame} data-workspace-nav={navigation.collapsed ? "collapsed" : "expanded"}>
+        <div className={styles.mobileNavigation} inert={navigation.drawerOpen}>
+          <WorkspaceNavigationToggle id={navigation.id} expanded={navigation.drawerOpen} label="Open navigation" onClick={navigation.openDrawer} />
+        </div>
+        {navigation.drawerOpen && <WorkspaceNavigationScrim onClick={navigation.closeDrawer} />}
+        <aside className={styles.sidebar} id={navigation.id} aria-label="Customer Console navigation" data-drawer-open={navigation.drawerOpen}
+          onClick={event => {
+            if (navigation.drawerOpen && event.target instanceof Element && event.target.closest("a[href]")) navigation.closeDrawer();
+          }}>
+          <WorkspaceNavigationToggle id={navigation.id} className={styles.desktopToggle} expanded={!navigation.collapsed}
+            label={navigation.collapsed ? "Expand navigation" : "Collapse navigation"} onClick={navigation.toggleDesktop} />
+          {navigation.drawerOpen && <WorkspaceNavigationClose onClick={navigation.closeDrawer} />}
+          <div className={styles.sidebarItems}>
           <div className={styles.brand}>Time Motor Sales</div>
           <Link className={styles.consoleReturn} href={CRM_CUSTOMER_LANDING_HREF}>
             <ArrowLeft size={16} /> Customers console
@@ -675,7 +669,7 @@ export function CrmNextFrame({ active, children, userName }: { active: "command"
           </div>
           </div>
         </aside>
-        <main className={styles.content}>{children}</main>
+        <main className={styles.content} inert={navigation.drawerOpen}>{children}</main>
       </div>
     </section>
   );

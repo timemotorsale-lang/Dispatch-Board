@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 
 import { useAppearance } from "@/components/layout/appearance";
+import { useWorkspaceNavigation, WorkspaceNavigationClose, WorkspaceNavigationScrim, WorkspaceNavigationToggle } from "@/components/layout/workspace-navigation";
 import { CRM_NEXT_DEAL_START_HREF } from "@/features/crm/crm-route-authority";
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
@@ -350,6 +351,7 @@ const actionTone: Record<ActionState, string> = {
 };
 
 export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { initialSearchParams?: URLSearchParams } = {}) {
+  const sidebar = useWorkspaceNavigation({ breakpoint: 1180 });
   const routeSearchParams = useSearchParams();
   const { appearance, setAppearance } = useAppearance();
   const searchParams = initialSearchParams ?? routeSearchParams;
@@ -644,9 +646,14 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
     <main
       className={`${styles.console} ${appearance === "dark" ? styles.consoleDark : styles.consoleLight}`}
       data-theme={appearance}
+      data-workspace-nav={sidebar.collapsed ? "collapsed" : "expanded"}
       aria-label="Elite enterprise Sales Console operational MVP"
     >
-      <aside className={styles.sidebar}>
+      {sidebar.drawerOpen && <WorkspaceNavigationScrim onClick={sidebar.closeDrawer} />}
+      <aside className={styles.sidebar} id={sidebar.id} aria-label="Sales Workspace sidebar" data-drawer-open={sidebar.drawerOpen}>
+        <WorkspaceNavigationToggle id={sidebar.id} className={styles.desktopNavigation} expanded={!sidebar.collapsed}
+          label={sidebar.collapsed ? "Expand navigation" : "Collapse navigation"} onClick={sidebar.toggleDesktop} />
+        {sidebar.drawerOpen && <WorkspaceNavigationClose onClick={sidebar.closeDrawer} />}
         <div className={styles.brand}>
           <div className={styles.brandMark}>TMS</div>
           <div>
@@ -667,7 +674,7 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
               key={item}
               type="button"
               className={item === activeNav ? styles.activeNav : undefined}
-              onClick={() => setActiveNav(item)}
+              onClick={() => { setActiveNav(item); if (sidebar.drawerOpen) sidebar.closeDrawer(); }}
               aria-pressed={item === activeNav}
             >
               {item}
@@ -686,8 +693,10 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
         </section>
       </aside>
 
-      <section className={styles.main}>
+      <section className={styles.main} inert={sidebar.drawerOpen}>
         <header className={styles.topbar}>
+          <WorkspaceNavigationToggle id={sidebar.id} className={styles.mobileNavigation} expanded={sidebar.drawerOpen}
+            label="Open navigation" onClick={sidebar.openDrawer} />
           <Link className={styles.topbarReturnLink} href="/command-center">CCC Home</Link>
           <Link className={styles.topbarReturnLink} href="/board">Dispatch Board</Link>
           <label className={styles.search}>

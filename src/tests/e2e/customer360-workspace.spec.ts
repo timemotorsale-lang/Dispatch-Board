@@ -74,12 +74,12 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   await ready(work.getByRole("heading", { name: "Work this customer" })).toBeVisible();
   const workspace = page.getByRole("region", { name: "Customer 360", exact: true });
   const sidebar = page.getByRole("complementary", { name: "Customer Console navigation" });
-  const sidebarToggle = sidebar.getByRole("button", { name: "Collapse customer navigation" });
+  const sidebarToggle = sidebar.getByRole("button", { name: "Collapse navigation" });
   await ready(sidebar.getByRole("link", { name: "Needs Attention", exact: true })).toBeVisible();
   const expandedWidth = (await workspace.boundingBox())!.width;
   await sidebarToggle.focus();
   await sidebarToggle.press("Enter");
-  const expand = sidebar.getByRole("button", { name: "Expand customer navigation" });
+  const expand = sidebar.getByRole("button", { name: "Expand navigation" });
   await ready(expand).toBeFocused();
   await expect(expand).toHaveAttribute("aria-expanded", "false");
   await expect(sidebar.getByRole("link", { name: "Needs Attention", exact: true })).toBeHidden();
@@ -110,7 +110,13 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
 
   await page.setViewportSize({ width: 390, height: 750 });
   await page.reload();
-  await ready(sidebar.getByRole("button", { name: "Expand customer navigation" })).toBeVisible();
+  const mobileNav = page.getByRole("button", { name: "Open navigation", exact: true });
+  await ready(mobileNav).toBeVisible();
+  await expect(sidebar).toBeHidden();
+  await mobileNav.click();
+  await ready(sidebar.getByRole("button", { name: "Close navigation", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(mobileNav).toBeFocused();
   expect((await work.getByText("Contact", { exact: true }).boundingBox())!.y).toBeLessThan((await work.getByRole("button", { name: "Check in", exact: true }).boundingBox())!.y);
   await more.click();
   await ready(quick.getByRole("link", { name: "Documents & photos" })).toBeVisible();

@@ -1,5 +1,7 @@
 "use client";
 
+import type { WorkspaceSidebarControls } from "./workspace-navigation";
+
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDot, Clock3, Inbox, ListChecks, LogOut, PackageSearch, ShieldQuestion, UserRoundCheck, UsersRound, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -9,7 +11,7 @@ import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 
-type Props = { compact: boolean; isOpen: boolean; onClose(): void; user: AuthenticatedUser };
+type Props = { compact: boolean; isOpen: boolean; onClose(): void; user: AuthenticatedUser; navigation?: WorkspaceSidebarControls };
 
 const workViews = [
   { href: "/tasks?queue=ALL", key: "team", label: "Team Queue", icon: UsersRound },
@@ -34,20 +36,21 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function TasksWorkspaceSidebar({ compact, isOpen, onClose, user }: Props) {
+export function TasksWorkspaceSidebar({ compact, isOpen, onClose, user, navigation }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeView = searchParams.get("view");
   const activeQueue = searchParams.get("queue") ?? (pathname === "/my-tasks" ? "MY_TASKS" : "ALL");
 
   return (
-    <aside className={["app-sidebar", "tasks-workspace-app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+    <aside id={navigation?.id} aria-label="Tasks Workspace sidebar" className={["app-sidebar", "tasks-workspace-app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+      {navigation?.desktopToggle}
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales Tasks Workspace" className="sidebar-brand" href="/tasks" onClick={onClose} title={compact ? "Tasks Workspace" : undefined}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>TIME MOTOR SALES</strong><small>TASKS WORKSPACE</small></span>
         </Link>
-        <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
+        <button className="sidebar-close" data-navigation-close aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 
       <div className="sidebar-navigation">

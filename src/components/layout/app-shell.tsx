@@ -1,10 +1,9 @@
 "use client";
 
 import type { FormEvent, MouseEvent, ReactNode } from "react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
@@ -27,6 +26,7 @@ import { TasksWorkspaceSidebar } from "./tasks-workspace-sidebar";
 import { OperatingRhythmReminder } from "./operating-rhythm-reminder";
 import { readManagerWorkspaceContext, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import taskPageStyles from "./tasks-page-shell.module.css";
+import { useWorkspaceNavigation, WorkspaceNavigationToggle } from "./workspace-navigation";
 
 type AppShellProps = {
   children: ReactNode;
@@ -40,23 +40,7 @@ export function isTasksSidebarCompact(pathname: string, mode: WorkspaceMode) {
   return pathname === "/tasks" && mode !== "standard";
 }
 
-function subscribeSidebarPreference(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener("sidebar-preference", onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener("sidebar-preference", onChange);
-  };
-}
-
-function getSidebarPreference() {
-  const saved = readBrowserPreference("dispatch-board.sidebar");
-  return saved === "collapsed" ? true : saved === "expanded" ? false : null;
-}
-
 function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user }: AppShellProps) {
-  const [navigationOpen, setNavigationOpen] = useState(false);
-  const [sessionSidebarCompact, setSessionSidebarCompact] = useState<boolean | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -90,15 +74,11 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
   const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace || openRepairOrder ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarPreference = useSyncExternalStore(subscribeSidebarPreference, getSidebarPreference, () => null);
-  // Only rails with compact rendering and recovery controls may consume this preference.
-  const sidebarCompact = (commandCenterHome || tasksConsoleHome) &&
-    (sessionSidebarCompact ?? sidebarPreference ?? (!tasksConsoleHome && isTasksSidebarCompact(pathname, mode)));
-  function toggleSidebarCompact() {
-    const saved = writeBrowserPreference("dispatch-board.sidebar", sidebarCompact ? "expanded" : "collapsed");
-    setSessionSidebarCompact(saved ? null : !sidebarCompact);
-    window.dispatchEvent(new Event("sidebar-preference"));
-  }
+  const navigation = useWorkspaceNavigation({ routeKey: location });
+  const drawerOpen = hasSidebar && navigation.drawerOpen;
+  const sidebarControls = { id: navigation.id, desktopToggle: <WorkspaceNavigationToggle id={navigation.id}
+    className="workspace-navigation-desktop" expanded={!navigation.collapsed} onClick={navigation.toggleDesktop}
+    label={navigation.collapsed ? "Expand navigation" : "Collapse navigation"} /> };
   const salesConsoleReturnTo = searchParams.get("returnTo");
   const showSalesConsoleReturn =
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
@@ -113,21 +93,6 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
     pathname === "/vehicles/recon-repair-advisor" ||
     consoleNavigation?.subtitle === "Advisor Workspace"
   );
-
-  useEffect(() => {
-    if (!navigationOpen) return;
-
-    function closeNavigationOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setNavigationOpen(false);
-      requestAnimationFrame(() => {
-        document.querySelector<HTMLButtonElement>('button[aria-label="Open navigation"]')?.focus();
-      });
-    }
-
-    document.addEventListener("keydown", closeNavigationOnEscape);
-    return () => document.removeEventListener("keydown", closeNavigationOnEscape);
-  }, [navigationOpen]);
 
   function preserveManagerContextOnLink(event: MouseEvent<HTMLElement>) {
     if (!managerContext || event.defaultPrevented) return;
@@ -179,6 +144,7 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
   return (
     <div
       data-open-repair-order={openRepairOrder || undefined}
+      data-workspace-nav={hasSidebar ? navigation.collapsed ? "collapsed" : "expanded" : undefined}
       className={[
         "app-frame",
         tasksConsoleHome ? taskPageStyles.shell : "",
@@ -186,23 +152,22 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
         consoleNavigation || managerWorkspaceHome || tasksConsoleHome ? "app-frame-console-sidebar" : "",
         salesConsole ? "app-frame-sales-standalone" : "",
         operationsCoordinatorConsole || operationsCoordinatorBoard ? "app-frame-operations-coordinator" : "",
-        sidebarCompact ? "app-frame-sidebar-compact" : "",
         tasksWorkspace ? `app-frame-workspace-${mode}` : ""
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
-      {commandCenterHome ? <AppSidebar collectionsNavigation={collectionsNavigation} compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} onToggleCompact={toggleSidebarCompact} user={user} /> : null}
-      {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
-      {tasksConsoleHome ? <TasksWorkspaceSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
-      {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} managerContext={managerContext} onClose={() => setNavigationOpen(false)} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}
-      {hasSidebar && navigationOpen ? (
-        <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
+      {commandCenterHome ? <AppSidebar collectionsNavigation={collectionsNavigation} compact={false} isOpen={drawerOpen} onClose={navigation.closeDrawer} navigation={sidebarControls} user={user} /> : null}
+      {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={drawerOpen} onClose={navigation.closeDrawer} navigation={sidebarControls} user={user} /> : null}
+      {tasksConsoleHome ? <TasksWorkspaceSidebar compact={false} isOpen={drawerOpen} onClose={navigation.closeDrawer} navigation={sidebarControls} user={user} /> : null}
+      {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={drawerOpen} managerContext={managerContext} onClose={navigation.closeDrawer} navigation={sidebarControls} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}
+      {drawerOpen ? (
+        <button className="sidebar-scrim" aria-label="Dismiss navigation" tabIndex={-1} onClick={navigation.closeDrawer} />
       ) : null}
-      <div className="app-workspace">
+      <div className="app-workspace" inert={drawerOpen}>
         {salesConsole ? <MobileToolsNavigation standalone /> : null}
         {!openRepairOrder && <OperatingRhythmReminder />}
         {salesConsole ? null : (
-          <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+          <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={navigation.openDrawer} navigationId={navigation.id} navigationExpanded={drawerOpen} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
         {openRepairOrder && <OperatingRhythmReminder />}
         {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace && !openRepairOrder ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}

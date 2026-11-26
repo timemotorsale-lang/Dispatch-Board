@@ -8374,36 +8374,26 @@
   }
 }
 
-/* Customer 360 can reclaim the navigation column without changing the other CRM pages. */
 .sidebarItems { display: contents; }
-.sidebarItems[hidden] { display: none; }
-.sidebarToggle {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  justify-self: start;
-  align-self: flex-start;
-  inline-size: 44px;
-  block-size: 44px;
-  padding: 0;
-  border: 1px solid rgb(147 197 253 / 35%);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 8%);
-  color: #f8fbff;
-  cursor: pointer;
-}
-.sidebarToggle:hover { background: rgb(255 255 255 / 18%); }
-.sidebarToggle:focus-visible { outline: 2px solid #dbeafe; outline-offset: 2px; }
+.mobileNavigation { display: none; }
+.desktopToggle { align-self: flex-start; }
 
 @media (min-width: 1101px) {
-  .frame[data-customer-nav="collapsed"] {
+  .frame[data-workspace-nav="collapsed"] {
     grid-template-columns: 60px minmax(0, 1fr);
     background: linear-gradient(90deg, #061426 0 60px, transparent 60px);
   }
-  .frame[data-customer-nav="collapsed"] .sidebar { padding-inline: 7px; }
+  .frame[data-workspace-nav="collapsed"] .sidebar { padding-inline: 7px; }
+  .frame[data-workspace-nav="collapsed"] .sidebarItems { display: none; }
 }
 
 @media (max-width: 1100px) {
-  .frame[data-customer-nav] .sidebarToggle { grid-column: 1 / -1; }
-  .frame[data-customer-nav="collapsed"] .sidebar { padding-block: 6px; }
+  .mobileNavigation { display: flex; padding: 4px 10px; background: #071a35; color: #f8fbff; }
+  .sidebar .desktopToggle, .sidebar:not([data-drawer-open="true"]) { display: none; }
+  .sidebar[data-drawer-open="true"] {
+    position: fixed; inset: 0 auto 0 0; z-index: 1100;
+    display: flex; flex-direction: column; align-items: stretch;
+    width: min(85vw, 300px); height: 100dvh; overflow: auto; overscroll-behavior: contain;
+  }
+  .sidebar[data-drawer-open="true"] .nav { display: grid; grid-template-columns: minmax(0, 1fr); overflow: visible; }
 }

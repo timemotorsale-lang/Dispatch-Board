@@ -3375,3 +3375,18 @@
   .console .intentGrid button, .console .intentGrid a { min-height: 0; }
   .console .intentHero { padding: 12px; }
 }
+.main .mobileNavigation { display: none; }
+.sidebar .desktopNavigation { align-self: flex-start; }
+@media (min-width: 1181px) {
+  .console[data-workspace-nav="collapsed"] { grid-template-columns: 60px minmax(0, 1fr); }
+  .console[data-workspace-nav="collapsed"] .sidebar > :not(.desktopNavigation) { display: none; }
+}
+@media (max-width: 1180px) {
+  .main .mobileNavigation { display: inline-grid; }
+  .sidebar .desktopNavigation, .sidebar:not([data-drawer-open="true"]) { display: none; }
+  .sidebar[data-drawer-open="true"] {
+    position: fixed; inset: 0 auto 0 0; z-index: 1100;
+    width: min(85vw, 300px); height: 100dvh; overflow: auto; overscroll-behavior: contain;
+  }
+  .sidebar[data-drawer-open="true"] .nav { grid-template-columns: minmax(0, 1fr); }
+}
