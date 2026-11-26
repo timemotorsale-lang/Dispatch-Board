@@ -136,7 +136,9 @@ const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset()
 const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
   `${[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"} · ${vehicle.vehicleNumber}`;
 
-const sharedServiceIntakeDraftKey = "service-intake-active-draft-v1";
+export function serviceIntakeDraftStorageKey(userId?: string, ...context: (string | undefined)[]) {
+  return userId ? "service-intake-draft-v2:" + JSON.stringify([userId, ...context.map(value => value ?? "")]) : null;
+}
 export const SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT = "/api/service-intake/vehicles";
 export function serviceIntakeVehicleRelationshipEndpoint(vehicleId: string) {
   return `/api/service-intake/vehicles/${encodeURIComponent(vehicleId)}/relationship`;
@@ -306,7 +308,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
 }
 
 export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialCustomerId = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", earlyReconPath, earlyReconOrderId, options, returnTo, showAdvisorReturn = false, reviewWorkbench = false, sourceHandoff }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialCustomerId?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; earlyReconPath?: IntakeState["executionPath"]; earlyReconOrderId?: string; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean; sourceHandoff?: { taskId: string; requestToken: string; title: string } }) {
-  const serviceIntakeDraftKey = earlyReconPath ? `${sharedServiceIntakeDraftKey}:${currentUserId}:${initialVehicleId}:${earlyReconPath}` : sharedServiceIntakeDraftKey;
+  const serviceIntakeDraftKey = serviceIntakeDraftStorageKey(currentUserId, initialCustomerId, initialVehicleId, initialVehicleRelationship, returnTo, earlyReconPath, sourceHandoff?.requestToken);
   const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
@@ -335,6 +337,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const [earlyArrivalConfirmed, setEarlyArrivalConfirmed] = useState(false);
   const [pendingVendorOrderId, setPendingVendorOrderId] = useState(earlyReconOrderId);
   const [notice, setNotice] = useState("");
+  const [draftFeedback, setDraftFeedback] = useState<{ error: boolean; message: string } | null>(null);
   const [checkInError, setCheckInError] = useState("");
   const [created, setCreated] = useState<{ id: string; repairOrderNumber: string; reused?: boolean; vendorRouted?: boolean } | null>(null);
   const [newRepairOrderConfirmed, setNewRepairOrderConfirmed] = useState(false);
@@ -548,49 +551,52 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }, [form.vehicleId, sourceHandoff]);
 
   useEffect(() => {
-    if (sourceHandoff) return;
+    if (!serviceIntakeDraftKey) return;
     const timer = window.setTimeout(() => {
-      const saved = window.localStorage.getItem(serviceIntakeDraftKey);
-      if (!saved) return;
       try {
+        const saved = window.localStorage.getItem(serviceIntakeDraftKey);
+        if (!saved) return;
         const draft = JSON.parse(saved) as Partial<{
           customerRecords: ServiceIntakeOptions["customers"];
           form: IntakeState;
+          handoffAppointmentId: string;
           vehicleRecords: ServiceIntakeOptions["vehicles"];
         }>;
         const draftForm = draft.form;
-        if (initialCustomerId && (draftForm?.customerId !== initialCustomerId || draftForm?.vehicleId !== initialVehicleId)) return;
+        if (!draftForm || (sourceHandoff && ((initialCustomerId && draftForm.customerId !== initialCustomerId) ||
+            (initialVehicleId && draftForm.vehicleId !== initialVehicleId)))) return;
         if (earlyReconPath && (draftForm?.vehicleId !== initialVehicleId || draftForm.vehicleRelationship !== "DEALERSHIP_INVENTORY")) return;
         if (draft.customerRecords) setCustomerRecords((records) => mergeById(records, draft.customerRecords));
         if (draft.vehicleRecords) setVehicleRecords((records) => mergeById(records, draft.vehicleRecords));
         if (draftForm) {
           setForm((current) => {
-            const vehicleId = initialVehicleId && options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : draftForm.vehicleId || current.vehicleId;
-            const vehicleRelationship = initialCustomerId ? "CUSTOMER_VEHICLE" : initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
+            const vehicleId = draftForm.vehicleId;
+            const vehicleRelationship = earlyReconPath ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
             const inventoryUnitId = vehicleRelationship === "DEALERSHIP_INVENTORY"
               ? options.inventoryUnits.find((unit) => unit.vehicle.id === vehicleId)?.id ?? ""
               : "";
             return {
               ...current,
               ...draftForm,
-              customerId: initialCustomerId || draftForm.customerId,
-              concernSummary: initialConcernSummary.trim() || (draftForm.vehicleId === vehicleId ? draftForm.concernSummary ?? current.concernSummary : current.concernSummary),
+              customerId: draftForm.customerId,
+              concernSummary: draftForm.concernSummary ?? current.concernSummary,
               inventoryUnitId,
               locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
               ownerUserId: technicianOptions(options.users).some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
-              vendorScope: draftForm.vehicleId === vehicleId ? draftForm.vendorScope ?? current.vendorScope : current.vendorScope,
+              vendorScope: draftForm.vendorScope ?? current.vendorScope,
               vehicleId,
               vehicleRelationship,
             };
           });
         }
-        setNotice("Saved service-intake draft restored. Continue from the next required step.");
+        if (sourceHandoff && typeof draft.handoffAppointmentId === "string") setHandoffAppointmentId(draft.handoffAppointmentId);
+        setDraftFeedback({ error: false, message: "Draft restored from this browser." });
       } catch {
-        window.localStorage.removeItem(serviceIntakeDraftKey);
+        // Storage can be blocked. Keep the intake editable.
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [earlyReconPath, initialConcernSummary, initialCustomerId, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles, serviceIntakeDraftKey, sourceHandoff]);
+  }, [earlyReconPath, initialCustomerId, initialVehicleId, options.inventoryUnits, options.locations, options.users, serviceIntakeDraftKey, sourceHandoff]);
 
   useEffect(() => {
     if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;
@@ -600,13 +606,41 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     return () => window.clearTimeout(timer);
   }, [form.inventoryUnitId, form.vehicleId, form.vehicleRelationship, inventoryUnitRecords]);
 
+  const persistDraft = useCallback((key = serviceIntakeDraftKey) => {
+    if (!key) return false;
+    try {
+      window.localStorage.setItem(key, JSON.stringify({
+        form, handoffAppointmentId,
+        customerRecords: customerRecords.filter(customer => customer.id === form.customerId),
+        vehicleRecords: vehicleRecords.filter(vehicle => vehicle.id === form.vehicleId),
+      }));
+      return true;
+    } catch { return false; }
+  }, [customerRecords, form, handoffAppointmentId, serviceIntakeDraftKey, vehicleRecords]);
+
+  function clearDraft() {
+    if (!serviceIntakeDraftKey) return;
+    try { window.localStorage.removeItem(serviceIntakeDraftKey); } catch { /* Work is already saved. */ }
+    setDraftFeedback(null);
+  }
+
   useEffect(() => {
-    if (sourceHandoff) return;
-    const timer = window.setTimeout(() => {
-      window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
-    }, 250);
+    if (sourceHandoff || !serviceIntakeDraftKey || created || busy) return;
+    const timer = window.setTimeout(() => { persistDraft(); }, 250);
     return () => window.clearTimeout(timer);
-  }, [customerRecords, form, inventoryUnitRecords, returnTo, vehicleRecords, sourceHandoff]);
+  }, [busy, created, persistDraft, serviceIntakeDraftKey, sourceHandoff]);
+
+  function saveDraft() {
+    const saved = persistDraft();
+    setDraftFeedback({ error: !saved, message: saved
+      ? "Draft saved in this browser. Vehicle check-in is not complete."
+      : "Draft could not be saved in this browser. Keep this tab open to retain your entries." });
+  }
+
+  function saveInventoryReturnDraft() {
+    const key = serviceIntakeDraftStorageKey(currentUserId, "", form.vehicleId, "DEALERSHIP_INVENTORY", returnTo, undefined, undefined);
+    return persistDraft(key);
+  }
 
   function update<K extends keyof IntakeState>(key: K, value: IntakeState[K]) {
     if (key === "concernSummary" || key === "vehicleId") setNewRepairOrderConfirmed(false);
@@ -909,9 +943,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       return;
     }
     if (inventoryUnitRequired && selectedVehicle) {
-      try {
-        window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
-      } catch {
+      if (!saveInventoryReturnDraft()) {
         setNotice("Your check-in could not be saved in this browser. Keep this tab open and use the Inventory Establishment link in a new tab, then return here.");
         return;
       }
@@ -1162,6 +1194,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (customerCheckIn) {
         const order = repairOrderRecords.find(candidate => candidate.id === repairOrderId);
         if (!order) throw new Error("The existing repair order could not be found. Search for the vehicle again.");
+        clearDraft();
         setCreated({ id: order.id, repairOrderNumber: order.repairOrderNumber, reused: true });
         return;
       }
@@ -1174,6 +1207,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         }
       }
       const completionLinks = buildServiceIntakeCompletionLinks(repairOrderId, returnTo);
+      clearDraft();
       window.location.assign(reviewWorkbench ? repairReviewHref(repairOrderId) : isAutobodyReturn(returnTo) ? completionLinks.returnHref : usesOutsideVendor ? completionLinks.repairWorkbenchHref : completionLinks.laborGuideHref);
     } catch (error) {
       setCheckInError(error instanceof Error ? error.message : "The repair order could not be opened.");
@@ -1200,6 +1234,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
+      clearDraft();
       window.location.assign(buildServiceIntakeCompletionLinks(body.result.id, returnTo).repairWorkbenchHref);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The repair order link could not be saved.");
@@ -1278,7 +1313,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     try {
       if (earlyReconPath && usesOutsideVendor && pendingVendorOrderId) {
         await saveOutsideVendorToRepairOrder(pendingVendorOrderId);
-        try { window.localStorage.removeItem(serviceIntakeDraftKey); } catch { /* The handoff is already saved. */ }
+        clearDraft();
         window.location.assign(repairReviewHref(pendingVendorOrderId, undefined, { workflow: "shop", returnTo }));
         return;
       }
@@ -1345,20 +1380,20 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (vendorRouted) {
         if (earlyReconPath) {
           setPendingVendorOrderId(result.id);
-          try { window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ form, savedAt: new Date().toISOString() })); } catch { /* Retry remains available in this tab. */ }
+          persistDraft();
           try { await saveOutsideVendorToRepairOrder(result.id); }
           catch (error) { throw new Error(`Repair order ${result.repairOrderNumber} was saved. Vendor custody was not confirmed. Retry the handoff or open the repair order. ${error instanceof Error ? error.message : ""}`); }
         } else await saveOutsideVendorToRepairOrder(result.id);
       }
       else if (reused && !sourceHandoff && !customerCheckIn) await saveTechnicianToRepairOrder(result.id);
       if (earlyReconPath) {
-        try { window.localStorage.removeItem(serviceIntakeDraftKey); } catch { /* The order is already saved. */ }
+        clearDraft();
         window.location.assign(repairReviewHref(result.id, undefined, { workflow: "shop", returnTo }));
         return;
       }
       setCreated({ ...result, reused, vendorRouted });
       if (reviewWorkbench && !customerCheckIn) window.location.assign(repairReviewHref(result.id));
-      if (!sourceHandoff && (!customerCheckIn || !reused)) window.localStorage.removeItem(serviceIntakeDraftKey);
+      clearDraft();
       setNotice(reused ? `${result.repairOrderNumber} is the active synchronized card for this vehicle. It was opened and no duplicate was created.` : `${result.repairOrderNumber} was created as this vehicle's active repair card.`);
     } catch (error) {
       setCheckInError(error instanceof Error ? error.message : "Vehicle check-in failed.");
@@ -1434,7 +1469,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           </section> : null}
           {isDealershipInventory && selectedVehicle ? <section className="sic-inventory-link" aria-label="Dealership inventory requirement" ref={inventoryUnitSectionRef}>
             <header><ClipboardCheck /><div><small>Dealership inventory requirement</small><strong>{selectedInventoryUnit ? `Inventory unit ${selectedInventoryUnit.inventoryNumber} linked` : "Inventory unit required for internal recon"}</strong></div>{selectedInventoryUnit ? <Link href={`/vehicles/control-tower?inventoryUnitId=${selectedInventoryUnit.id}`}>Open inventory unit</Link> : null}</header>
-            <div className="sic-inventory-linked" role={selectedInventoryUnit ? "status" : "alert"}>{selectedInventoryUnit ? <CheckCircle2 /> : <ShieldAlert />}<div><strong>{selectedInventoryUnit ? "Inventory source linked" : "Establish inventory before creating recon work"}</strong><span>{selectedInventoryUnit ? `Repairs will be linked to ${selectedInventoryUnit.inventoryNumber}.` : "An existing inventory unit for this vehicle is required. Continue to Inventory Establishment to open its canonical inventory cycle and confirm acquisition, then return to intake. Use this existing vehicle; do not add a duplicate."}</span></div>{!selectedInventoryUnit ? <><Link href={inventoryEstablishmentHref}>Continue to Inventory Establishment</Link><Link href={acquisitionHref}>Review Acquisition</Link></> : null}</div>
+            <div className="sic-inventory-linked" role={selectedInventoryUnit ? "status" : "alert"}>{selectedInventoryUnit ? <CheckCircle2 /> : <ShieldAlert />}<div><strong>{selectedInventoryUnit ? "Inventory source linked" : "Establish inventory before creating recon work"}</strong><span>{selectedInventoryUnit ? `Repairs will be linked to ${selectedInventoryUnit.inventoryNumber}.` : "An existing inventory unit for this vehicle is required. Continue to Inventory Establishment to open its canonical inventory cycle and confirm acquisition, then return to intake. Use this existing vehicle; do not add a duplicate."}</span></div>{!selectedInventoryUnit ? <><Link href={inventoryEstablishmentHref} onClick={() => { saveInventoryReturnDraft(); }}>Continue to Inventory Establishment</Link><Link href={acquisitionHref} onClick={() => { saveInventoryReturnDraft(); }}>Review Acquisition</Link></> : null}</div>
             <Link href={`/prototype/inventory-intake?${new URLSearchParams({ vehicleId: selectedVehicle.id })}`} target="_blank" rel="noopener noreferrer">Try compact intake · New form for review</Link>
           </section> : null}
           {selectedVehicle && selectedVehicleDetails ? <section className="sic-safety-intelligence" aria-label="NHTSA safety and service intelligence">
@@ -1540,6 +1575,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       <footer><button onClick={() => { setCustomerDrawerMessage(""); setDrawer(null); }} type="button">Cancel</button><button className="primary" disabled={busy || !customerDraftReady} onClick={() => void createCustomer()} type="button">{busy ? "Saving…" : "Create & Select Customer"}</button></footer>
     </section></div> : null}
 
-    <footer className={`sic-footer ${checkInError ? compact.intakeFooterWithError : ""}`}>{checkInError && <p className={compact.intakeFooterError} role="alert">{checkInError}</p>}<div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span>{!customerCheckIn && <span>Next: {nextActionLabel}</span>}</div><button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
+    <footer className={`sic-footer ${checkInError || draftFeedback ? compact.intakeFooterWithError : ""}`}>{draftFeedback && <p role={draftFeedback.error ? "alert" : "status"} className={draftFeedback.error ? compact.intakeFooterError : compact.intakeDraftFeedback}>{draftFeedback.message}</p>}{checkInError && <p className={compact.intakeFooterError} role="alert">{checkInError}</p>}<div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span>{!customerCheckIn && <span>Next: {nextActionLabel}</span>}</div>{serviceIntakeDraftKey && <button className={compact.intakeSaveDraft} disabled={busy} onClick={saveDraft} type="button">Save draft</button>}<button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
   </form>;
 }

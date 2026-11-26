@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, CustomerCheckInResult, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, CustomerCheckInResult, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, serviceIntakeDraftStorageKey, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -287,4 +287,12 @@ describe("enterprise service intake workspace", () => {
 
     expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ manualDecodeAcknowledged: true, make: "HONDA", model: "CR-V", odometer: 92000, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin: "7FARW2H5XJE098317", year: 2018 });
   });
+});
+
+it("offers Save draft without submitting check-in and scopes drafts by user and entry", () => {
+  const html = renderToStaticMarkup(<ServiceIntakeWorkspace currentUserId="advisor-1" initialTimestamp="2026-10-29T12:00:00.000Z" options={options} />);
+  expect(html).toMatch(/<button[^>]+type="button">Save draft<\/button>/);
+  expect(serviceIntakeDraftStorageKey()).toBeNull();
+  expect(serviceIntakeDraftStorageKey("advisor-1", "car-1")).not.toBe(serviceIntakeDraftStorageKey("advisor-2", "car-1"));
+  expect(serviceIntakeDraftStorageKey("advisor-1", "car-1")).not.toBe(serviceIntakeDraftStorageKey("advisor-1", "car-2"));
 });
