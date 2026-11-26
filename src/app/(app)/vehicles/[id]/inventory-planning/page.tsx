@@ -11,6 +11,7 @@ import { isCustomerOwnedForInventoryLifecycle } from "@/server/vehicle-registry/
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getFrontlineOptions, getFrontlineWorkflowForInventoryUnit, listFrontlineWorkflows } from "@/server/inventory-frontline/service";
 import { getVehicleExecutionWorkbench } from "@/server/inventory-execution/workbench-service";
+import { getEarlyReconContext, listEarlyReconAppointments } from "@/server/inventory-execution/early-recon";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { getVehicleRegistryCreateOptions } from "@/server/vehicle-registry/service";
 
@@ -91,8 +92,24 @@ export default async function InventoryPlanningPage({ params, searchParams }: { 
       }} /> : <p role="status">The linked inventory unit is unavailable for this preview. Open the live Inventory Lifecycle to review its record.</p>}
     </section>;
   }
+  const earlyRecon = focused ? null : await getEarlyReconContext(user, id);
+  const planningHref = `/vehicles/${encodeURIComponent(id)}/inventory-planning`;
+  const intake = new URLSearchParams({ intakeSource: "INVENTORY_RECON", vehicleId: id });
+  const reconAppointments = earlyRecon ? await listEarlyReconAppointments(user, earlyRecon) : [];
+  const dateInStore = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" });
+  const reconActions = !earlyRecon ? undefined : {
+    appointment: earlyRecon.canBook ? `/appointments?${new URLSearchParams({ action: "new", inventoryReconVehicleId: id })}` : undefined,
+    appointments: reconAppointments.map(item => {
+      const query = new URLSearchParams({ view: "board", appointment: item.appointmentNumber, returnTo: planningHref });
+      if (item.startsAt) query.set("localDate", dateInStore.format(item.startsAt));
+      return { href: `/appointments?${query}`, label: `${item.bookingStatus === "DRAFT" ? "Resume appointment draft" : "View recon appointment"} · ${item.appointmentNumber}` };
+    }),
+    order: earlyRecon.activeOrderId ? repairReviewHref(earlyRecon.activeOrderId, undefined, { workflow: "shop", returnTo: planningHref }) : undefined,
+    shop: earlyRecon.canStartOrder && !earlyRecon.activeOrderId ? `/vehicles/repair-orders?${intake}&earlyRecon=shop` : undefined,
+    vendor: earlyRecon.canRouteVendor ? `/vehicles/repair-orders?${intake}&earlyRecon=vendor` : undefined
+  };
   return <>
     {!focused && returnTo && <Link className="button button-secondary" href={returnTo}>Return to Repair Workbench</Link>}
-    <InventoryPlanningReview focused={focused} returnTo={returnTo} shopHref={shopHref} eligibleUnit={eligibleUnit ? JSON.parse(JSON.stringify(eligibleUnit)) : null} initial={JSON.parse(JSON.stringify(projection))} initialRepairOrderId={focused ? repairOrderId : requestedOrderId} initialWorkflow={workflow ? JSON.parse(JSON.stringify(workflow)) : null} locations={JSON.parse(JSON.stringify(registryOptions?.locations ?? []))} users={JSON.parse(JSON.stringify(options?.users ?? []))} />
+    <InventoryPlanningReview focused={focused} returnTo={returnTo} shopHref={shopHref} reconActions={reconActions} eligibleUnit={eligibleUnit ? JSON.parse(JSON.stringify(eligibleUnit)) : null} initial={JSON.parse(JSON.stringify(projection))} initialRepairOrderId={focused ? repairOrderId : requestedOrderId} initialWorkflow={workflow ? JSON.parse(JSON.stringify(workflow)) : null} locations={JSON.parse(JSON.stringify(registryOptions?.locations ?? []))} users={JSON.parse(JSON.stringify(options?.users ?? []))} />
   </>;
 }

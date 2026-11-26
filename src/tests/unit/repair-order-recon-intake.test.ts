@@ -47,11 +47,49 @@ describe("inventory recon repair-order intake", () => {
     ["Check engine light is on.", "OPEN_VEHICLE_REPAIR_ORDER"],
   ])("reuses the canonical vehicle's open order for %s", async (concernSummary, duplicateReason) => {
     const create = vi.fn(), validateReadinessSnapshot = vi.fn();
-    const findOpenConcernCandidates = vi.fn().mockResolvedValue([{ id: "ro-existing", repairOrderNumber: "RO-EXISTING", stage: "INTAKE", operatingState: "ACTIVE", version: 3, concernSummary }]);
+    const findOpenConcernCandidates = vi.fn().mockResolvedValue([{ id: "ro-existing", locationId: "loc-1", repairOrderNumber: "RO-EXISTING", stage: "INTAKE", operatingState: "ACTIVE", version: 3, concernSummary }]);
     const result = await createRepairOrder(manager, body, dependencies({ create, findOpenConcernCandidates, validateReadinessSnapshot }));
     expect(result).toMatchObject({ duplicate: true, result: { id: "ro-existing", duplicateReason } });
     expect(create).not.toHaveBeenCalled();
     expect(validateReadinessSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("does not disclose or reconcile an open order outside the actor's read scope", async () => {
+    const create = vi.fn(), reconcileOwner = vi.fn();
+    const options = dependencies({
+      create,
+      findOpenConcernCandidates: vi.fn().mockResolvedValue([{ id: "ro-other", locationId: "loc-2", concernSummary: body.concernSummary }])
+    });
+    vi.mocked(options.foundationRepository.listCapabilityGrants).mockResolvedValue([{
+      capability: "REPAIR_ORDER_VIEW", locationId: "loc-2", effect: "DENY",
+      validFrom: new Date("2026-01-01T00:00:00Z"), validTo: null, constraints: null
+    }]);
+    await expect(createRepairOrder(manager, body, { ...options, taskBridge: { reconcileOwner, close: vi.fn() } })).rejects.toThrow("Ask an authorized advisor");
+    expect(create).not.toHaveBeenCalled();
+    expect(reconcileOwner).not.toHaveBeenCalled();
+  });
+
+  it("rechecks inventory ownership at write time before recording a visit", async () => {
+    const inventory = { id: "unit-1", vehicleId: "vehicle-1", inventoryNumber: "INV-1", version: 1, financialAcquiredAt: new Date("2026-07-12") };
+    const createVisit = vi.fn();
+    const transaction = {
+      $queryRaw: vi.fn(),
+      enterpriseCommandLedger: { findUnique: vi.fn().mockResolvedValue(null) },
+      enterpriseAggregateVersion: { findUnique: vi.fn().mockResolvedValue(null) },
+      inventoryUnit: { findFirst: vi.fn().mockResolvedValue(inventory) },
+      vehicle: { findFirst: vi.fn().mockResolvedValue({ id: "vehicle-1" }) },
+      vehicleRelationship: { findFirst: vi.fn().mockResolvedValue({ relationshipType: "CUSTOMER_OWNER", effectiveFrom: new Date("2026-07-13") }) },
+      customerVehicle: { findFirst: vi.fn().mockResolvedValue(null) },
+      location: { findFirst: vi.fn().mockResolvedValue({ id: "loc-1" }) },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "owner-1" }) },
+      serviceVisit: { create: createVisit },
+      repairOrder: { findFirst: vi.fn().mockResolvedValue(null) },
+    };
+    const database = { $transaction: async (mutate: (value: typeof transaction) => Promise<unknown>) => mutate(transaction) } as unknown as PrismaClient;
+    const data = normalizeRepairOrderCreate({ ...body, vehicleId: "vehicle-1" }, now);
+    const command = normalizeEnterpriseCommand({ actorUserId: manager.id, commandType: "CREATE_REPAIR_ORDER", domain: "SHOP_OPERATIONS", expectedVersion: 0, idempotencyKey: body.idempotencyKey, locationId: body.locationId, organizationId: "org-1", payload: {}, reason: body.reason, subjectId: "ro-1", subjectType: "REPAIR_ORDER" });
+    await expect(createRepairOrderRepository(database).create(command, { ...data, actorUserId: manager.id, repairOrderNumber: "RO-1" })).rejects.toThrow("Vehicle ownership changed");
+    expect(createVisit).not.toHaveBeenCalled();
   });
 
   it("resolves inventory identity to the canonical vehicle for duplicate protection", async () => {
@@ -101,7 +139,10 @@ describe("inventory recon repair-order intake", () => {
     const data = normalizeRepairOrderCreate({ ...body, vehicleId: "vehicle-1" }, now);
     const command = normalizeEnterpriseCommand({ actorUserId: manager.id, commandType: "CREATE_REPAIR_ORDER", domain: "SHOP_OPERATIONS", expectedVersion: 0, idempotencyKey: body.idempotencyKey, locationId: body.locationId, organizationId: "org-1", payload: {}, reason: body.reason, subjectId: "ro-1", subjectType: "REPAIR_ORDER" });
     await expect(createRepairOrderRepository(database).create(command, { ...data, actorUserId: manager.id, repairOrderNumber: "RO-1" })).rejects.toThrow(message);
-    expect(findUnit).toHaveBeenCalledWith({ where: { id: "unit-1", organizationId: "org-1", locationId: "loc-1", closedAt: null }, select: { id: true, vehicleId: true, inventoryNumber: true, version: true } });
+    expect(findUnit).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
+      id: "unit-1", organizationId: "org-1", locationId: "loc-1", closedAt: null,
+      operatingState: { not: "CLOSED" }, lifecycleStage: { notIn: ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"] }
+    }) }));
     expect(createUnit).not.toHaveBeenCalled();
     expect(createVisit).not.toHaveBeenCalled();
     expect(createOrder).not.toHaveBeenCalled();

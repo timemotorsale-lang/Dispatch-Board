@@ -180,6 +180,10 @@ function optionalJson(value: unknown) {
 }
 
 function toAppointmentCreateData(effect: AppointmentLifecycleAppointmentCreateEffect) {
+  const { sourceSnapshot, vehicleSnapshot, sourceReference, sourceType } = effect.values;
+  const reconVehicleId = sourceType === "MANUAL" && typeof sourceSnapshot?.inventoryUnitId === "string" &&
+    sourceSnapshot.inventoryUnitId === sourceReference && typeof vehicleSnapshot?.vehicleId === "string"
+    ? vehicleSnapshot.vehicleId : null;
   return {
     appointmentNumber: effect.values.appointmentNumber,
     organizationId: effect.values.organizationId,
@@ -197,7 +201,11 @@ function toAppointmentCreateData(effect: AppointmentLifecycleAppointmentCreateEf
     purposeSnapshot: optionalJson(effect.values.purposeSnapshot),
     customerSnapshot: optionalJson(effect.values.customerSnapshot),
     vehicleSnapshot: optionalJson(effect.values.vehicleSnapshot),
-    sourceSnapshot: optionalJson(effect.values.sourceSnapshot)
+    sourceSnapshot: optionalJson(effect.values.sourceSnapshot),
+    ...(reconVehicleId ? { vehicles: { create: {
+      vehicleId: reconVehicleId, roleCode: "PRIMARY", isPrimary: true, isRequired: true,
+      vehicleSnapshot: optionalJson(vehicleSnapshot), exclusiveReservationRequired: false,
+    } } } : {}),
   };
 }
 

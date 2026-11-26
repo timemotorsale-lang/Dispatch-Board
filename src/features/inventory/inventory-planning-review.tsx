@@ -197,7 +197,7 @@ function receivingSubmissionItems(items: CheckItem[], handoffNotes: string) {
   return items.map(item => item.id === "move" && !item.notes?.trim() && handoffNotes.trim() ? { ...item, notes: handoffNotes.trim() } : item);
 }
 
-export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = noFrontlineUsers, focused = false, returnTo, shopHref }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[]; focused?: boolean; returnTo?: string; shopHref?: string }) {
+export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = noFrontlineUsers, focused = false, returnTo, shopHref, reconActions }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[]; focused?: boolean; returnTo?: string; shopHref?: string; reconActions?: { appointment?: string; appointments: { href: string; label: string }[]; order?: string; shop?: string; vendor?: string } }) {
   const identity = object(initial.identity), operation = object(initial.operation), location = object(operation.location), latestOdometer = object(operation.latestOdometer);
   const vehicleId = text(identity.id, text(identity.vehicleNumber, "vehicle"));
   const acquisitionHref = `/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(vehicleId)}&returnTo=${encodeURIComponent(`/vehicles/${vehicleId}/inventory-planning`)}`;
@@ -538,6 +538,21 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
         <h1>{vehicleName}</h1><p>{text(identity.vin, label(identity.vinState))} · Stock {text(identity.stockNumber, "not assigned")}</p></div>
       <div className={baseStyles.stageSummary}><span>Inventory lifecycle</span><strong>{workflow ? label(workflow.stage) : "Not started"}</strong>{workflow && <span>{workflow.ownerUser.name} · {label(workflow.operatingState)}</span>}</div>
     </header>
+    {reconActions && (reconActions.appointment || reconActions.order || reconActions.shop || reconActions.vendor || reconActions.appointments.length > 0) && <section className={styles.parallelRecon} aria-labelledby="parallel-recon-title">
+      <div>
+        <h2 id="parallel-recon-title">Shop &amp; Recon</h2>
+        <p>Plan known work or record shop or vendor arrival while receiving continues. Inventory checks and release requirements stay in place.</p>
+      </div>
+      {reconActions.appointments.length > 0 && <ul aria-label="Your recon appointments" className={styles.parallelReconAppointments}>
+        {reconActions.appointments.map(appointment => <li key={appointment.href}><Link href={appointment.href} onClick={saveDraft}>{appointment.label}</Link></li>)}
+      </ul>}
+      <div className={styles.parallelReconActions}>
+        {reconActions.appointment && <Link className={styles.primaryButton} href={reconActions.appointment} onClick={saveDraft}>Plan recon appointment</Link>}
+        {reconActions.order && <Link className={styles.secondaryButton} href={reconActions.order} onClick={saveDraft}>Open repair order</Link>}
+        {reconActions.shop && <Link className={styles.secondaryButton} href={reconActions.shop} onClick={saveDraft}>Open shop intake</Link>}
+        {reconActions.vendor && <Link className={styles.secondaryButton} href={reconActions.vendor} onClick={saveDraft}>Route to outside vendor</Link>}
+      </div>
+    </section>}
     <nav className={baseStyles.toolNav} aria-label="Inventory planning views">
       <button aria-current={view === "RECEIVING" ? "page" : undefined} onClick={() => setView("RECEIVING")} type="button">Receiving &amp; Initial QC</button>
       <button aria-current={view === "LIFECYCLE" ? "page" : undefined} onClick={() => setView("LIFECYCLE")} type="button">Guided Lifecycle</button>

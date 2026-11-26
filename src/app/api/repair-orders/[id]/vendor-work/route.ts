@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import { createRepairVendorWork, reassignRepairVendorWork, updateRepairVendorWork } from "@/server/shop-completion/service";
 
 function failure(error: unknown) {
+  if (error instanceof Error && "code" in error && ["P2002", "P2034"].includes(String(error.code))) {
+    return NextResponse.json({ error: "The repair order or vendor handoff changed. Reopen the current order before trying again." }, { status: 409 });
+  }
   const message = error instanceof Error ? error.message : "Outside repair request failed.";
-  const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : /version|Idempotency/i.test(message) ? 409 : message.includes("not found") ? 404 : 400;
+  const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : error instanceof EnterpriseCommandConflictError || /version|Idempotency/i.test(message) ? 409 : message.includes("not found") ? 404 : 400;
   return NextResponse.json({ error: message }, { status });
 }
 

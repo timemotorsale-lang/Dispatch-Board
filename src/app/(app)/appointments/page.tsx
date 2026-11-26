@@ -11,6 +11,7 @@ import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { validFlowDate } from "@/features/advisor/workbook-flow-dates";
 import { canUseStaffCalendar } from "@/server/policies/access";
+import { getEarlyReconContext } from "@/server/inventory-execution/early-recon";
 
 type AppointmentsPageProps = {
   searchParams?: Promise<{
@@ -28,6 +29,7 @@ type AppointmentsPageProps = {
     customerReference?: string;
     crmCustomerId?: string;
     vehicleReference?: string;
+    inventoryReconVehicleId?: string;
     reason?: string;
     title?: string;
     localDate?: string;
@@ -82,28 +84,38 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     redirect(`/vehicles/advisor${query.size ? `?${query.toString()}` : ""}`);
   }
   if (calendarMode) {
+    const recon = typeof focusParams?.inventoryReconVehicleId === "string"
+      ? await getEarlyReconContext(user, focusParams.inventoryReconVehicleId)
+      : null;
+    if (focusParams?.inventoryReconVehicleId !== undefined && !recon?.canBook) return <section className="panel-card page-stack">
+      <h1>Recon scheduling unavailable</h1>
+      <p role="status">An active inventory unit and scheduling access at its location are required.</p>
+      <Link href="/vehicles/registry">Find vehicle</Link>
+    </section>;
+    const reconVehicleLabel = recon ? `${[recon.vehicle.year, recon.vehicle.make, recon.vehicle.model].filter(Boolean).join(" ") || "Inventory vehicle"} · ${recon.vehicle.vin ?? recon.vehicle.stockNumber ?? recon.vehicle.vehicleNumber}` : "";
     return (
       <>
       <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Daily Priorities</Link>
       <AppointmentConsoleNewAppointment
-        key={JSON.stringify([focusParams?.sourceTask, focusParams?.crmCustomerId, focusParams?.customerReference, focusParams?.vehicleReference, focusParams?.returnTo, localDate, focusParams?.startTime, focusParams?.durationMinutes, focusParams?.purpose, focusParams?.reason, focusParams?.title, focusParams?.q, focusParams?.advanced])}
+        key={JSON.stringify([recon?.id, focusParams?.sourceTask, focusParams?.crmCustomerId, focusParams?.customerReference, focusParams?.vehicleReference, focusParams?.returnTo, localDate, focusParams?.startTime, focusParams?.durationMinutes, focusParams?.purpose, focusParams?.reason, focusParams?.title, focusParams?.q, focusParams?.advanced])}
         initialFullCalendar
         initialContext={{
-          crmCustomerId: focusParams?.crmCustomerId,
-          customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
+          crmCustomerId: recon ? undefined : focusParams?.crmCustomerId,
+          customerReference: recon ? "" : focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
           localDate: focusParams?.localDate ?? "",
           durationMinutes: Number(focusParams?.durationMinutes),
-          purposeCode: focusParams?.purpose === "repair" ? "SERVICE_REPAIR" : undefined,
+          purposeCode: recon || focusParams?.purpose === "repair" ? "SERVICE_REPAIR" : undefined,
           calendarQuery: typeof focusParams?.q === "string" ? focusParams.q.slice(0, 100) : undefined,
           advancedCalendarSearch: focusParams?.advanced === "1",
           viewerName: user.name,
           reason: focusParams?.reason ?? sourceTask?.description ?? "",
-          returnTo: safeRoute(focusParams?.returnTo) ?? (sourceTask ? `/tasks/${sourceTask.id}` : undefined),
-          sourceTaskId: sourceTask?.id ?? focusParams?.sourceTask ?? "",
-          sourceTaskTitle: sourceTask?.title ?? "",
+          returnTo: recon ? `/vehicles/${encodeURIComponent(recon.vehicle.id)}/inventory-planning` : safeRoute(focusParams?.returnTo) ?? (sourceTask ? `/tasks/${sourceTask.id}` : undefined),
+          sourceTaskId: recon ? "" : sourceTask?.id ?? focusParams?.sourceTask ?? "",
+          sourceTaskTitle: recon ? "" : sourceTask?.title ?? "",
           startTime: focusParams?.startTime ?? "",
           title: focusParams?.title ?? (sourceTask ? `Appointment for ${sourceTask.title}` : ""),
-          vehicleReference: focusParams?.vehicleReference ?? sourceTask?.vehicleReference ?? ""
+          vehicleReference: recon ? reconVehicleLabel : focusParams?.vehicleReference ?? sourceTask?.vehicleReference ?? "",
+          inventoryRecon: recon ? { vehicle: recon.vehicle, inventoryUnitId: recon.id, locationId: recon.locationId } : undefined
         }}
       />
       </>
@@ -113,7 +125,10 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     return <AppointmentConsoleTodayFlow key={focusParams?.localDate} initialDate={focusParams?.localDate} section={focusParams?.section ?? "today"} />;
   }
 
+  const inventoryReturn = /^\/vehicles\/[A-Za-z0-9_%.-]+\/inventory-planning$/.test(focusParams?.returnTo ?? "") ? focusParams?.returnTo : undefined;
   return (
+    <>
+    {inventoryReturn && <Link className="pill pill-secondary" href={inventoryReturn}>Back to Inventory Planning</Link>}
     <AppointmentBoardLoader
       boardSettings={boardSettings}
       initialFocus={{
@@ -123,5 +138,6 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
       }}
       showAdvisorReturn={showAdvisorReturn}
     />
+    </>
   );
 }
