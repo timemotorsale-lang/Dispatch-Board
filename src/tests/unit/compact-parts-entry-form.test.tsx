@@ -136,3 +136,25 @@ it("rejects installation earlier than the exact receipt time on the same day", (
   input.set("usageOccurredAt", "2026-11-14T14:16:00");
   expect(readCompactPartsEntry(input, "ro-1", undefined, undefined, receipt)).toMatchObject({ usageOccurredAt: "2026-11-14T14:16:00" });
 });
+
+it("saves optional supplier contact with a purchased part and does not put it on a needed-only entry", () => {
+  const contact = { part: "Pads", quantity: "2", supplierPhone: "612-555-0182", supplierContact: "Alex <parts@example.com>", note: "Invoice 42" };
+  const purchase = readCompactPartsEntry(fields({ ...contact, purchased: "on", vendor: "Parts Yard", purchasedOn: "2026-11-14", unitPrice: "9.25" }), "ro-1");
+  expect(purchase.note).toContain("Supplier phone: 612-555-0182");
+  expect(purchase.note).toContain("Supplier contact: Alex <parts@example.com>");
+  expect(purchase.note).toContain("Invoice 42");
+  expect(readCompactPartsEntry(fields(contact), "ro-1").note).toBe("Invoice 42");
+});
+
+it("opens a focused return form already attached to the receipt and supplier", () => {
+  const html = renderToStaticMarkup(<CompactPartsEntry repairOrderId="ro-1" taskLayout usageEnabled outcomeOnly onSave={vi.fn()}
+    receivedParts={[{ receiptId: "r-1", lineIndex: 0, partId: "part-1", part: "Brake pads", label: "PO-1", quantity: 2, vendor: "Parts Yard", unitPriceCents: 925 }]}
+    selection={{ receiptId: "r-1", lineIndex: 0, partId: "part-1", token: "return-1", usage: "RETURN" }} />);
+  expect(html).toContain("Return part");
+  expect(html).toContain("Parts Yard");
+  expect(html).toContain("$9.25");
+  expect(html).toContain("Open return case");
+  expect(html).not.toContain("Entry type");
+  expect(html).not.toContain("Purchased on");
+  expect(html).not.toContain("Receiving bin");
+});

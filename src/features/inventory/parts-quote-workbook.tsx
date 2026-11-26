@@ -15,9 +15,9 @@ type Quote = {
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const dated = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/Chicago" });
 
-export function PartsQuoteWorkbook({ repairOrderId, context, vin, quotes, canWrite, closed, backHref, partsHref }: {
+export function PartsQuoteWorkbook({ repairOrderId, context, vin, quotes, canWrite, closed, backHref, backLabel = "Back to repair parts tools", partsHref }: {
   repairOrderId: string; context: string; vin: string | null; quotes: Quote[]; canWrite: boolean;
-  closed: boolean; backHref: string; partsHref: string;
+  closed: boolean; backHref: string; backLabel?: string; partsHref: string;
 }) {
   const router = useRouter();
   const pending = useRef(false);
@@ -70,7 +70,7 @@ export function PartsQuoteWorkbook({ repairOrderId, context, vin, quotes, canWri
   }
 
   return <section className={styles.page} aria-labelledby="parts-quote-workbook-title">
-    <Link href={backHref}>← Back to repair parts tools</Link>
+    <Link href={backHref}>← {backLabel}</Link>
     <header className={styles.header}>
       <div>
         <h1 id="parts-quote-workbook-title">Parts search workbook</h1>

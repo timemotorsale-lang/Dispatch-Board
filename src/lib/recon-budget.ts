@@ -59,3 +59,25 @@ export function buildReconBudgetSummary(input: {
     status: remainingBudgetCents < 0 ? "OVER_BUDGET" : remainingBudgetCents <= cautionThreshold ? "CAUTION" : "WITHIN_BUDGET"
   };
 }
+
+/** Advisory retail-back ceiling. All inputs are cents; an unknown cost is not zero. */
+export function calculateReconCeiling(input: {
+  retail: number | null;
+  landed: number | null;
+  gross: number | null;
+  reserve: number | null;
+}) {
+  const { retail, landed, gross, reserve } = input;
+  if (retail === null || retail <= 0 || landed === null || gross === null || reserve === null ||
+      ![retail, landed, gross, reserve].every(value => Number.isSafeInteger(value) && value >= 0)) return null;
+  const gap = retail - landed - gross - reserve;
+  if (!Number.isSafeInteger(gap)) return null;
+  return { ceilingCents: Math.max(0, gap), shortfallCents: Math.max(0, -gap) };
+}
+
+export function parseReconPlanningAmount(value: string) {
+  const trimmed = value.trim();
+  if (!/^\d{1,8}(?:\.\d{1,2})?$/.test(trimmed)) return null;
+  const [dollars, cents = ""] = trimmed.split(".");
+  return Number(dollars) * 100 + Number(cents.padEnd(2, "0"));
+}

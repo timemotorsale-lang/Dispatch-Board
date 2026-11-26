@@ -397,3 +397,17 @@ it("counts legacy and partial receipt custody without conflating line indexes", 
   expect(quantities.get("receipt:0")).toBe(3);
   expect(quantities.get("receipt:10")).toBe(4);
 });
+
+it("preserves an unknown allowance when staff only request an initial amount", async () => {
+  const { recordAcquisitionAppraisal } = await import("@/server/inventory-lifecycle/acquisition");
+  const partsStaff = { ...manager, roles: ["Parts"] };
+  const repository = { overview: vi.fn().mockResolvedValue({ repairOrders: [{
+    id: "ro-await", origin: "INVENTORY_RECON", repairOrderNumber: "RO-AWAIT", inventoryUnit: { id: "inv-await" },
+  }] }) } as unknown as ServiceClosePartsRepository;
+  const options = { enforceRollout: false, foundationRepository: foundation(), repository };
+  const requested = { action: "REQUEST_RECON_BUDGET_EXCEPTION", subjectId: "ro-await", increaseByCents: 125000, reason: "Inspection and market budget" };
+  const response = await executeServiceClosePartsCommand(partsStaff, requested, options);
+  expect(response.result).toMatchObject({ decisionStatus: "RECOMMENDED", nextBudgetCents: null });
+  expect(recordAcquisitionAppraisal).toHaveBeenLastCalledWith(partsStaff, "inv-await", expect.objectContaining({ estimatedReconCents: undefined }));
+  await expect(executeServiceClosePartsCommand(partsStaff, { ...requested, action: "APPROVE_RECON_BUDGET_EXCEPTION" }, options)).rejects.toThrow("manager");
+});

@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useId, useRef, useState, type FormEvent } from "react";
 import styles from "./compact-parts-entry.module.css";
+import { compactPurchaseNote } from "@/lib/compact-purchase-contact";
 
 export type CompactPartsSupplier = { id: string; name: string };
 export type CompactPartsPurchaseOrder = {
@@ -25,7 +26,7 @@ export type CompactPartsEntryResult = {
 };
 
 export type CompactPartsUsage = "NOT_YET" | "USED" | "RETURN";
-export type CompactPartsReceivedPart = { receiptId: string; lineIndex: number; partId: string; part: string; label: string; quantity: number; purchaseOrderId?: string; receivedAt?: string };
+export type CompactPartsReceivedPart = { receiptId: string; lineIndex: number; partId: string; part: string; label: string; quantity: number; purchaseOrderId?: string; receivedAt?: string; vendor?: string; unitPriceCents?: number };
 export type CompactPartsJob = { id: string; label: string };
 export type CompactPartsSelection =
   | { demandId: string; token: string }
@@ -42,6 +43,8 @@ type Props = {
   receivedParts?: readonly CompactPartsReceivedPart[];
   jobs?: readonly CompactPartsJob[];
   usageEnabled?: boolean;
+  taskLayout?: boolean;
+  outcomeOnly?: boolean;
   linkNewPartsToJob?: boolean;
   preferredPartsJobId?: string;
   stockLocations?: readonly { id: string; label: string }[];
@@ -75,7 +78,7 @@ export function readCompactPartsEntry(
   const price = text("unitPrice");
   const unitPriceCents = existingOrder ? existingOrder.unitPriceCents : price ? Math.round(Number(price) * 100) : undefined;
   const receivedOn = text("receivedOn");
-  const note = text("note");
+  const note = purchased && !existingOrder && !receiptLine ? compactPurchaseNote(text("note"), text("supplierPhone"), text("supplierContact")) : text("note");
   const today = currentPartsEntryDate();
   const selection = text("usage");
   const usage: CompactPartsUsage | undefined = !received ? undefined : selection === "USED" || selection === "RETURN" ? selection : "NOT_YET";
@@ -137,11 +140,12 @@ export function CompactPartsEntry(props: Props) {
   return <PartsEntryForm key={props.repairOrderId} {...props} />;
 }
 
-function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrders = [], neededParts = [], selection, receivedParts = [], jobs = [], usageEnabled = false, linkNewPartsToJob = false, preferredPartsJobId, stockLocations = [], onSave }: Props) {
+function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrders = [], neededParts = [], selection, receivedParts = [], jobs = [], usageEnabled = false, linkNewPartsToJob = false, preferredPartsJobId, taskLayout = false, outcomeOnly = false, stockLocations = [], onSave }: Props) {
   const headingId = useId();
-  const [mode, setMode] = useState<"new" | "existing" | "needed" | "receipt">("new");
-  const [receiptKey, setReceiptKey] = useState("");
-  const [usage, setUsage] = useState<CompactPartsUsage>("NOT_YET");
+  const preset = outcomeOnly && selection && "receiptId" in selection ? selection : undefined;
+  const [mode, setMode] = useState<"new" | "existing" | "needed" | "receipt">(preset ? "receipt" : "new");
+  const [receiptKey, setReceiptKey] = useState(preset ? preset.receiptId + ":" + preset.lineIndex : "");
+  const [usage, setUsage] = useState<CompactPartsUsage>(preset?.usage ?? "NOT_YET");
   const [neededId, setNeededId] = useState("");
   const [orderId, setOrderId] = useState("");
   const [extraParts, setExtraParts] = useState<string[]>([]);
@@ -198,16 +202,16 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
     resetFields(formRef.current);
     setMode(isReceipt ? "receipt" : "existing");
     if (isReceipt) { setReceiptKey(key); setUsage(selectedUsage ?? "NOT_YET"); }
-    else setOrderId(key);
+    else { setOrderId(key); if (taskLayout) setReceived(true); }
     setResult(null);
-    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(isReceipt ? '[name="usage"]' : '[name="received"]')?.focus());
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(isReceipt ? '[name="usage"]' : taskLayout ? '[name="quantity"]' : '[name="received"]')?.focus());
   });
   useEffect(() => {
     const selectedKey = selectedReceiptKey ?? selectedOrderKey;
-    if (!selectionToken || !selectedKey) return;
+    if (outcomeOnly || !selectionToken || !selectedKey) return;
     const frame = requestAnimationFrame(() => latestSelection(selectedKey, Boolean(selectedReceiptKey)));
     return () => cancelAnimationFrame(frame);
-  }, [selectionToken, selectedOrderKey, selectedReceiptKey, selectedUsage]);
+  }, [outcomeOnly, selectionToken, selectedOrderKey, selectedReceiptKey, selectedUsage]);
 
   const selectDemand = useEffectEvent((id: string) => {
     setMode("needed");
@@ -267,7 +271,7 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
         } else {
           const response = await onSave(frozen ?? retry.current!.entry);
           setResult(response);
-          if (response.status === "saved") resetFields(form);
+          if (response.status === "saved" && !outcomeOnly) resetFields(form);
         }
       } catch (error) {
         setResult({ status: "error", message: error instanceof Error ? error.message : "Parts entry could not be saved. Retry the same entry.", retryable: attempted, ...(attempted && { nextAction: "Retry the same entry to check what was saved." }) });
@@ -285,36 +289,40 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
   const receive = canChooseReceipt && received;
   const awaitingExistingReceipt = mode === "existing" && Boolean(existingOrder) && !received;
   const preferredPartsJob = jobs.find(job => job.id === preferredPartsJobId);
+  const outcomeTitle = preset?.usage === "RETURN" ? "Return part" : "Record part use";
+  const submitLabel = !taskLayout ? "Save parts entry" : outcomeOnly ? (preset?.usage === "RETURN" ? "Open return case" : "Save part use")
+    : mode === "existing" ? "Record receipt" : buying ? (received ? "Record purchase & receipt" : "Record purchase") : "Save needed part";
   return (
     <section aria-labelledby={headingId} className={styles.entry}>
-      <h2 id={headingId}>Add or receive parts</h2>
+      <h2 id={headingId}>{outcomeOnly ? outcomeTitle : "Add or receive parts"}</h2>
       {!repairOrderId && <p>Select a repair order before entering parts.</p>}
       <form ref={formRef} onSubmit={submit} aria-busy={busy || undefined}>
         <fieldset disabled={disabled || busy || !repairOrderId || resultBlocked || result?.retryable} className={styles.fields}>
-          {(purchaseOrders.length > 0 || neededParts.length > 0 || (usageEnabled && receivedParts.length > 0)) && <label>Entry type
+          {!outcomeOnly && (purchaseOrders.length > 0 || neededParts.length > 0 || (usageEnabled && receivedParts.length > 0)) && <label>Entry type
             <select value={mode} onChange={event => {
               const nextMode = event.target.value;
               if (formRef.current) resetFields(formRef.current);
               setMode(nextMode === "existing" || nextMode === "needed" || nextMode === "receipt" ? nextMode : "new");
+              if (taskLayout && nextMode === "existing") setReceived(true);
               setResult(null);
             }}>
               <option value="new">New part</option>
               {neededParts.length > 0 && <option value="needed">Purchase needed part</option>}
               {purchaseOrders.length > 0 && <option value="existing">Receive existing order</option>}
-              {usageEnabled && receivedParts.length > 0 && <option value="receipt">Update received part</option>}
+              {!taskLayout && usageEnabled && receivedParts.length > 0 && <option value="receipt">Update received part</option>}
             </select>
           </label>}
           {mode === "receipt" ? <>
-            <label className={styles.part}>Received part
+            {outcomeOnly ? receiptLine && <div className={styles.wide}><strong>{receiptLine.part}</strong><p>{receiptLine.vendor ?? "Supplier not recorded"}{receiptLine.unitPriceCents !== undefined && <> · ${(receiptLine.unitPriceCents / 100).toFixed(2)} each</>} · {receiptLine.quantity} available</p><small>{receiptLine.label}</small></div> : <label className={styles.part}>Received part
               <select required value={receiptKey} onChange={event => { setReceiptKey(event.target.value); setUsage("NOT_YET"); setResult(null); }}>
                 <option value="">Choose a receipt line</option>
                 {receivedParts.map(part => <option key={part.receiptId + ":" + part.lineIndex} value={part.receiptId + ":" + part.lineIndex}>{part.label} · {part.part}</option>)}
               </select>
-            </label>
-            {receiptLine && <label>Qty<input key={receiptKey} required name="quantity" type="number" min="1" max={receiptLine.quantity} step="1" defaultValue={receiptLine.quantity} /></label>}
+            </label>}
+            {receiptLine && receiptLine.quantity > 0 && <label>Qty<input key={receiptKey} required name="quantity" type="number" min="1" max={receiptLine.quantity} step="1" defaultValue={receiptLine.quantity} /></label>}
           </> : mode === "existing" ? <>
-            <label className={styles.wide}>Purchase order
-              <select required value={orderId} onChange={event => { setOrderId(event.target.value); setReceived(false); setPackingSource(""); setLocationChoice(""); setResult(null); }}>
+            <label className={styles.wide} hidden={taskLayout && Boolean(existingOrder) && Boolean(selectedOrderKey)}>Purchase order
+              <select required value={orderId} onChange={event => { setOrderId(event.target.value); setReceived(taskLayout); setPackingSource(""); setLocationChoice(""); setResult(null); }}>
                 <option value="">Choose an existing order</option>
                 {purchaseOrders.map(order => <option key={order.selectionKey ?? order.id} value={order.selectionKey ?? order.id}>{order.label} · {order.part}</option>)}
               </select>
@@ -352,11 +360,11 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
                 <button type="button" onClick={() => setExtraParts(rows => rows.filter(row => row !== key))} aria-label={`Remove part ${index + 2}`}>Remove</button>
               </div>)}
               </>}
-            <div className={styles.addPartRow}>
+            {(!taskLayout || !purchased) && <div className={styles.addPartRow}>
               <button type="button" disabled={purchased} onClick={() => setExtraParts(rows => [...rows, crypto.randomUUID()])}>+ Add needed part</button>
-              {purchased && <small> Save this purchase first. Add multiple needed parts from a new entry with Purchased unchecked.</small>}
-            </div>
-            <details className={styles.wide}><summary>Stock number options</summary>
+              {purchased && !taskLayout && <small> Save this purchase first. Add multiple needed parts from a new entry with Purchased unchecked.</small>}
+            </div>}
+            <details className={styles.wide}><summary>{taskLayout ? "Part number (optional)" : "Stock number options"}</summary>
               <label>Stock number<select name="numberMode" value={manualNumber ? "manual" : "automatic"} onChange={event => setManualNumber(event.target.value === "manual")}>
                 <option value="automatic">Generate if this is a new catalog part</option>
                 <option value="manual">Enter stock number</option>
@@ -374,16 +382,24 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
                 <label hidden={Boolean(supplierId)}>Vendor / from where<input name="vendor" maxLength={200} disabled={!buying || Boolean(supplierId)} required={buying && !supplierId} /></label>
                 <label>Purchased on<input name="purchasedOn" type="date" max={today} defaultValue={today} disabled={!buying} required={buying} /></label>
                 <label>Unit price ($)<input name="unitPrice" type="number" disabled={!buying} min="0" step="0.01" inputMode="decimal" required={buying} /></label>
+                {taskLayout && buying && <details className={styles.wide}><summary>Supplier contact (optional)</summary>
+                  <div className={styles.purchase}>
+                    <label>Supplier phone<input name="supplierPhone" type="tel" maxLength={45} /></label>
+                    <label>Contact name or email<input name="supplierContact" maxLength={90} /></label>
+                  </div>
+                  <small>Saved with this purchase. The supplier directory is unchanged.</small>
+                </details>}
               </div>
             </div>
           </>}
-          {canChooseReceipt && <div className={styles.wide} role="group" aria-label="Receipt status">
+          {canChooseReceipt && !(taskLayout && mode === "existing") && <div className={styles.wide} role="group" aria-label="Receipt status">
             <label className={styles.check}><input name="received" type="checkbox" value="yes" checked={received} onChange={event => setReceived(event.target.checked)} /> Received</label>
             {awaitingExistingReceipt && <small>Check Received when the part arrives.</small>}
           </div>}
-          <div key={mode + ":" + orderId + ":" + neededId} className={styles.wide} hidden={!receive}>
+          {taskLayout && mode === "existing" && receive && <input type="hidden" name="received" value="yes" />}
+          {!outcomeOnly && <div key={mode + ":" + orderId + ":" + neededId} className={styles.wide} hidden={!receive}>
             <div className={styles.purchase}>
-              <label>Received on<input name="receivedOn" type="date" max={today} disabled={!receive} required={receive} /></label>
+              <label>Received on<input name="receivedOn" type="date" max={today} defaultValue={taskLayout ? today : undefined} disabled={!receive} required={receive} /></label>
               <label>Receiving bin<select name="stockLocationId" disabled={!receive} required={receive} value={locationChoice} onChange={event => setLocationChoice(event.target.value)}>
                 <option value="">Choose a bin</option>
                 {stockLocations.map(stock => <option key={stock.id} value={stock.id}>{stock.label}</option>)}
@@ -401,9 +417,9 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
               </div>
             </div>
             {receive && stockLocations.length === 0 && <p>Enter the name of the physical location where the part is stored, or ask Parts for help.</p>}
-          </div>
+          </div>}
           {usageEnabled && (receive || receiptLine) && <div className={styles.wide} key={mode + ":" + orderId + ":" + neededId + ":" + receiptKey}>
-            <div className={styles.outcomeSection}>
+            {!outcomeOnly && <div className={styles.outcomeSection}>
               <p id={headingId + "-outcome"}>What happened to the part?</p>
               <div role="radiogroup" aria-labelledby={headingId + "-outcome"} className={styles.outcomeChoices}>
                 {([["USED", "Used"], ["NOT_YET", "Not yet used"], ["RETURN", "Not used — return"]] as const).map(([value, label]) =>
@@ -413,10 +429,11 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
                   </label>
                 )}
               </div>
-            </div>
+            </div>}
+            {outcomeOnly && <input type="hidden" name="usage" value={usage} />}
             {!receiptLine && usage !== "NOT_YET" && <label>Qty for this outcome<input name="usageQuantity" type="number" min="1" step="1" placeholder="Whole received quantity" /></label>}
             {usage === "USED" && <div className={styles.purchase}>
-              <label>Repair job<select required name="repairJobId"><option value="">Choose the job</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.label}</option>)}</select></label>
+              <label>Repair job<select required name="repairJobId" defaultValue={taskLayout && jobs.length === 1 ? jobs[0].id : ""}><option value="">Choose the job</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.label}</option>)}</select></label>
               <label>Used at<input required name="usageOccurredAt" type="datetime-local" step="0.001" max={today + "T23:59:59.999"} /></label>
 
 
@@ -429,9 +446,9 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
             </div>}
             {receiptLine && usage === "NOT_YET" && <p>This part stays received and available. There is nothing to save.</p>}
           </div>}
-          <label className={styles.wide}>Note (optional)<input name="note" maxLength={500} /></label>
+          {taskLayout ? <details className={styles.wide}><summary>Note (optional)</summary><label>Note<input name="note" maxLength={220} /></label></details> : <label className={styles.wide}>Note (optional)<input name="note" maxLength={500} /></label>}
         </fieldset>
-        <button type="submit" disabled={disabled || busy || !repairOrderId || resultBlocked || (mode === "receipt" && usage === "NOT_YET" && !result?.retryable)}>{busy ? "Saving…" : result?.retryable ? "Retry save" : "Save parts entry"}</button>
+        <button type="submit" disabled={disabled || busy || !repairOrderId || resultBlocked || (outcomeOnly && (!receiptLine?.quantity || result?.status === "saved")) || (mode === "receipt" && usage === "NOT_YET" && !result?.retryable)}>{busy ? "Saving…" : result?.retryable ? "Retry save" : submitLabel}</button>
 
       </form>
       <div ref={feedback} tabIndex={-1} role={result?.status === "error" ? "alert" : "status"} className={styles.feedback}>

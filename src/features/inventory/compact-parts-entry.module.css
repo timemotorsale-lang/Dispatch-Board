@@ -123,3 +123,6 @@
 @container parts-entry (max-width: 360px) {
   .entry .outcomeOption { width: 100%; min-height: 44px; }
 }
+
+.entry details > summary { cursor: pointer; padding-block: 4px; }
+.entry details[open] > summary { margin-bottom: 4px; }

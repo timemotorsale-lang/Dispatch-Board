@@ -94,7 +94,7 @@ test("Not received creates a purchase without a receipt or outcome", async ({ pa
   const entry = await purchaseForm(page, partsOrder.ro.id, `${partsOrder.tag} not received`);
   await entry.getByRole("checkbox", { name: "Received", exact: true }).check();
   await entry.getByRole("checkbox", { name: "Received", exact: true }).uncheck();
-  await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+  await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("", { timeout: 45_000 });
   const orders = await prisma.partPurchaseOrder.findMany({ where: { requisition: { demand: { repairOrderId: partsOrder.ro.id } } } });
   expect(orders).toHaveLength(1);
@@ -132,7 +132,7 @@ for (const lostStep of ["part", "bin"] as const) {
       lost = true;
       await route.fulfill({ status: 503, json: { error: `Synthetic lost ${lostStep} response AFTER commit` } });
     });
-    await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+    await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
     await expect(entry.getByRole("button", { name: "Retry save", exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(entry.getByLabel("Part", { exact: true })).toHaveValue(description);
     await entry.getByRole("button", { name: "Retry save", exact: true }).click();

@@ -26,7 +26,9 @@ export default async function PartsWorkbookPage({ searchParams }: {
   </section>;
 
   const { order, canWrite, quotes } = result;
-  const partsHref = `/vehicles/service-close-parts?${new URLSearchParams({ repairOrderId: id, view: "recon-task", returnTo: back, returnLabel: "Back to repair parts tools" })}#saved-parts-records`;
+  const source = new URL(back, "https://workspace.invalid");
+  const fromParts = source.pathname === "/vehicles/service-close-parts" && source.searchParams.get("repairOrderId") === id;
+  const partsHref = fromParts ? `${source.pathname}${source.search}#saved-parts-records` : `/vehicles/service-close-parts?${new URLSearchParams({ repairOrderId: id, view: "recon-task", returnTo: back, returnLabel: "Back to repair parts tools" })}#saved-parts-records`;
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
-  return <PartsQuoteWorkbook key={id} repairOrderId={id} context={[order.repairOrderNumber, vehicle, order.vehicle.stockNumber && `Stock ${order.vehicle.stockNumber}`].filter(Boolean).join(" · ")} vin={order.vehicle.vin} canWrite={canWrite} closed={Boolean(order.closedAt)} quotes={quotes} backHref={back} partsHref={partsHref} />;
+  return <PartsQuoteWorkbook key={id} repairOrderId={id} context={[order.repairOrderNumber, vehicle, order.vehicle.stockNumber && `Stock ${order.vehicle.stockNumber}`].filter(Boolean).join(" · ")} vin={order.vehicle.vin} canWrite={canWrite} closed={Boolean(order.closedAt)} quotes={quotes} backHref={back} backLabel={fromParts ? "Back to Parts Operations" : undefined} partsHref={partsHref} />;
 }

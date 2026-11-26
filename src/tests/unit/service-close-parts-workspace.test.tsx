@@ -212,3 +212,13 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Only records linked to RO-DB21B235 are shown.");
   });
 });
+
+it("shows the return task directly and keeps saved purchasing records available", () => {
+  const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} taskLayout parallelTask focusReturns reviewOrderId="ro-1" initialRepairOrderId="ro-1" />);
+  expect(html).toContain('aria-pressed="true">Use &amp; return');
+  expect(html).toContain("Use or return received parts");
+  expect(html).toContain("No parts are available to use or return.");
+  expect(html).toContain("Recent parts records");
+  expect(html).toContain("Awaiting approval or issue");
+  expect(html).toContain("Parts Search Workbook");
+});
