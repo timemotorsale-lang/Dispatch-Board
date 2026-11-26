@@ -55,7 +55,7 @@ type FrontlineWorkflow = {
   ownerUser: { id: string; name: string }; location: { id: string; name: string };
   inventoryUnit: { id: string; inventoryNumber: string; vehicle: { id: string; vehicleNumber: string; year: number | null; make: string | null; model: string | null } };
   repairOrder: { id: string; repairOrderNumber: string } | null;
-  transportSnapshot?: unknown; receiptSnapshot?: unknown; inspectionSnapshot?: unknown; reconSnapshot?: unknown; executionSnapshot?: unknown; qualitySnapshot?: unknown; titleSnapshot?: unknown; merchandisingSnapshot?: unknown; releaseSnapshot?: unknown; postReleaseSnapshot?: unknown; exceptionSnapshot?: unknown;
+  acquisitionSnapshot?: unknown; transportSnapshot?: unknown; receiptSnapshot?: unknown; inspectionSnapshot?: unknown; reconSnapshot?: unknown; executionSnapshot?: unknown; qualitySnapshot?: unknown; titleSnapshot?: unknown; merchandisingSnapshot?: unknown; releaseSnapshot?: unknown; postReleaseSnapshot?: unknown; exceptionSnapshot?: unknown;
 };
 type FrontlineUser = { id: string; name: string };
 const noFrontlineUsers: FrontlineUser[] = [];
@@ -83,6 +83,19 @@ const initialChecklist: CheckGroup[] = [
 ];
 
 const stages = ["Transport", "Receipt", "Inspection", "Recon", "Shop & Parts", "Final QC", "Title", "Merch", "Release", "Verify"];
+const stageReview = [
+  ["Acquisition and ownership", "Verify the acquisition record and the linked inventory unit. Assign an owner before starting the lifecycle."],
+  ["Transport and delivery", "Choose how the vehicle will move or record that transport is not needed. For transport, record the expected arrival, cost, carrier or reference, and release evidence. Confirm actual delivery separately."],
+  ["Receiving and custody", "Match vehicle identity and record arrival, physical location, keys, and visible condition."],
+  ["Initial inspection and triage", "Record safety findings, movement restrictions, evidence, and the next owner or destination."],
+  ["Recon approval", "Link the correct inventory repair order and review the repair scope, supporting evidence, and spending authority."],
+  ["Repair and parts execution", "Use the linked repair order to track work and parts. Verify jobs and parts dependencies are complete before advancing."],
+  ["Independent quality and safety check", "An independent reviewer records quality, safety, legal checks, and the applicable road-test result. A failed check routes to rework."],
+  ["Title and documents", "Review required documents and evidence. Record a hold and follow-up when a requirement is unresolved."],
+  ["Merchandising and pricing", "Verify the vehicle facts, approved price, description, photos, and listing status."],
+  ["Independent frontline release", "An independent reviewer confirms the current package and all required acquisition, receipt, repair, safety, title, and listing checks before release."],
+  ["Post-release availability", "Check physical availability, the internal inventory record, and the digital listing. Record any mismatch for correction."],
+] as const;
 const stageIndex: Record<string, number> = { TRANSPORT_PLANNING: 0, IN_TRANSIT: 0, RECEIPT_AND_CUSTODY: 1, INSPECTION_AND_TRIAGE: 2, RECON_PLAN_AND_APPROVAL: 3, PARTS_AND_REPAIR_EXECUTION: 4, QUALITY_AND_SAFETY_VERIFICATION: 5, TITLE_DOCUMENT_READINESS: 6, MERCHANDISING_AND_PRICING: 7, FRONTLINE_RELEASE_REVIEW: 8, FRONTLINE_READY: 9, POST_RELEASE_VERIFICATION: 9 };
 
 function object(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
@@ -467,12 +480,11 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
       : !workflow && !eligibleUnit ? "Inventory record has no active lifecycle to continue" : null;
     const activeStage = !workflow || workflow.stage === "ACQUISITION_VALIDATION" ? -1 : stageIndex[workflow.stage] ?? stages.length;
     const stage = selectedStage ?? activeStage;
-    const stageOpen = selectedStage !== null;
     const stageNames = ["Acquisition", ...stages, ...(activeStage === stages.length ? [label(workflow?.stage)] : [])];
     const receiving = workflow?.stage === "RECEIPT_AND_CUSTODY" || workflow?.stage === "INSPECTION_AND_TRIAGE";
     const snapshots = [workflow?.transportSnapshot, workflow?.receiptSnapshot, workflow?.inspectionSnapshot, workflow?.reconSnapshot,
       workflow?.executionSnapshot, workflow?.qualitySnapshot, workflow?.titleSnapshot, workflow?.merchandisingSnapshot, workflow?.releaseSnapshot, workflow?.postReleaseSnapshot];
-    const savedSummary = object(snapshots[stage]);
+    const savedSummary = object(stage === -1 ? workflow?.acquisitionSnapshot : snapshots[stage]);
     const summary = text(savedSummary.conditionSummary ?? savedSummary.summary ?? savedSummary.description, "")
       || (typeof savedSummary.method === "string" ? label(savedSummary.method) : "");
     const canLeave = () => !stageDirty.current || window.confirm("Leave this stage without saving the entered changes?");
@@ -484,19 +496,19 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     }}>
       {returnTo && <Link href={returnTo}>← Return to Repair Workbench</Link>}
       <header className={baseStyles.focusedHeader}>
-        <div><h1>Inventory Lifecycle</h1><strong>{vehicleName} · {workflow?.inventoryUnit.inventoryNumber ?? eligibleUnit?.inventoryNumber ?? vehicleId}</strong></div>
+        <div><h1>Inventory Lifecycle</h1><strong>{vehicleName} · {workflow?.inventoryUnit.inventoryNumber ?? eligibleUnit?.inventoryNumber ?? vehicleId}</strong><p>VIN <strong>{text(identity.vin, "Not recorded")}</strong></p></div>
         <VehicleWorkflowSwitch active="inventory" shopHref={shopHref} />
       </header>
       <nav className={styles.stageStrip} aria-label="Inventory lifecycle stages">
         {stageNames.map((name, index) => {
           const option = index - 1;
           const complete = workflow && activeStage < stages.length && option < activeStage;
-          return <button aria-current={option === stage && (stageOpen || !inventoryStatus) ? "step" : undefined} aria-controls="inventory-stage-tool" aria-expanded={stageOpen && option === stage}
+          return <button aria-current={option === activeStage && !inventoryStatus ? "step" : undefined} aria-controls="inventory-stage-tool" aria-expanded={option === stage}
             className={!inventoryStatus && option === activeStage ? styles.stageActive : complete ? styles.stageComplete : styles.stageFuture}
             key={name} type="button" disabled={busy} onClick={() => {
-              if (!canLeave()) return;
+              if (option === stage || !canLeave()) return;
               stageDirty.current = false;
-              setSelectedStage(stageOpen && option === stage ? null : option);
+              setSelectedStage(option);
             }}>
             <b>{complete ? <Check size={14} /> : index + 1}</b><span>{name}</span>
             <small>{inventoryStatus ? "Preview" : option === activeStage ? "Current" : complete ? "Complete" : activeStage < stages.length && option > activeStage ? "Upcoming" : "Review"}</small>
@@ -504,15 +516,15 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
         })}
       </nav>
       <p role="status" className={baseStyles.focusedNotice}>{inventoryStatus ?? notice}</p>
-      <section className={baseStyles.focusedTool} id="inventory-stage-tool" aria-labelledby={stageOpen ? "inventory-stage-heading" : undefined}
-        hidden={!stageOpen} onChangeCapture={() => { stageDirty.current = true; }}>
-        {stageOpen && <>
+      <section className={baseStyles.focusedTool} id="inventory-stage-tool" aria-labelledby="inventory-stage-heading" onChangeCapture={() => { stageDirty.current = true; }}>
         <h2 id="inventory-stage-heading">{stageNames[stage + 1]}</h2>
-        {inventoryStatus ? <p>{inventoryStatus}. {shopHref && <Link href={shopHref}>Continue in Shop &amp; Recon</Link>}</p> : stage !== activeStage ? <>
-          <p>{stage < activeStage && activeStage < stages.length
-            ? summary || (Object.keys(savedSummary).length ? "Stage evidence is recorded for this vehicle." : "The vehicle has moved past this stage.")
-            : `Current stage: ${stageNames[activeStage + 1]}. Open it to see the next available action.`}</p>
-          <button className={styles.secondaryButton} onClick={() => setSelectedStage(activeStage)} type="button">Open current stage</button>
+        {stage === 0 && <p>Transport VIN <strong>{text(identity.vin, "Not recorded")}</strong></p>}
+        {inventoryStatus || stage !== activeStage ? <>
+          <p><strong>Stage review</strong> · Opening this stage does not move the vehicle.</p>
+          {stageReview[stage + 1] && <><h3>{stageReview[stage + 1][0]}</h3><p>{stageReview[stage + 1][1]}</p></>}
+          {summary ? <p>Saved record · {summary}</p> : Object.keys(savedSummary).length > 0 && <p>Saved evidence is on file for this stage.</p>}
+          {inventoryStatus ? <p>{inventoryStatus}. {shopHref && <Link href={shopHref}>Continue in Shop &amp; Recon</Link>}</p>
+            : <button className={styles.secondaryButton} onClick={() => setSelectedStage(activeStage)} type="button">Resume {stageNames[activeStage + 1]}</button>}
         </> : !workflow ? eligibleUnit ? <>
           <Field label="Lifecycle owner"><select value={ownerUserId} onChange={event => setOwnerUserId(event.target.value)}>
             <option value="">Select owner</option>{users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
@@ -527,7 +539,6 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
             </div>
           </> : <GovernedStageAction act={act} busy={busy} evidenceIds={evidenceIds} initial={initial}
             initialRepairOrderId={initialRepairOrderId} key={`${workflow.id}:${workflow.stage}`} users={users} workflow={workflow} />}
-        </>}
       </section>
     </section>;
   }

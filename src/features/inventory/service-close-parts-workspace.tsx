@@ -132,7 +132,7 @@ export function partsEntryRecoveryGuidance(saved: SavedCompactEntry, purchaseOrd
   return saved.nextAction ?? "Review the saved parts records. Resume any unfinished request unchanged.";
 }
 
-type Props = { initial: Model; compactStage?: boolean; initialRepairOrderId?: string; parallelTask?: boolean; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
+type Props = { initial: Model; compactStage?: boolean; initialRepairOrderId?: string; parallelTask?: boolean; focusReturns?: boolean; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
 type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
 type BudgetRequestStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "DENIED";
 
@@ -324,7 +324,7 @@ function Notice({ value }: { value: string }) {
   return <div className={`scp-notice ${danger ? "danger" : "success"}`} role="status">{value}</div>;
 }
 
-export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, parallelTask = false, returnLabel, returnTo, reviewOrderId, compactStage = false }: Props) {
+export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, parallelTask = false, focusReturns = false, returnLabel, returnTo, reviewOrderId, compactStage = false }: Props) {
   const router = useRouter();
   const initialOrderId = initialRepairOrderId ?? first(initial.repairOrders);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1398,8 +1398,9 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
         <Link href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: selectedOrder.id, step: "handoff" })}`}>Open vehicle handoff</Link>
       </nav>
     </section>}
-    {receivedParts.length > 0 && <section className={compactStyles.received} aria-label="Received parts">
-      <h2>Received parts</h2>
+    {(receivedParts.length > 0 || focusReturns) && <section className={compactStyles.received} id="repair-parts-returns" aria-label={focusReturns ? "Return received parts" : "Received parts"}>
+      <h2>{focusReturns ? "Return received parts" : "Received parts"}</h2>
+      {focusReturns && <p>{receivedParts.length ? "Choose Start return on the receipt line you want to return." : "No parts have been received on this repair order. Record the receipt before starting a return."}</p>}
       {selectedOrder?.closedAt ? <p>Repair order closed. Received parts are available for review.</p>
         : busy ? <p role="status">Updating parts records…</p>
         : refreshNeeded ? <p role="status">Reload saved records to continue. <a href="#reload-parts-board">Go to Reload parts board</a></p>

@@ -8,6 +8,21 @@ import { RepairExecutionTool } from "@/features/prototype/repair-workflow/repair
 import { repairExecutionNextStep } from "@/features/prototype/repair-workflow/technician-execution-state";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { canOpenRepairQc, RepairQcDiagnostics } from "@/features/prototype/repair-workflow/repair-qc-diagnostics";
+import { RepairWorkflowFrame } from "@/features/prototype/repair-workflow/repair-workflow-frame";
+import { repairWorkflowSteps, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
+
+it("uses the same order and current step in Rapid Shop Repair and keeps real tools reachable", () => {
+  const status = Object.fromEntries(repairWorkflowSteps.map(step => [step, "Not recorded"])) as Record<RepairWorkflowStep, string>;
+  const html = renderToStaticMarkup(<RepairWorkflowFrame shopView rapid canViewAttachments canViewParts repairOrderId="ro-42" vehicleId="v-42" vehicle="Honda" vin="SYNTHETICVIN" number="RO-42" stock="42" location="Shop" owner="Advisor" concern="" inventoryRecon current="diagnosis" selected="diagnosis" closed={false} stepStatus={status}><p>Exact diagnosis tool</p></RepairWorkflowFrame>);
+  expect(html).toContain("Rapid Shop Repair");
+  expect(html).toContain("Exact diagnosis tool");
+  expect(html).toContain("Review all repair stages");
+  expect(html).toContain("tool=attachments&amp;workflow=rapid");
+  expect(html).toContain("tool=partsOperations&amp;workflow=rapid");
+  expect(html).toContain("repairOrderId=ro-42&amp;workflow=shop");
+  expect(html).not.toContain("<strong>Parts &amp; costs</strong>");
+  expect(html).not.toContain("<strong>Repair record</strong>");
+});
 
 const empty = { stage: "INTAKE", inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [] };
 it("keeps a started job on Repair and opens QC when the last unfinished job is completed", () => {

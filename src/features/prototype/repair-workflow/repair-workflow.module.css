@@ -273,3 +273,4 @@ button.pathToggle:hover, button.pathToggle[aria-expanded="true"] { background: #
 
 .workPartMatch { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: baseline; margin: 6px 0; }
 .workPartMatch select { max-width: 100%; }
+.rapidStatus { margin: 8px 0; padding: 8px 12px; border-inline-start: 3px solid var(--accent, #4654a8); }

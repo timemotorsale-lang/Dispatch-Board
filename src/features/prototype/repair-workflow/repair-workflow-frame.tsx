@@ -28,6 +28,7 @@ type Props = {
   vehicleId: string;
   number: string;
   vehicle: string;
+  vin?: string | null;
   stock: string;
   location: string;
   owner: string;
@@ -42,6 +43,8 @@ type Props = {
   activeTool?: string;
   canCompose?: boolean;
   canViewAttachments?: boolean;
+  canViewParts?: boolean;
+  rapid?: boolean;
   repairJobId?: string;
   repairAction?: "progress";
   inventoryStage?: string;
@@ -64,8 +67,8 @@ type Props = {
 };
 
 export function RepairWorkflowFrame({
-  repairOrderId, vehicleId, number, vehicle, stock, location, owner, concern, inventoryRecon,
-  current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose, canViewAttachments, repairJobId, repairAction,
+  repairOrderId, vehicleId, number, vehicle, vin, stock, location, owner, concern, inventoryRecon,
+  current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose, canViewAttachments, canViewParts, rapid, repairJobId, repairAction,
   inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, advisorRepairTab, stageOpen = true, custody, target, vendorAmount, nextAction, inlineNextAction, suppressFooterAction, recordedWork, stepStatus, children,
 }: Props) {
   const router = useRouter();
@@ -81,13 +84,14 @@ export function RepairWorkflowFrame({
   const pathToggle = useRef<HTMLButtonElement>(null);
   const mayLeave = () => !hasUnsavedChanges() || window.confirm("Leave this task without saving your entered changes?");
   const context = { returnTo, returnLabel, reconPath: chosenPath };
+  const workflow = rapid ? "rapid" as const : shopView ? "shop" as const : undefined;
   const taskContext = liveRepairTask ?? { repairJobId, repairAction };
   const workbenchHref = repairReviewHref(repairOrderId, undefined, context);
   const shopHref = repairReviewHref(repairOrderId, undefined, { ...context, workflow: "shop" });
-  const currentStageHref = repairReviewHref(repairOrderId, current, { ...context, workflow: "shop" });
-  const currentHref = shopView ? shopHref : workbenchHref;
+  const currentStageHref = repairReviewHref(repairOrderId, current, { ...context, workflow });
+  const currentHref = shopView ? repairReviewHref(repairOrderId, undefined, { ...context, workflow }) : workbenchHref;
   const workOrderReturn = repairReviewHref(repairOrderId, stageOpen ? selected : undefined, {
-    ...context, tool: activeTool, workflow: shopView ? "shop" : undefined, ...taskContext
+    ...context, tool: activeTool, workflow, ...taskContext
   }) + (advisorRepairTab ? "&tab=repair" : "");
   const inventoryUnavailableReason = !inventoryRecon ? customerRepairShopNotice : customerOwned ? customerInventoryLifecycleNotice : undefined;
   const inventoryHref = inventoryUnavailableReason ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workOrderReturn);
@@ -96,7 +100,8 @@ export function RepairWorkflowFrame({
   const toolHref = (tool: string) => repairReviewHref(repairOrderId, undefined, { ...context, tool });
   const actionHref = nextAction?.href ?? (auxiliary || selected !== current ? `${currentHref}#repair-workflow-action` : "#repair-workflow-action");
   const actionLabel = nextAction?.label ?? repairWorkflowLabels[current];
-  const activeToolLabel = recordTools.find(([tool]) => tool === activeTool)?.[1];
+  const activeToolLabel = activeTool === "attachments" ? "Documents & photos" : activeTool === "partsOperations" ? "Parts Operations" : recordTools.find(([tool]) => tool === activeTool)?.[1];
+  const stageToolHref = (tool: string) => repairReviewHref(repairOrderId, stageOpen ? selected : undefined, { ...context, tool, workflow, ...taskContext });
   const pathLabel = findReconRepairPath(chosenPath)?.label ?? repairPath;
   const guidedDiagnosis = current === "diagnosis" && Boolean(chosenPath);
   const actionContext = guidedDiagnosis ? pathLabel : [repairWorkflowLabels[current], pathLabel].filter(Boolean).join(" · ");
@@ -119,7 +124,7 @@ export function RepairWorkflowFrame({
       const detail = (event as CustomEvent<{ repairOrderId: string; step?: RepairWorkflowStep }>).detail;
       if (detail?.repairOrderId !== repairOrderId) return;
       dirty.current = false;
-      if (detail.step !== selected) router.push(repairReviewHref(repairOrderId, detail.step, { returnTo, returnLabel, reconPath: chosenPath, workflow: shopView ? "shop" : undefined }));
+      if (detail.step !== selected) router.push(repairReviewHref(repairOrderId, detail.step, { returnTo, returnLabel, reconPath: chosenPath, workflow }));
       router.refresh();
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -131,7 +136,7 @@ export function RepairWorkflowFrame({
       window.removeEventListener("beforeunload", beforeUnload);
       window.removeEventListener("repair-workflow-saved", saved);
     };
-  }, [chosenPath, hasUnsavedChanges, repairOrderId, returnLabel, returnTo, router, selected, shopView]);
+  }, [chosenPath, hasUnsavedChanges, repairOrderId, returnLabel, returnTo, router, selected, workflow]);
 
   const photosHref = `/vehicles/360/${encodeURIComponent(vehicleId)}?${new URLSearchParams({ section: "photos", returnTo: currentHref })}`;
   const billingHref = `/vehicles/service-billing?${new URLSearchParams({ repairOrderId, returnTo: currentHref })}`;
@@ -148,9 +153,9 @@ export function RepairWorkflowFrame({
     <header className={canChoosePath || pathLabel ? `${styles.header} ${styles.headerWithPath}` : styles.header}>
       <div>
         <Link href={shopView ? workbenchHref : returnTo ?? queueHref}>← {shopView ? "Return to Repair Workbench" : returnTo ? returnLabel ?? "Back to source" : "All Repair Orders"}</Link>
-        <h1>{shopView ? "Repair stages" : "Repair Workbench"}</h1>
+        <h1>{rapid ? "Rapid Shop Repair" : shopView ? "Repair stages" : "Repair Workbench"}</h1>
         <strong>{vehicle} · {number}</strong>
-        <p>{inventoryRecon ? "Inventory recon" : "Customer repair"} · {stock}</p>
+        <p>{inventoryRecon ? "Inventory recon" : "Customer repair"} · {stock} · VIN {vin || "not recorded"}</p>
       </div>
       {canChoosePath ? <button aria-controls="recon-path-options" aria-expanded={pathOpen} className={styles.pathToggle}
         ref={pathToggle} type="button" onClick={() => setPathOpen(open => !open)}>
@@ -166,15 +171,11 @@ export function RepairWorkflowFrame({
       }}>
         <summary ref={trigger}>Tools <span aria-hidden="true">⋮</span></summary>
         <nav aria-label="Repair order tools">
-          <strong>Documents &amp; photos</strong>
-          {canViewAttachments && <Link href={repairReviewHref(repairOrderId, stageOpen ? selected : undefined, { ...context, tool: "attachments", workflow: shopView ? "shop" : undefined, ...taskContext })}>Repair order attachments</Link>}
           <Link href={repairLaborGuideHref(repairOrderId, workOrderReturn)}>Labor Guide</Link>
           <Link href={`${toolHref("details")}#repair-order-document`}>View RO</Link>
           <a href={`/api/repair-orders/${encodeURIComponent(repairOrderId)}/print`} target="_blank" rel="noreferrer">Print RO</a>
           <Link href={`/vehicles/repair-workbench/technician-work-order?${new URLSearchParams({ repairOrderId, returnTo: workOrderReturn })}`}>Technician work order</Link>
           <Link href={photosHref}>360 Photos</Link>
-          <strong>Parts &amp; costs</strong>
-          <Link href={repairReviewHref(repairOrderId, "parts", { ...context, workflow: shopView ? "shop" : undefined })}>Parts readiness</Link>
           <Link href={billingHref}>Billing &amp; receipts</Link>
           {!inventoryRecon && <>
             <Link href={laborGuideInvoiceHref(repairOrderId, { returnTo: workOrderReturn })}>Review / print invoice</Link>
@@ -184,7 +185,6 @@ export function RepairWorkflowFrame({
             <Link href={`/money-resources?${new URLSearchParams({ vehicleId, repairOrderId, returnTo: currentHref })}`}>Record spending</Link>
             <Link href={toolHref("recon")}>Recon Report</Link>
           </>}
-          <strong>Repair record</strong>
           <Link href={toolHref("history")}>History</Link>
           <Link href={toolHref("details")}>Full RO details</Link>
           {shopView && !closed && <Link href={`/vehicles/shop-recon/${encodeURIComponent(repairOrderId)}?${new URLSearchParams({ returnTo: currentHref })}`}>Detailed Shop &amp; Recon tools</Link>}
@@ -213,6 +213,11 @@ export function RepairWorkflowFrame({
     </section>}
 
     {concern && <p className={styles.concern}><strong>Concern</strong> {concern}</p>}
+    <nav className={styles.recordTools} aria-label="Repair task shortcuts">
+      {canViewAttachments && <Link aria-current={activeTool === "attachments" ? "page" : undefined} href={stageToolHref("attachments")}>Documents &amp; photos</Link>}
+      {canViewParts && <Link aria-current={activeTool === "partsOperations" ? "page" : undefined} href={stageToolHref("partsOperations")}>Parts Operations</Link>}
+      {rapid ? <Link href={shopHref}>Full repair stages</Link> : !closed && <Link href={repairReviewHref(repairOrderId, undefined, { ...context, workflow: "rapid" })}>Rapid Shop Repair</Link>}
+    </nav>
     <div className={shopView ? styles.workflowBar : styles.overview}>
       <VehicleWorkflowSwitch inventoryHref={inventoryHref} shopHref={lifecycleHref}
         inventoryUnavailableReason={inventoryUnavailableReason}
@@ -229,19 +234,25 @@ export function RepairWorkflowFrame({
       </section>}
     </div>
 
-    {shopView ? <nav className={styles.steps} aria-label="Repair workflow">
+    {shopView ? <>
+    {rapid && <p className={styles.rapidStatus}><strong>Current task · {repairWorkflowLabels[current]}</strong> · Same repair order and approvals. {selected !== current && <Link href={currentStageHref}>Resume current task</Link>}</p>}
+    {(() => {
+      const steps = <nav className={styles.steps} aria-label="Repair workflow">
       {repairWorkflowSteps.map((step, index) => {
-        const expanded = stageOpen && selected === step;
+        const expanded = stageOpen && !auxiliary && selected === step;
         const status = step === current && !closed ? "Current" : index > repairWorkflowSteps.indexOf(current) ? "Upcoming" : undefined;
         return <Link key={step} aria-current={(stageOpen ? selected : current) === step ? "step" : undefined}
           aria-expanded={expanded} aria-controls="shop-stage-panel"
           data-current={step === current && !closed ? "true" : undefined}
-          href={expanded ? shopHref : repairReviewHref(repairOrderId, step, { ...context, workflow: "shop" })} scroll={false}>
+          href={expanded && !rapid ? shopHref : repairReviewHref(repairOrderId, step, { ...context, workflow })} scroll={false}>
           <span>{index + 1}. {repairWorkflowLabels[step]}</span>
           <small>{status ? `${status} · ` : ""}{stepStatus[step]}</small>
         </Link>;
       })}
-    </nav> : <>
+      </nav>;
+      return rapid ? <details className={styles.recordSummary}><summary>Review all repair stages</summary>{steps}</details> : steps;
+    })()}
+    </> : <>
     <dl className={styles.facts}>
       <div><dt>Custody / location</dt><dd>{custody || location}</dd></div>
       <div><dt>Owner</dt><dd>{owner}</dd></div>

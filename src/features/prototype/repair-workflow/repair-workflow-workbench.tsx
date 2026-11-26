@@ -37,6 +37,8 @@ import { isCustomerOwnedForInventoryLifecycle } from "@/server/vehicle-registry/
 import { findReconRepairPath } from "@/lib/recon-repair-paths";
 import { getRepairOrderAttachments } from "@/server/vehicle-360/service";
 import { RepairOrderAttachments } from "./repair-order-attachments";
+import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import styles from "./repair-workflow.module.css";
 
 const serialized = (value: unknown) => JSON.parse(JSON.stringify(value));
@@ -90,11 +92,14 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
   const canChoosePath = !closed && !diagnosticPending && !activeVendor && !diagnosisWork?.request && !order.diagnosisVersions.length
     && (current === "inspection" || current === "diagnosis");
   const chosenPath = canChoosePath ? findReconRepairPath(params.reconPath) : undefined;
-  const shopView = !supportingTool && params.workflow === "shop";
-  const stageOpen = !shopView || repairWorkflowSteps.includes(params.step as RepairWorkflowStep);
+  const rapid = !supportingTool && params.workflow === "rapid";
+  const shopView = !supportingTool && (params.workflow === "shop" || rapid);
+  const attachmentsOpen = params.tool === "attachments";
+  const partsOperationsOpen = params.tool === "partsOperations";
+  const stageOpen = !shopView || rapid || attachmentsOpen || partsOperationsOpen || repairWorkflowSteps.includes(params.step as RepairWorkflowStep);
   const compactDiagnosis = Boolean(diagnosisWork && selected === "diagnosis" && !supportingTool &&
     (diagnosisWork.request || !chosenPath || ["MECHANICAL", "OUTSIDE_VENDOR"].includes(chosenPath.value)));
-  const context = { returnTo, returnLabel, reconPath: chosenPath?.value, workflow: shopView ? "shop" as const : undefined };
+  const context = { returnTo, returnLabel, reconPath: chosenPath?.value, workflow: rapid ? "rapid" as const : shopView ? "shop" as const : undefined };
   const home = repairReviewHref(order.id, undefined, context);
   const handoffHref = `${repairReviewHref(order.id, "handoff", context)}#repair-workflow-action`;
   const handoffBillingHref = repairBillingHref(order.id, { returnTo: handoffHref });
@@ -364,19 +369,35 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     }
     return tool;
   }
-  const attachmentsOpen = params.tool === "attachments";
   const repairJobId = order.repairJobs.find(job => job.id === params.repairJobId)?.id;
   const repairAction = params.repairAction === "progress" ? "progress" as const : undefined;
-  const [tool, customerOwned, attachments] = await Promise.all([
-    stageOpen && !attachmentsOpen ? renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null,
+  const [tool, customerOwned, attachments, partsAccess] = await Promise.all([
+    stageOpen && !attachmentsOpen && !partsOperationsOpen ? renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null,
     order.origin === "INVENTORY_RECON" ? isCustomerOwnedForInventoryLifecycle(order.vehicle.id, order.organizationId) : false,
     getRepairOrderAttachments(user, order, attachmentsOpen).catch(() => null),
+    createEnterpriseCommandRepository().listCapabilityGrants(user.id, order.organizationId).then(grants => {
+      const can = (capability: "PARTS_VIEW" | "REPAIR_ORDER_VIEW", locationId: string | null) =>
+        evaluateVehicleCapability({ actor: user, capability, grants, locationId }).allowed;
+      return can("PARTS_VIEW", null) && can("PARTS_VIEW", order.locationId) && can("REPAIR_ORDER_VIEW", null);
+    }).catch(() => false),
   ]);
+  const partsHub = repairReviewHref(order.id, params.step ? selected : undefined, { ...context, tool: "partsOperations", repairJobId, repairAction });
+  const purchaseUrl = `/vehicles/service-close-parts?${new URLSearchParams({ repairOrderId: order.id, view: "recon-task", returnTo: partsHub, returnLabel: "Back to repair parts tools" })}`;
   const content = attachmentsOpen
     ? !attachments ? <p role="alert">Attachments could not be loaded. Try opening this repair order again.</p>
       : attachments.canView ? <RepairOrderAttachments repairOrderId={order.id} repairOrderNumber={order.repairOrderNumber} canUpload={attachments.canUpload} canGovern={attachments.canGovern} items={attachments.items} backHref={repairReviewHref(order.id, selected, { ...context, repairJobId, repairAction })} />
         : <p role="status">You don’t have access to attachments for this repair order.</p>
-    : tool;
+    : partsOperationsOpen
+      ? partsAccess && !closed ? <section className={styles.recordSummary}>
+        <p>Use parts tools for {order.repairOrderNumber}. Parts work does not complete a repair stage.</p>
+        <div className="form-actions">
+          <Link className="button button-primary" href={purchaseUrl}>Order or receive parts</Link>
+          <Link className="button button-secondary" href={`${purchaseUrl}&action=return#repair-parts-returns`}>Return received parts</Link>
+          <Link className="button button-secondary" href={`/vehicles/parts?${new URLSearchParams({ repairOrderId: order.id, returnTo: partsHub })}`}>Parts search workbook</Link>
+        </div>
+        <Link href={repairReviewHref(order.id, selected, { ...context, repairJobId, repairAction })}>Back to repair task</Link>
+      </section> : <p role="status">Parts operations are unavailable for this repair order or your role. <Link href={home}>Back to repair task</Link></p>
+      : tool;
   return <RepairWorkflowFrame
     recordedWork={<RepairRecordedWork order={order} awaitingDiagnosis={Boolean(diagnosisWork?.request)} />}
     stepStatus={repairWorkflowEvidence(order)}
@@ -384,6 +405,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     vehicleId={order.vehicle.id}
     number={order.repairOrderNumber}
     vehicle={[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}
+    vin={order.vehicle.vin}
     stock={order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}
     location={order.location.name}
     owner={order.ownerUser.name}
@@ -395,6 +417,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     canChoosePath={canChoosePath}
     chosenPath={chosenPath?.value}
     shopView={shopView}
+    rapid={rapid}
     advisorRepairTab={params.tab === "repair"}
     stageOpen={stageOpen}
     custody={activeVendor?.currentLocation || custody?.positionLabel || custody?.location?.name}
@@ -408,12 +431,13 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     closed={closed}
     returnTo={returnTo}
     returnLabel={returnLabel}
-    auxiliary={Boolean(supportingTool)}
+    auxiliary={Boolean(supportingTool) || attachmentsOpen || partsOperationsOpen}
     activeTool={params.tool}
     canCompose={canCompose}
     canViewAttachments={attachments?.canView}
+    canViewParts={partsAccess && !closed}
     repairJobId={repairJobId}
     repairAction={repairAction}
-    key={`${order.id}:${selected}:${stageOpen}:${params.tool ?? ""}:${order.version}`}
+    key={`${order.id}:${selected}:${stageOpen}:${params.workflow ?? ""}:${params.tool ?? ""}:${order.version}`}
   >{content}{sourceContext}</RepairWorkflowFrame>;
 }

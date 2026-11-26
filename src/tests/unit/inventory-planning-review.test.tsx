@@ -29,6 +29,17 @@ function workflow(stage: string) {
 }
 
 describe("Inventory Planning review surface", () => {
+  it("keeps the active inventory step visible and always displays canonical VIN on Transport", () => {
+    const visibleInventory = { ...projection, hasInventoryRecord: true };
+    const html = renderToStaticMarkup(<InventoryPlanningReview focused initial={visibleInventory} initialWorkflow={workflow("TRANSPORT_PLANNING")} />);
+    expect(html).toContain("Transport VIN");
+    expect(html).toContain("2T3W1RFV4PW278629");
+    expect(html).toContain('aria-current="step"');
+    expect(html).toContain("Plan transport or verify no-transport path");
+    const missing = renderToStaticMarkup(<InventoryPlanningReview focused initial={{ ...visibleInventory, identity: { ...visibleInventory.identity, vin: null } }} initialWorkflow={workflow("IN_TRANSIT")} />);
+    expect(missing).toContain("Transport VIN");
+    expect(missing).toContain("Not recorded");
+  });
   it("offers dealership and external custody locations", () => {
     const html = renderToStaticMarkup(<VehicleLocationEditor busy={false} current={null} locations={[{ id: "loc-1", code: "MSP", name: "Time Motor Sales — Minneapolis" }]} onCancel={() => undefined} onSave={async () => undefined} />);
     for (const text of ["Where is the vehicle?", "At one of our dealerships", "At an auction", "At an outside repair facility", "In transport", "At another external location", "Repair facility name", "Diego Auto Body", "Verification source", "Save verified location"]) expect(html).toContain(text);
