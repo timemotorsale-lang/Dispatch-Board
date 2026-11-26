@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  BriefcaseBusiness,
-  Building2,
   Camera,
-  CarFront,
   CheckCircle2,
-  ClipboardCheck,
   FileText,
   IdCard,
   RotateCcw,
   ScanBarcode,
   Send,
   UploadCloud,
-  UserRound,
-  Wrench,
   X
 } from "lucide-react";
 
@@ -33,152 +27,50 @@ import { captureToolFromQuery, MOBILE_HOME_HREF } from "./capture-navigation";
 import { MobileCustomerIntake } from "./mobile-customer-intake";
 import { customerFieldsFromBarcode } from "./mobile-intake-utils";
 
-type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" | "TASK" | "VENDOR" | "GENERAL" | "QUICK_UPDATE";
-type CaptureKindKey = "AUTO" | "PHOTO" | "ID" | "BUSINESS_CARD" | "ESTIMATE" | "DOCUMENT";
+import { CaptureDestinationPicker } from "./capture-destination-picker";
+import { archiveFileHref, archiveKindLabel, captureBatchLimit, captureByteLimit, captureFileError, captureKinds, captureMimeTypes, type ArchiveKind, type ArchiveTarget } from "./capture-archive-contract";
+import { printCapture } from "./print-capture";
+import archiveStyles from "./capture-archive.module.css";
+
+type CaptureKindKey = ArchiveKind | "AUTO";
 type CaptureMode = "READY" | "CAMERA" | "PREVIEW" | "SENT";
 type CaptureIntent = "PHOTO" | "BARCODE" | "DOCUMENT";
 type BarcodeResult = { format: string; value: string };
+type BatchFile = { id: string; file: File; kind: ArchiveKind; description: string };
+type Receipt = { batchId: string; items: { id: string; fileName: string; kind: ArchiveKind; contentType: string }[] };
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const ACCEPTED_UPLOAD_TYPES = new Set([
-  "application/pdf",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "text/plain"
-]);
-
-type SmartField = {
-  key: string;
-  label: string;
-  value: string;
-};
-
-type UploadResponse = {
-  error?: string;
-  smartIntake?: {
-    classificationConfidence: number;
-    classificationLabel: string;
-    extractedFields: SmartField[];
-    reviewStatus: string;
-    routingTarget: string;
-    warnings: string[];
-  };
-  storageDraft?: {
-    fileName: string;
-    reference: string;
-  };
-};
-
-const destinations = [
-  {
-    console: "CRM_CONSOLE",
-    icon: UserRound,
-    intent: "CUSTOMER_FILE",
-    key: "CUSTOMER",
-    label: "Customer",
-    ownerType: "CUSTOMER",
-    prompt: "Customer name, phone, or email"
-  },
-  {
-    console: "INVENTORY_CONSOLE",
-    icon: CarFront,
-    intent: "GENERAL_SUPPORT",
-    key: "VEHICLE",
-    label: "Vehicle",
-    ownerType: "VEHICLE",
-    prompt: "VIN, stock number, or plate"
-  },
-  {
-    console: "CLAIMS_WORKSPACE",
-    icon: ClipboardCheck,
-    intent: "CLAIM_EVIDENCE",
-    key: "CLAIM",
-    label: "Claim",
-    ownerType: "CLAIM",
-    prompt: "Claim number, VIN, or customer"
-  },
-  {
-    console: "REPAIR_ORDER_CONSOLE",
-    icon: Wrench,
-    intent: "REPAIR_EVIDENCE",
-    key: "REPAIR_ORDER",
-    label: "Repair order",
-    ownerType: "REPAIR_ORDER",
-    prompt: "RO number, VIN, or vehicle"
-  },
-  {
-    console: "TASK_CONSOLE",
-    icon: BriefcaseBusiness,
-    intent: "TASK_ATTACHMENT",
-    key: "TASK",
-    label: "Task",
-    ownerType: "TASK",
-    prompt: "Task number or brief reference"
-  },
-  {
-    console: "VENDOR_CONSOLE",
-    icon: Building2,
-    intent: "VENDOR_COMPLIANCE",
-    key: "VENDOR",
-    label: "Vendor",
-    ownerType: "VENDOR",
-    prompt: "Vendor name"
-  },
-  {
-    console: "DOCUMENT_LIBRARY",
-    icon: FileText,
-    intent: "GENERAL_SUPPORT",
-    key: "GENERAL",
-    label: "Inbox",
-    ownerType: "CUSTOMER",
-    prompt: "Optional reference"
-  },
-  {
-    console: "DOCUMENT_LIBRARY",
-    icon: ClipboardCheck,
-    intent: "GENERAL_SUPPORT",
-    key: "QUICK_UPDATE",
-    label: "Quick Update",
-    ownerType: "QUICK_UPDATE",
-    prompt: "Update reference"
-  }
-] as const;
-
-const captureKinds = [
-  { key: "AUTO", label: "Auto" },
-  { key: "PHOTO", label: "Photo" },
-  { key: "ID", label: "ID" },
-  { key: "BUSINESS_CARD", label: "Business card" },
-  { key: "ESTIMATE", label: "Estimate" },
-  { key: "DOCUMENT", label: "Document" }
-] as const;
-
-const documentTypeByKind: Partial<Record<CaptureKindKey, string>> = {
-  BUSINESS_CARD: "BUSINESS_CARD",
-  DOCUMENT: "SUPPORTING_DOCUMENT",
-  ESTIMATE: "INSURANCE_ESTIMATE",
-  ID: "CUSTOMER_ID",
-  PHOTO: "DAMAGE_PHOTOS"
-};
-
-function slug(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "mobile-capture-inbox";
+function BatchPreview({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const current = URL.createObjectURL(file);
+    const timer = window.setTimeout(() => setUrl(current), 0);
+    return () => { window.clearTimeout(timer); URL.revokeObjectURL(current); };
+  }, [file]);
+  if (!url) return null;
+  return <details><summary>Review original</summary>{file.type === "application/pdf" ?
+    <a href={url} target="_blank" rel="noreferrer">Open PDF preview</a> :
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className={archiveStyles.thumbnail} src={url} alt={`Preview of ${file.name}`} />}</details>;
 }
 
-export function MobileCaptureTool() {
+export function MobileCaptureTool({ canPrintId = false }: { canPrintId?: boolean }) {
   const [customerDraft, setCustomerDraft] = useState<FrontIdFields | null>(null);
   const [customerIntakeOpen, setCustomerIntakeOpen] = useState(false);
   const [idMismatch, setIdMismatch] = useState(false);
+  const [unreadIdBack, setUnreadIdBack] = useState(false);
   const searchParams = useSearchParams();
   const requestedDestination = searchParams.get("destination");
   const requestedKind = searchParams.get("kind");
   const requestedTool = searchParams.get("tool");
-  const [destinationKey, setDestinationKey] = useState<CaptureDestinationKey>(() => destinations.some((item) => item.key === requestedDestination) ? requestedDestination as CaptureDestinationKey : "GENERAL");
-  const [captureKind, setCaptureKind] = useState<CaptureKindKey>(() => captureKinds.some((item) => item.key === requestedKind) ? requestedKind as CaptureKindKey : "AUTO");
-  const [reference, setReference] = useState(() => searchParams.get("reference")?.slice(0, 120) ?? "");
-  const [note, setNote] = useState("");
+  const [destination, setDestination] = useState<ArchiveTarget | null>(null);
+  const [resolving, setResolving] = useState(() => Boolean(searchParams.get("ownerId") && ["CUSTOMER", "VEHICLE", "QUICK_UPDATE"].includes(requestedDestination ?? "")));
+  const [captureKind, setCaptureKind] = useState<CaptureKindKey>(() => requestedKind === "BUSINESS_CARD" || requestedKind === "ID" ? requestedKind : "AUTO");
+  const [batch, setBatch] = useState<BatchFile[]>([]);
+  const [reviewing, setReviewing] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const batchKey = useRef("");
+  const sending = useRef(false);
+  const userSelected = useRef(false);
   const [mode, setMode] = useState<CaptureMode>("READY");
   const [activeIntent, setActiveIntent] = useState<CaptureIntent>("PHOTO");
   const [notice, setNotice] = useState("Choose Photo or Barcode Scan to start capture.");
@@ -192,7 +84,7 @@ export function MobileCaptureTool() {
   const [documentScannerOpen, setDocumentScannerOpen] = useState(false);
   const [frontScannerOpen, setFrontScannerOpen] = useState(false);
   const [reviewedIdFields, setReviewedIdFields] = useState<FrontIdFields | null>(null);
-  const [result, setResult] = useState<UploadResponse | null>(null);
+  const [result, setResult] = useState<Receipt | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const barcodeRequest = useRef(0);
   const previewDialog = useRef<HTMLDialogElement>(null);
@@ -213,10 +105,28 @@ export function MobileCaptureTool() {
     return () => window.clearTimeout(timer);
   }, [requestedTool]);
 
-  const destination = useMemo(
-    () => destinations.find((item) => item.key === destinationKey) ?? destinations[0],
-    [destinationKey]
-  );
+  useEffect(() => {
+    if (!requestedOwnerId || !["CUSTOMER", "VEHICLE", "QUICK_UPDATE"].includes(requestedDestination ?? "")) return;
+    const controller = new AbortController();
+    void fetch(`/api/capture-archive?${new URLSearchParams({ lookup: "1", type: requestedDestination!, id: requestedOwnerId })}`, { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json();
+        if (controller.signal.aborted || userSelected.current) return;
+        if (!response.ok || !data.items?.[0]) throw new Error(data.error ?? "The requested destination is unavailable.");
+        setDestination(data.items[0]);
+        setAccepted(false);
+      }).catch(error => {
+        if (!controller.signal.aborted && !userSelected.current) setNotice(error instanceof Error ? error.message : "Choose a destination or send to the archive.");
+      }).finally(() => { if (!controller.signal.aborted) setResolving(false); });
+    return () => controller.abort();
+  }, [requestedDestination, requestedOwnerId]);
+
+  useEffect(() => {
+    if (!batch.length && !capturedFile) return;
+    function protect(event: BeforeUnloadEvent) { event.preventDefault(); }
+    window.addEventListener("beforeunload", protect);
+    return () => window.removeEventListener("beforeunload", protect);
+  }, [batch.length, capturedFile]);
 
   useEffect(() => () => {
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
@@ -238,6 +148,7 @@ export function MobileCaptureTool() {
     barcodeRequest.current += 1;
     setReadingBarcode(false);
     setIdMismatch(false);
+    setUnreadIdBack(false);
     setReviewedIdFields(null);
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
     setCapturedImageUrl("");
@@ -302,7 +213,7 @@ export function MobileCaptureTool() {
   }
 
   function previewPhoto(file: File) {
-    const error = validateFile(file);
+    const error = captureFileError(file);
     if (error) return error;
     resetCapturedImage();
     setCapturedFile(file);
@@ -312,15 +223,8 @@ export function MobileCaptureTool() {
     return "";
   }
 
-  function validateFile(file: File) {
-    if (file.size <= 0) return "That file appears to be empty.";
-    if (file.size > MAX_UPLOAD_BYTES) return "That file is too large. Use a file under 25 MB.";
-    if (file.type && !ACCEPTED_UPLOAD_TYPES.has(file.type)) return "Use a PDF, image, or text file.";
-    return "";
-  }
-
-  function startPhotoCapture() {
-    setCaptureKind("PHOTO");
+  function startPhotoCapture(kind: "PHOTO" | "BUSINESS_CARD" = "PHOTO") {
+    setCaptureKind(kind);
     setActiveIntent("PHOTO");
     setResult(null);
     setMode("CAMERA");
@@ -344,7 +248,7 @@ export function MobileCaptureTool() {
     if (activeIntent === "DOCUMENT" && captureKind === "ID") { setMode("READY"); setFrontScannerOpen(true); }
     else if (activeIntent === "DOCUMENT") { setMode("READY"); setDocumentScannerOpen(true); }
     else if (activeIntent === "BARCODE") { setMode("READY"); setScannerOpen(true); }
-    else startPhotoCapture();
+    else startPhotoCapture(captureKind === "BUSINESS_CARD" ? "BUSINESS_CARD" : "PHOTO");
   }
 
   function cancelPreview() {
@@ -355,58 +259,72 @@ export function MobileCaptureTool() {
     setNotice("Capture canceled.");
   }
 
-  async function sendFile(file: File | null) {
-    if (!file) return;
-    if (busy) return;
-    const validationError = validateFile(file);
-    if (validationError) {
-      clearFileInputs();
-      setNotice(validationError);
-      return;
+  function addFiles(files: File[], kind?: ArchiveKind, description = "") {
+    if (!files.length) return false;
+    const error = files.map(captureFileError).find(Boolean);
+    if (error || batch.length + files.length > captureBatchLimit ||
+      [...batch.map(item => item.file), ...files].reduce((total, file) => total + file.size, 0) > captureByteLimit) {
+      setNotice(error || "Use up to 12 files totaling 25 MB per batch. Remove a file or send this batch first.");
+      return false;
     }
+    if (kind === "BUSINESS_CARD" && files.some(file => !file.type.startsWith("image/"))) {
+      setNotice("Choose a JPEG, PNG, or WebP business-card image.");
+      return false;
+    }
+    setBatch(current => [...current, ...files.map(file => ({
+      file, kind: kind ?? (file.type === "application/pdf" ? "DOCUMENT" : "PHOTO"), id: crypto.randomUUID(), description
+    }))]);
+    setAccepted(false);
+    setReviewing(false);
+    setMode("READY");
+    setNotice(`${files.length === 1 ? "File" : `${files.length} files`} added. Add another or review the batch.`);
+    return true;
+  }
+
+  const previewKind: ArchiveKind = captureKind === "ID" || idFields ? "ID" : captureKind === "BUSINESS_CARD" ? "BUSINESS_CARD" :
+    capturedFile?.type === "application/pdf" ? "DOCUMENT" : "PHOTO";
+
+  function addCurrent() {
+    const description = idMismatch ? "ID front/back mismatch. Manual review required." : unreadIdBack ? "Back photo kept. Barcode unread. Manual review required." : "";
+    if (!capturedFile || !addFiles([capturedFile], previewKind, description)) return;
+    resetCapturedImage();
+    clearFileInputs();
+  }
+
+  async function sendCapture() {
+    if (!accepted || !batch.length || sending.current || resolving) return;
+    sending.current = true;
     setBusy(true);
-    setResult(null);
-    setNotice(`Sending to ${destination.label} review...`);
+    setNotice("Sending reviewed batch…");
+    if (!batchKey.current) batchKey.current = crypto.randomUUID();
     try {
-      const ownerLabel = reference.trim() || `${destination.label} mobile capture inbox`;
       const form = new FormData();
-      form.append("file", file);
-      form.append("console", destination.console);
-      form.append("intent", destination.intent);
-      form.append("ownerType", destination.ownerType);
-      form.append("ownerLabel", ownerLabel);
-      form.append("ownerId", destinationKey === "QUICK_UPDATE" && requestedOwnerId ? requestedOwnerId : `${destination.key.toLowerCase()}-${slug(ownerLabel)}`);
-      form.append("purpose", `${destination.label} mobile capture${captureKind === "AUTO" ? "" : ` - ${captureKind.toLowerCase().replaceAll("_", " ")}`}.`);
-      form.append("reason", note.trim() || `Mobile capture routed to ${destination.label}.`);
-      const documentType = destinationKey === "QUICK_UPDATE" ? "QUICK_UPDATE_PHOTO" : documentTypeByKind[captureKind];
-      if (documentType) form.append("documentType", documentType);
-      const response = await fetch("/api/document-library/uploads", {
-        body: form,
-        method: "POST"
-      });
-      const body = await response.json().catch(() => null) as UploadResponse | null;
-      if (!response.ok) {
-        setNotice(body?.error ?? "Capture could not be sent.");
-        return;
-      }
+      form.append("manifest", JSON.stringify({
+        key: batchKey.current, destination,
+        items: batch.map(({ kind, description }) => ({ kind, description }))
+      }));
+      batch.forEach(item => form.append("file", item.file));
+      const response = await fetch("/api/capture-archive", { method: "POST", body: form });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "The batch could not be sent.");
       setResult(body);
+      setBatch([]);
+      batchKey.current = "";
+      setReviewing(false);
+      setAccepted(false);
       setMode("SENT");
-      setNotice(body?.smartIntake ? `${body.smartIntake.classificationLabel} sent to ${destination.label} review.` : `Capture sent to ${destination.label} review.`);
-      resetCapturedImage();
-      clearFileInputs();
-    } catch {
-      setNotice("Capture could not reach the document service. Keep this preview open and try Accept again.");
+      setNotice(destination ? `Filed to ${destination.label}. Originals are in the Capture Archive.` : "Originals saved in the Capture Archive.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not send the batch. Your files are still here.");
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
 
-  async function sendCapture() {
-    if (busy) return;
-    await sendFile(capturedFile);
+  function printBeforeSending(file: File) {
+    void printCapture(file, file.type).catch(error => setNotice(error.message));
   }
-
-  const DestinationIcon = destination.icon;
 
   if (customerIntakeOpen) return <MobileCustomerIntake initialFields={customerDraft ?? undefined} onSaved={() => setCustomerDraft(null)} onCancel={() => { if (window.confirm("Leave customer entry and return to capture? Any unsaved details will be discarded.")) { setCustomerDraft(null); setCustomerIntakeOpen(false); } }} />;
 
@@ -426,57 +344,29 @@ export function MobileCaptureTool() {
         <p aria-live="polite">{notice}</p>
       </section>
 
-      <section className={styles.toolPanel} aria-label="Capture destination">
-        <h2>Send to</h2>
-        <div className={styles.destinationGrid}>
-          {destinations.filter((item) => item.key !== "QUICK_UPDATE" || requestedOwnerId).map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                className={item.key === destinationKey ? styles.selectedDestination : ""}
-                disabled={busy || mode === "CAMERA" || mode === "PREVIEW"}
-                key={item.key}
-                onClick={() => setDestinationKey(item.key)}
-                aria-pressed={item.key === destinationKey}
-                type="button"
-              >
-                <Icon size={20} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <label className={styles.field}>
-          <span>{destination.prompt}</span>
-          <input disabled={busy} maxLength={120} onChange={(event) => setReference(event.target.value)} placeholder="Leave blank to send to review inbox" value={reference} />
-        </label>
-        <label className={styles.field}>
-          <span>Note</span>
-          <input disabled={busy} maxLength={180} onChange={(event) => setNote(event.target.value)} placeholder="Optional short reason or instruction" value={note} />
-        </label>
-        <div className={styles.routeSummary}>
-          <DestinationIcon size={18} />
-          <span>{reference.trim() ? `Ready for ${destination.label}: ${reference.trim()}` : `No exact ${destination.label.toLowerCase()} selected. This will land in ${destination.label} review.`}</span>
-        </div>
-      </section>
-
-      <section className={styles.kindPanel} aria-label="Capture type">
-        {captureKinds.map((item) => (
-          <button aria-pressed={item.key === captureKind} className={item.key === captureKind ? styles.selectedKind : ""} disabled={busy} key={item.key} onClick={() => setCaptureKind(item.key)} type="button">
-            {item.key === "ID" ? <IdCard size={16} /> : null}
-            {item.label}
-          </button>
-        ))}
-      </section>
+      <nav className={archiveStyles.actions} aria-label="Capture destinations">
+        <Link href="/capture/archive">Capture Archive</Link>
+        <Link href="/capture/archive?kind=BUSINESS_CARD">Business Cards</Link>
+      </nav>
+      <CaptureDestinationPicker
+        value={destination} disabled={busy || resolving}
+        initialType={requestedDestination === "CUSTOMER" || requestedDestination === "VEHICLE" ? requestedDestination : undefined}
+        onChange={value => { userSelected.current = true; setDestination(value); setAccepted(false); }}
+      />
 
       <section aria-busy={busy} className={styles.actions} aria-label="Capture actions">
-        <button aria-pressed={activeIntent === "PHOTO" && mode !== "SENT"} disabled={busy} onClick={startPhotoCapture} type="button"><Camera size={20} /> Photo</button>
+        <button aria-pressed={activeIntent === "PHOTO" && mode !== "SENT"} disabled={busy} onClick={() => startPhotoCapture()} type="button"><Camera size={20} /> Photo</button>
         <button aria-pressed={activeIntent === "BARCODE" && mode !== "SENT"} disabled={busy} onClick={startBarcodeCapture} type="button"><ScanBarcode size={20} /> Scan barcode / QR</button>
         <button disabled={busy} onClick={() => { setCaptureKind("ID"); setActiveIntent("BARCODE"); setScannerOpen(true); }} type="button"><IdCard size={20} /> Scan ID barcode</button>
         <button disabled={busy} onClick={() => { setCaptureKind("ID"); setActiveIntent("DOCUMENT"); setFrontScannerOpen(true); }} type="button"><IdCard size={20} /> Capture ID front / back</button>
         <button disabled={busy} onClick={startDocumentCapture} type="button"><FileText size={20} /> Scan document</button>
-        <button className={styles.uploadAction} disabled={busy} onClick={() => fileUploadRef.current?.click()} type="button"><UploadCloud size={20} /> Upload</button>
-        <input accept="application/pdf,image/*,text/plain" disabled={busy} hidden onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)} ref={fileUploadRef} type="file" />
+        <button disabled={busy} onClick={() => startPhotoCapture("BUSINESS_CARD")} type="button"><IdCard size={20} /> Capture business card</button>
+        <button className={styles.uploadAction} disabled={busy} onClick={() => fileUploadRef.current?.click()} type="button"><UploadCloud size={20} /> Add files</button>
+        <input accept={captureMimeTypes.join(",")} disabled={busy} hidden multiple onChange={event => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = "";
+          addFiles(files, requestedKind === "BUSINESS_CARD" || requestedKind === "ID" ? requestedKind : undefined);
+        }} ref={fileUploadRef} type="file" />
       </section>
 
       {frontScannerOpen ? <IdFrontCapture onClose={() => setFrontScannerOpen(false)} onComplete={(file, fields, mismatch) => {
@@ -486,9 +376,8 @@ export function MobileCaptureTool() {
         setCapturedFile(file);
         setCapturedImageUrl(URL.createObjectURL(file));
         setFrontScannerOpen(false);
-        if (mismatch) setNote((current) => `ID front/back mismatch; manual review required. ${current}`.trim().slice(0, 180));
         setMode("PREVIEW");
-        setNotice("Reviewed ID capture ready. Choose Accept and send to file the images for review, or copy the reviewed fields for your intake form.");
+        setNotice("ID ready. Add it to the batch or copy the reviewed details for intake.");
       }} /> : null}
 
       {documentScannerOpen ? <DocumentScanner onClose={() => setDocumentScannerOpen(false)} onComplete={(file) => {
@@ -497,10 +386,18 @@ export function MobileCaptureTool() {
         setCapturedImageUrl(URL.createObjectURL(file));
         setDocumentScannerOpen(false);
         setMode("PREVIEW");
-        setNotice("PDF ready. Review every page, then accept and send to your selected destination.");
+        setNotice("PDF ready. Review it and add it to the batch.");
       }} /> : null}
 
-      {scannerOpen ? <BarcodeScanner idOnly={captureKind === "ID"} onClose={() => setScannerOpen(false)} onConfirm={(scan, image) => {
+      {scannerOpen ? <BarcodeScanner idOnly={captureKind === "ID"} onClose={() => setScannerOpen(false)} onUnreadablePhoto={captureKind === "ID" ? image => {
+        resetCapturedImage();
+        setUnreadIdBack(true);
+        setCapturedFile(image);
+        setCapturedImageUrl(URL.createObjectURL(image));
+        setScannerOpen(false);
+        setMode("PREVIEW");
+        setNotice("Back photo retained without reading the barcode. Add it for manual review or retake it.");
+      } : undefined} onConfirm={(scan, image) => {
         resetCapturedImage();
         setBarcode(scan);
         setBarcodeNotice(captureKind === "ID" ? "ID fields reviewed. Copy the ID number only when needed, or send the captured photo for customer-file review. No customer record has been changed." : "Code confirmed. Use the VIN, copy the value, or send the photo for review.");
@@ -513,19 +410,20 @@ export function MobileCaptureTool() {
       {mode === "CAMERA" ? <PhotoCamera onClose={() => {
         setMode("READY");
         setNotice("Photo capture canceled.");
-      }} onPhoto={previewPhoto} /> : null}
+      }} {...(captureKind === "BUSINESS_CARD" ? { framing: "business" as const, titleText: "Capture a business card", shutterLabel: "Capture card" } : {})} onPhoto={previewPhoto} /> : null}
 
       {mode === "PREVIEW" ? createPortal(
         <dialog className={styles.previewOverlay} aria-label="Capture preview" onCancel={event => { event.preventDefault(); cancelPreview(); }} ref={previewDialog}>
           <header>
             <span>{activeIntent === "DOCUMENT" ? "Document review" : activeIntent === "BARCODE" ? "Barcode review" : "Photo review"}</span>
-            <strong>Accept, retake, or cancel</strong>
+            <strong>Add this item, retake, or cancel</strong>
           </header>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {capturedFile?.type === "application/pdf" ? <iframe src={capturedImageUrl} title="Document PDF preview" style={{ width: "100%", height: "100%", minHeight: 0, border: 0, background: "white" }} /> : capturedImageUrl ? <img alt="Captured scan preview" src={capturedImageUrl} /> : <p>Code ready for review</p>}
           <div className={styles.barcodeReview} aria-live="polite">
             <p role="status">{notice}</p>
             {capturedFile?.type === "application/pdf" ? <a href={capturedImageUrl} target="_blank" rel="noreferrer">Open PDF preview</a> : capturedFile ? <button disabled={readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : activeIntent === "BARCODE" ? "Read again" : "Read barcode"}</button> : null}
+            {capturedFile && (previewKind !== "ID" || canPrintId) && <button type="button" onClick={() => printBeforeSending(capturedFile)}>Print now</button>}
             {barcodeNotice ? <p>{barcodeNotice}</p> : null}
             {reviewedIdFields ? <><p>Reviewed ID: {reviewedIdFields.fullName || "Name not entered"} · {reviewedIdFields.issuingState || "State not entered"} · ID ending {reviewedIdFields.licenseNumber.slice(-4) || "not entered"}</p><button onClick={async () => { try { await navigator.clipboard.writeText(JSON.stringify(reviewedIdFields, null, 2)); setBarcodeNotice("Reviewed fields copied. Paste only into the intended customer intake form."); } catch { setBarcodeNotice("Copy is unavailable in this browser."); } }} type="button">Copy reviewed ID fields</button></> : null}
             {scannedVin ? <Link href={`/capture/vehicle?vin=${encodeURIComponent(scannedVin)}`}>Decode &amp; add vehicle · {scannedVin}</Link> : null}
@@ -537,38 +435,49 @@ export function MobileCaptureTool() {
             {barcode?.format === "PDF_417" && !idFields?.number ? <p>PDF417 read. Review the captured ID photo to confirm its details.</p> : null}
           </div>
           <footer>
-            <button disabled={busy || !capturedFile} onClick={() => void sendCapture()} type="button"><Send size={20} /> {busy ? "Sending..." : "Accept and send"}</button>
+            <button disabled={busy || !capturedFile} onClick={addCurrent} type="button"><Send size={20} /> Add to batch</button>
             <button disabled={busy} onClick={retake} type="button"><RotateCcw size={20} /> Retake</button>
             <button disabled={busy} onClick={cancelPreview} type="button"><X size={20} /> Cancel</button>
           </footer>
         </dialog>, document.body
       ) : null}
 
-      {mode === "SENT" ? (
-        <section className={styles.sentPanel} aria-label="Capture result">
-          <CheckCircle2 size={26} />
-          <div>
-            <span><DestinationIcon size={16} /> {destination.label} review</span>
-            <h2>{result?.smartIntake?.classificationLabel ?? "Capture sent"}</h2>
-            <p>{result?.smartIntake ? `${result.smartIntake.classificationConfidence}% OCR confidence. Review lane: ${result.smartIntake.routingTarget.replaceAll("_", " ").toLowerCase()}.` : "The file is staged for review."}</p>
+      {!!batch.length && <section className={archiveStyles.panel} aria-label="Capture batch">
+        <h2>{reviewing ? "Review batch" : "Current batch"} · {batch.length} {batch.length === 1 ? "file" : "files"}</h2>
+        <p>{destination ? `File to ${destination.label} and retain the originals in the archive.` : "Unfiled originals will go to the Capture Archive."}</p>
+        <ul className={archiveStyles.items}>{batch.map((item, index) => <li className={archiveStyles.item} key={item.id}>
+          <strong>{index + 1}. {item.file.name} · {archiveKindLabel[item.kind]}</strong>
+          {reviewing && <BatchPreview file={item.file} />}
+          {reviewing && <><label>File type<select value={item.kind} disabled={busy || item.kind === "ID"} onChange={event => {
+            setBatch(items => items.map(row => row.id === item.id ? { ...row, kind: event.target.value as ArchiveKind } : row)); setAccepted(false);
+          }}>{captureKinds.filter(kind => item.file.type !== "application/pdf" || kind === "DOCUMENT" || kind === "ID").map(kind => <option key={kind} value={kind}>{archiveKindLabel[kind]}</option>)}</select></label>
+          <label>{item.kind === "BUSINESS_CARD" ? "Business description (if unclear on card)" : "Description (optional)"}<input value={item.description} maxLength={240} disabled={busy} onChange={event => {
+            setBatch(items => items.map(row => row.id === item.id ? { ...row, description: event.target.value } : row)); setAccepted(false);
+          }} /></label></>}
+          <div className={archiveStyles.actions}>
+            {(item.kind !== "ID" || canPrintId) && <button type="button" disabled={busy} onClick={() => printBeforeSending(item.file)}>Print now</button>}
+            <button type="button" disabled={busy} onClick={() => { setBatch(items => items.filter(row => row.id !== item.id)); setAccepted(false); }}>Remove</button>
           </div>
-          {result?.smartIntake?.warnings?.length ? <ul aria-label="Document review notes">{result.smartIntake.warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul> : null}
-          {result?.smartIntake?.extractedFields?.length ? (
-            <dl>
-              {result.smartIntake.extractedFields.slice(0, 4).map((field) => (
-                <div key={field.key}>
-                  <dt>{field.label}</dt>
-                  <dd>{field.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-          <div className={styles.sentActions}>
-            <button onClick={() => { setMode("READY"); setResult(null); setNotice("Choose Photo or Barcode Scan to start capture."); }} type="button">Capture another</button>
-            <Link href={destinationKey === "QUICK_UPDATE" && requestedOwnerId ? `/documents?ownerId=${encodeURIComponent(requestedOwnerId)}#smart-intake` : "/documents"}>Review queue</Link>
-          </div>
-        </section>
-      ) : null}
+        </li>)}</ul>
+        <div className={archiveStyles.actions}>
+          {!reviewing ? <button className={archiveStyles.primary} type="button" onClick={() => { setReviewing(true); setAccepted(false); setNotice("Review the file types and destination, then accept the batch."); }}>Review batch</button> :
+            accepted ? <button className={archiveStyles.primary} type="button" disabled={busy} onClick={() => void sendCapture()}>{busy ? "Sending…" : "Send batch"}</button> :
+              <button className={archiveStyles.primary} disabled={resolving} type="button" onClick={() => { setAccepted(true); setNotice("Batch accepted. Choose Send batch to save the originals."); }}>Accept batch</button>}
+        </div>
+        {reviewing && <p role="status">{notice}</p>}
+      </section>}
+      {mode === "SENT" && result ? <section className={styles.sentPanel} aria-label="Capture result">
+        <CheckCircle2 size={26} /><h2>{result.items.length} {result.items.length === 1 ? "file" : "files"} saved</h2>
+        <div className={styles.sentActions}>
+          <Link href={`/capture/archive?batch=${encodeURIComponent(result.batchId)}`}>Open saved batch</Link>
+          <Link href="/capture/archive">Search archive</Link>
+          {destination && <Link href={`/capture/archive?${new URLSearchParams({ ownerType: destination.type, ownerId: destination.id })}`}>Open filed captures</Link>}
+          <button type="button" onClick={() => { setMode("READY"); setResult(null); setNotice("Choose a capture tool to start a new batch."); }}>Capture another</button>
+        </div>
+        <ul className={archiveStyles.items}>{result.items.filter(item => item.kind !== "ID" || canPrintId).map(item => <li key={item.id}>
+          <button type="button" onClick={() => void printCapture(`${archiveFileHref(item.id)}&print=1`, item.contentType).catch(error => setNotice(error.message))}>Print {item.fileName}</button>
+        </li>)}</ul>
+      </section> : null}
 
       <canvas ref={canvasRef} />
     </main>

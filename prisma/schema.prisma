@@ -3598,6 +3598,44 @@ model DocumentReadingEvent {
   @@index([jobId, createdAt])
 }
 
+model CaptureArchiveBatch {
+  id              String               @id
+  organizationId  String
+  createdByUserId String
+  requestHash     String
+  createdAt       DateTime             @default(now())
+  items           CaptureArchiveItem[]
+}
+
+model CaptureArchiveItem {
+  id               String               @id
+  batchId          String
+  batch            CaptureArchiveBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  organizationId   String
+  createdByUserId  String
+  createdAt        DateTime             @default(now())
+  position         Int
+  kind             String
+  fileName         String
+  contentType      String
+  storageReference String
+  checksumSha256   String
+  sizeBytes        Int
+  description      String
+  category         String?
+  businessDetails  Json?
+  ownerType        String?
+  ownerId          String?
+  ownerLabel       String?
+  revision         Int                  @default(0)
+  searchText       String               @default("")
+
+  @@unique([batchId, position])
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, ownerType, ownerId, createdAt])
+  @@index([organizationId, createdByUserId, createdAt])
+}
+
 model DocumentSmartIntakeRecord {
   id                     String                  @id @default(cuid())
   organizationId         String

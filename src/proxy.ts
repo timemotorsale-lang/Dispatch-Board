@@ -37,5 +37,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!.*\\..*).*)"]
+  // Capture uploads enforce their own authentication and streaming byte limit.
+  matcher: ["/((?!api/capture-archive(?:/|$)|.*\\..*).*)"]
 };

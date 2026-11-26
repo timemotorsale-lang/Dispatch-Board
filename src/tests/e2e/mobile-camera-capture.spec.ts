@@ -1,15 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-test.skip(!["http://127.0.0.1:3211", "http://localhost:3211"].includes(process.env.PLAYWRIGHT_BASE_URL ?? "") ||
-  process.env.PLAYWRIGHT_CAMERA_PREVIEW !== "isolated", "Requires the seeded isolated camera preview on port 3211.");
+test.skip(!["http://127.0.0.1:3212", "http://localhost:3212"].includes(process.env.PLAYWRIGHT_BASE_URL ?? "") ||
+  process.env.PLAYWRIGHT_CAMERA_PREVIEW !== "isolated", "Requires the seeded isolated camera preview on port 3212.");
 test.setTimeout(75_000);
 
-async function openCapture(page: Page, denyCamera = false, entry = "/capture", barcodePath?: string) {
+async function openCapture(page: Page, denyCamera = false, entry = "/capture", barcodePath?: string, subject = "id") {
   await page.setViewportSize({ width: 390, height: 520 });
   await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: {} }));
-  await page.addInitScript(({ deny, barcode }) => {
+  await page.addInitScript(({ deny, barcode, subject }) => {
     // Prove the shipped software decoder works even where BarcodeDetector is absent.
     if (barcode) Object.defineProperty(globalThis, "BarcodeDetector", { configurable: true, value: undefined });
     Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: async () => {
@@ -33,11 +35,11 @@ async function openCapture(page: Page, denyCamera = false, entry = "/capture", b
         context.fillRect(150, 80, 660, 550);
         context.fillStyle = "#000";
         context.font = "bold 40px sans-serif";
-        context.fillText("SYNTHETIC CAMERA SAMPLE", 177, 180);
+        context.fillText(subject === "business" ? "WEST METRO TOWING LLC" : "SYNTHETIC CAMERA SAMPLE", 177, 180);
         context.font = "30px sans-serif";
-        context.fillText("Full name: TAYLOR EXAMPLE", 177, 250);
-        context.fillText("ID number: SYNTH1234", 177, 302);
-        context.fillText("Issuing state: MN", 177, 354);
+        context.fillText(subject === "business" ? "24 hour towing and transport" : "Full name: TAYLOR EXAMPLE", 177, 250);
+        context.fillText(subject === "business" ? "Phone: 612-555-0100" : "ID number: SYNTH1234", 177, 302);
+        context.fillText(subject === "business" ? "office@example.test" : "Issuing state: MN", 177, 354);
       };
       draw();
       const stream = canvas.captureStream(15);
@@ -47,7 +49,7 @@ async function openCapture(page: Page, denyCamera = false, entry = "/capture", b
       }, 67);
       return stream;
     } });
-  }, { deny: denyCamera, barcode: barcodePath ? readFileSync(barcodePath).toString("base64") : undefined });
+  }, { deny: denyCamera, barcode: barcodePath ? readFileSync(barcodePath).toString("base64") : undefined, subject });
   const login = await page.request.post("/api/auth/login", {
     data: { email: "morgan.manager@local.test", password: "dispatch123!" }
   });
@@ -75,11 +77,33 @@ test("reads a live rotated PDF417 ID without pressing a shutter", async ({ page 
   await expect(scanner.getByRole("button", { name: "Use reviewed ID" })).toBeDisabled();
 });
 
+test("auto-captures a clear document and keeps the crop review before accepting the page", async ({ page }) => {
+  await openCapture(page);
+  await page.getByRole("button", { name: "Scan document", exact: true }).click();
+  const review = page.getByRole("dialog", { name: "Scan a document" });
+  await expect(review.getByRole("button", { name: "Keep page" })).toBeEnabled({ timeout: 8000 });
+  await expect(review.getByRole("list", { name: "Scanned pages" })).toHaveCount(0);
+});
+
+test("an unreadable back barcode can be retained for manual review without claiming a verified read", async ({ page }) => {
+  await openCapture(page);
+  await page.getByRole("button", { name: "Scan ID barcode", exact: true }).click();
+  const scanner = page.getByRole("dialog", { name: "Scan ID barcode" });
+  await scanner.getByRole("button", { name: "Capture barcode" }).click();
+  await scanner.getByRole("button", { name: "Keep back photo without barcode" }).click();
+  const preview = page.getByRole("dialog", { name: "Capture preview" });
+  await expect(preview.getByRole("status")).toContainText("without reading the barcode");
+  await preview.getByRole("button", { name: "Add to batch" }).click();
+  await page.getByRole("button", { name: "Review batch" }).click();
+  await expect(page.getByLabel("Description (optional)")).toHaveValue("Back photo kept. Barcode unread. Manual review required.");
+});
+
 test("document scan opens into the full camera without hiding the shutter or losing a retained page", async ({ page }) => {
   await openCapture(page);
   await page.setViewportSize({ width: 1180, height: 560 });
   await page.getByRole("button", { name: "Scan document", exact: true }).click();
   const camera = page.getByRole("dialog", { name: "Document camera" });
+  await camera.getByRole("button", { name: "Auto on" }).click();
   const shutter = camera.getByRole("button", { name: "Capture page" });
   await expect(shutter).toBeEnabled();
   const bounds = await camera.boundingBox();
@@ -91,6 +115,7 @@ test("document scan opens into the full camera without hiding the shutter or los
   await review.getByRole("button", { name: "Keep page" }).click();
   await expect(review.getByRole("list", { name: "Scanned pages" }).getByRole("listitem")).toHaveCount(1);
   await review.getByRole("button", { name: "Add page with camera" }).click();
+  await camera.getByRole("button", { name: "Auto on" }).click();
   await expect(shutter).toBeEnabled();
   await page.keyboard.press("Escape");
   await expect(camera).toBeHidden();
@@ -100,7 +125,7 @@ test("document scan opens into the full camera without hiding the shutter or los
 test("photo shutter stays reachable, retakes, and never auto-uploads", async ({ page }) => {
   await openCapture(page);
   let uploads = 0;
-  await page.route("**/api/document-library/uploads", route => {
+  await page.route("**/api/capture-archive", route => {
     uploads += 1;
     return route.abort();
   });
@@ -114,7 +139,7 @@ test("photo shutter stays reachable, retakes, and never auto-uploads", async ({ 
   await shutter.click();
   const preview = page.getByRole("dialog", { name: "Capture preview" });
   await expect(preview.getByRole("img", { name: "Captured scan preview" })).toBeVisible();
-  await expect(preview.getByRole("button", { name: "Accept and send" })).toBeInViewport({ ratio: 1 });
+  await expect(preview.getByRole("button", { name: "Add to batch" })).toBeInViewport({ ratio: 1 });
   await preview.getByRole("button", { name: "Retake" }).click();
   await expect(shutter).toBeEnabled();
   await page.keyboard.press("Escape");
@@ -132,6 +157,7 @@ test("Document Library opens the shared shutter and waits before sending to OCR"
   });
   await intake.getByRole("button", { name: "Scan", exact: true }).click();
   const camera = page.getByRole("dialog", { name: "Scan a document" });
+  await camera.getByRole("button", { name: "Auto on" }).click();
   const shutter = camera.getByRole("button", { name: "Capture document" });
   await expect(shutter).toBeEnabled();
   await expect(shutter).toBeInViewport({ ratio: 1 });
@@ -173,6 +199,7 @@ test("ID front captures before OCR and keeps editable fields on reader failure",
     return route.fulfill({ status: 422, json: { error: "Text could not be read. Enter fields manually." } });
   });
   await page.getByRole("button", { name: "Capture ID front / back" }).click();
+  await page.getByRole("button", { name: "Auto on" }).click();
   const shutter = page.getByRole("button", { name: "Capture ID front", exact: true });
   await expect(shutter).toBeEnabled();
   await expect(shutter).toBeInViewport({ ratio: 1 });
@@ -194,7 +221,7 @@ test("ID front captures before OCR and keeps editable fields on reader failure",
 test("ID front suggests fields from the real OCR service and still requires confirmation", async ({ page }) => {
   await openCapture(page);
   await page.getByRole("button", { name: "Capture ID front / back" }).click();
-  await page.getByRole("button", { name: "Capture ID front", exact: true }).click();
+  // Auto capture must advance to review without a shutter press.
   await page.getByRole("button", { name: "Full photo" }).click();
   const request = page.waitForResponse(response => response.url().endsWith("/api/document-library/id-front"));
   await page.getByRole("button", { name: "Use front photo" }).click();
@@ -221,7 +248,6 @@ test("permission recovery and a scan that survives a fresh document queue read",
   await camera.getByRole("button", { name: "Close camera" }).click();
 
   const reference = `Synthetic document ${Date.now()}`;
-  await page.getByPlaceholder("Leave blank to send to review inbox").fill(reference);
   await page.getByRole("button", { name: "Scan document", exact: true }).click();
   const scanner = page.getByRole("dialog", { name: "Scan a document" });
   const documentCamera = page.getByRole("dialog", { name: "Document camera" });
@@ -237,17 +263,145 @@ test("permission recovery and a scan that survives a fresh document queue read",
   await scanner.getByRole("button", { name: "Create PDF · 2 pages" }).click();
   const preview = page.getByRole("dialog", { name: "Capture preview" });
   await expect(preview.locator('iframe[title="Document PDF preview"]')).toBeVisible();
-  const send = preview.getByRole("button", { name: "Accept and send" });
-  await page.route("**/api/document-library/uploads", route => route.fulfill({ status: 503, json: { error: "Preview storage unavailable. Retry the upload." } }), { times: 1 });
+  await preview.getByRole("button", { name: "Add to batch" }).click();
+  await page.getByRole("button", { name: "Review batch" }).click();
+  await page.getByLabel("Description (optional)").fill(reference);
+  await page.getByRole("button", { name: "Accept batch" }).click();
+  const send = page.getByRole("button", { name: "Send batch" });
+  await page.route("**/api/capture-archive", route => route.fulfill({ status: 503, json: { error: "Preview storage unavailable. Retry the upload." } }), { times: 1 });
   await send.click();
-  await expect(preview.getByRole("status")).toContainText("Preview storage unavailable");
-  const upload = page.waitForResponse(response => response.url().endsWith("/api/document-library/uploads") && response.request().method() === "POST");
+  await expect(page.getByRole("region", { name: "Capture batch" }).getByRole("status")).toContainText("Preview storage unavailable");
+  const upload = page.waitForResponse(response => response.url().endsWith("/api/capture-archive") && response.request().method() === "POST");
   await send.click();
   const response = await upload;
   expect(response.ok(), await response.text()).toBe(true);
-  const { smartIntake, storedObject } = await response.json();
-  expect(storedObject.reference).toBeTruthy();
-  const queue = await page.request.get("/api/document-library");
+  const receipt = await response.json();
+  const queue = await page.request.get("/api/capture-archive?q=" + encodeURIComponent(reference));
   expect(queue.ok()).toBe(true);
-  expect((await queue.json()).smartIntake).toEqual(expect.arrayContaining([expect.objectContaining({ id: smartIntake.id, ownerLabel: reference })]));
+  expect((await queue.json()).items).toEqual(expect.arrayContaining([expect.objectContaining({ id: receipt.items[0].id, description: reference, destination: null })]));
+});
+
+test("auto-captures a business card, adds another photo, and prints before and after filing", async ({ page }) => {
+  await openCapture(page, false, "/capture", undefined, "business");
+  await page.getByRole("button", { name: "Capture business card" }).click();
+  const preview = page.getByRole("dialog", { name: "Capture preview" });
+  await expect(preview.getByRole("img", { name: "Captured scan preview" })).toBeVisible({ timeout: 5000 });
+  const firstPopup = page.waitForEvent("popup");
+  await preview.getByRole("button", { name: "Print now" }).click();
+  const before = await firstPopup;
+  await expect(before.getByRole("button", { name: "Print", exact: true })).toBeEnabled();
+  await before.close();
+  await preview.getByRole("button", { name: "Add to batch" }).click();
+  const actions = page.getByRole("region", { name: "Capture actions" });
+  await actions.getByRole("button", { name: "Photo", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Capture photo", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Auto off" }).click();
+  await expect(preview.getByRole("img", { name: "Captured scan preview" })).toBeVisible({ timeout: 8000 });
+  await preview.getByRole("button", { name: "Add to batch" }).click();
+  const batch = page.getByRole("region", { name: "Capture batch" });
+  await expect(batch.getByRole("listitem")).toHaveCount(2);
+  await batch.getByRole("button", { name: "Review batch" }).click();
+  await expect(batch.getByRole("button", { name: "Send batch" })).toHaveCount(0);
+  await batch.getByRole("button", { name: "Accept batch" }).click();
+  await batch.getByRole("button", { name: "Send batch" }).click();
+  const saved = page.getByRole("region", { name: "Capture result" });
+  await expect(saved.getByRole("heading", { name: "2 files saved" })).toBeVisible({ timeout: 20000 });
+  const laterPopup = page.waitForEvent("popup");
+  await saved.getByRole("button", { name: "Print business-card.jpg" }).click();
+  const later = await laterPopup;
+  await expect(later.getByRole("button", { name: "Print", exact: true })).toBeEnabled();
+  await later.close();
+  await saved.getByRole("link", { name: "Open saved batch" }).click();
+  await expect(page.getByRole("list", { name: "Saved captures" }).getByRole("listitem")).toHaveCount(2);
+  await page.getByRole("button", { name: "Business cards", exact: true }).click();
+  await expect(page.getByRole("list", { name: "Saved captures" }).getByRole("listitem")).toHaveCount(1);
+  await expect(page.getByText(/Towing & transport · Unfiled/)).toBeVisible();
+  await expect(page.getByText("WEST METRO TOWING LLC", { exact: true })).toBeVisible();
+});
+
+test("preselected vehicle and master resolve the same original, with idempotent retries and refiling", async ({ page, playwright, baseURL }) => {
+  const connection = new URL(process.env.DATABASE_URL!);
+  if (connection.hostname !== "127.0.0.1" || connection.port !== "55435" || connection.pathname !== "/camera_preview") throw new Error("Isolated capture database required.");
+  const db = new PrismaClient();
+  const id = randomUUID();
+  const stock = `CAM-${id.slice(0, 8)}`;
+  try {
+    await db.vehicle.create({ data: { id, organizationId: "org-time-motor-sales", vehicleNumber: stock, stockNumber: stock, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic capture test", vinValidationSource: "LOCAL_PREVIEW" } });
+  } finally { await db.$disconnect(); }
+  const query = new URLSearchParams({ destination: "VEHICLE", ownerId: id });
+  await openCapture(page, false, `/capture?${query}`);
+  await expect(page.getByRole("group", { name: "Filing destination" }).getByText(stock, { exact: true })).toBeVisible();
+  await page.locator('input[type="file"][multiple]').setInputFiles(vinBarcode);
+  await page.getByRole("button", { name: "Review batch" }).click();
+  await page.getByRole("button", { name: "Accept batch" }).click();
+  const upload = page.waitForResponse(response => response.url().endsWith("/api/capture-archive") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Send batch" }).click();
+  const response = await upload;
+  expect(response.ok(), await response.text()).toBe(true);
+  const receipt = await response.json();
+  const originalManifest = response.request().postData()?.match(/\r\n\r\n(\{"key":[^\r\n]*\})\r\n/)?.[1];
+  expect(originalManifest).toBeTruthy();
+  const replayBatch = () => page.request.post("/api/capture-archive", { multipart: {
+    manifest: originalManifest!, file: { name: "synthetic-vin-code39.png", mimeType: "image/png", buffer: readFileSync(vinBarcode) }
+  } });
+  const replay = await replayBatch();
+  expect(replay.ok(), await replay.text()).toBe(true);
+  expect(await replay.json()).toEqual(receipt);
+  const original = receipt.items[0].id;
+  const destination = await page.request.get(`/api/capture-archive?ownerType=VEHICLE&ownerId=${id}`);
+  const master = await page.request.get(`/api/capture-archive?batch=${receipt.batchId}`);
+  expect((await destination.json()).items).toMatchObject([{ id: original, destination: { id } }]);
+  const entries = (await master.json()).items;
+  expect(entries).toMatchObject([{ id: original, destination: { id } }]);
+  const bytes = await page.request.get(`/api/capture-archive/file?id=${original}`);
+  expect(await bytes.body()).toEqual(readFileSync(vinBarcode));
+  const anonymous = await playwright.request.newContext({ baseURL });
+  try { expect((await anonymous.get(`/api/capture-archive/file?id=${original}`)).status()).toBe(401); }
+  finally { await anonymous.dispose(); }
+  const denied = await page.request.patch("/api/capture-archive", { data: { id: original, revision: 0, destination: { type: "VEHICLE", id: randomUUID() }, description: "Blocked move" } });
+  expect(denied.status()).toBe(403);
+  expect((await (await page.request.get(`/api/capture-archive?batch=${receipt.batchId}`)).json()).items).toEqual(entries);
+  const dbAgain = new PrismaClient();
+  try {
+    await dbAgain.vehicle.update({ where: { id }, data: { status: "SOLD" } });
+    expect((await page.request.get(`/api/capture-archive/file?id=${original}`)).ok()).toBe(true);
+    await dbAgain.vehicle.update({ where: { id }, data: { status: "INACTIVE" } });
+  }
+  finally { await dbAgain.$disconnect(); }
+  const lostResponseReplay = await replayBatch();
+  expect(await lostResponseReplay.json()).toEqual(receipt);
+  expect((await (await page.request.get(`/api/capture-archive?batch=${receipt.batchId}`)).json()).items).toMatchObject([{ id: original, originalAvailable: false }]);
+  const moved = await page.request.patch("/api/capture-archive", { data: { id: original, revision: 0, destination: null, description: "Refiled to archive" } });
+  expect(moved.ok(), await moved.text()).toBe(true);
+  expect((await moved.json()).id).toBe(original);
+  expect((await (await page.request.get(`/api/capture-archive?batch=${receipt.batchId}`)).json()).items).toMatchObject([{ id: original, destination: null }]);
+  expect(await (await page.request.get(`/api/capture-archive/file?id=${original}`)).body()).toEqual(readFileSync(vinBarcode));
+});
+
+test("uses staff description when card text has no category and rejects a broken PDF", async ({ page, playwright, baseURL }) => {
+  await openCapture(page);
+  const card = await page.request.post("/api/capture-archive", { multipart: {
+    manifest: JSON.stringify({ key: randomUUID(), destination: null, items: [{ kind: "BUSINESS_CARD", description: "Supplier of repair parts and supplies" }] }),
+    file: { name: "card-needs-description.png", mimeType: "image/png", buffer: readFileSync(vinBarcode) }
+  } });
+  expect(card.ok(), await card.text()).toBe(true);
+  const receipt = await card.json();
+  const master = await page.request.get(`/api/capture-archive?batch=${receipt.batchId}`);
+  expect((await master.json()).items).toMatchObject([{ category: "Parts & supplies", destination: null }]);
+  const other = await playwright.request.newContext({ baseURL });
+  try {
+    const login = await other.post("/api/auth/login", { data: { email: "jordan.sales@local.test", password: "dispatch123!" } });
+    expect(login.ok()).toBe(true);
+    const otherList = await other.get(`/api/capture-archive?batch=${receipt.batchId}`);
+    expect(otherList.ok()).toBe(true);
+    expect((await otherList.json()).items).toEqual([]);
+    expect((await other.get(`/api/capture-archive/file?id=${receipt.items[0].id}`)).status()).toBe(404);
+  } finally { await other.dispose(); }
+  const failed = await page.request.post("/api/capture-archive", { multipart: {
+    manifest: JSON.stringify({ key: randomUUID(), destination: null, items: [{ kind: "DOCUMENT" }] }),
+    file: { name: "truncated-proof.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\ntruncated") }
+  } });
+  expect(failed.status()).toBe(400);
+  expect((await failed.json()).error).toContain("PDF could not be opened");
+  expect((await (await page.request.get("/api/capture-archive?q=truncated-proof")).json()).items).toEqual([]);
 });

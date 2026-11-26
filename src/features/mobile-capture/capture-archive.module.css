@@ -1,0 +1,20 @@
+.page { display: grid; gap: 14px; max-width: 1120px; margin-inline: auto; padding: clamp(10px, 3vw, 24px); }
+.page h1, .page h2 { margin: 0; }
+.page p, .destination p { margin: 4px 0; }
+.panel, .destination, .item { min-width: 0; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border, #cbd9ec); border-radius: 10px; }
+.destination legend { padding-inline: 5px; font-weight: 700; }
+.destination label, .page label, .panel label { display: grid; gap: 4px; min-width: 0; }
+.destination :is(input, select), .page :is(input, select), .panel :is(input, select) { min-height: 42px; max-width: 100%; padding: 6px 9px; border: 1px solid #aab9cd; border-radius: 6px; font: inherit; }
+.actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.actions :is(button, a), .matches button { min-height: 42px; padding: 7px 11px; border: 1px solid #aab9cd; border-radius: 6px; font: inherit; cursor: pointer; background: var(--surface, #fff); color: #152a4a; }
+.actions button:disabled { cursor: default; opacity: .55; }
+.actions .primary { background: #344db3; color: white; border-color: #344db3; font-weight: 700; }
+.items, .matches { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.item { overflow-wrap: anywhere; }
+.item small { line-height: 1.4; }
+.matches button { text-align: left; }
+.error { color: #ab2222; }
+.details { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; }
+.details div { display: grid; gap: 2px; }
+.details dd { margin: 0; }
+.thumbnail { display: block; max-width: 100%; max-height: 360px; object-fit: contain; }

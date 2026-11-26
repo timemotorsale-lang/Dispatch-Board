@@ -205,7 +205,11 @@ export function CrmNextDirectActionForm({
     const query = new URLSearchParams({ ownerId: customerId ?? "", ownerLabel: customerName });
     return <section className={styles.directActionForm} aria-label="Customer document upload">
       <p>Upload and review files in Document Library with this customer already selected. Saving a note does not upload a file.</p>
-      {!needsCustomerContext ? <Link className={styles.primaryButton} href={`/documents?${query}`}>Open customer document upload</Link> : <p role="alert">Select a verified customer before uploading documents.</p>}
+      {!needsCustomerContext ? <>
+        <Link className={styles.primaryButton} href={`/capture?${new URLSearchParams({ destination: "CUSTOMER", ownerId: customerId ?? "", returnTo: cancelHref })}`}>Capture files for customer</Link>
+        <Link href={`/capture/archive?${new URLSearchParams({ ownerType: "CUSTOMER", ownerId: customerId ?? "" })}`}>View filed captures</Link>
+        <Link href={`/documents?${query}`}>Open customer document upload</Link>
+      </> : <p role="alert">Select a verified customer before uploading documents.</p>}
       <Link href={cancelHref}>Back to customer</Link>
     </section>;
   }

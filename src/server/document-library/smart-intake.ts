@@ -177,6 +177,14 @@ function extractGovernmentIdFields(text: string, lines: string[]) {
   ].filter(Boolean) as SmartDocumentField[];
 }
 
+export async function readCapturedBusinessCard(input: { bytes: Uint8Array; contentType: string; fileName: string }) {
+  const result = await extractDocumentText(input);
+  const text = result.text;
+  if (classifyText({ ...input, text }).classification === "GOVERNMENT_ID") return { isId: true, text: "", details: [] };
+  const lines = unique(text.split(/\n| {2,}/).map(normalizeText).filter(Boolean)).slice(0, 80);
+  return { isId: false, text, details: extractBusinessCardFields(text, lines).map(({ label, value }) => ({ label, value: value.slice(0, 160) })) };
+}
+
 function extractEstimateFields(text: string) {
   const amount = matchFirst(text, [
     /\b(?:gross total|net estimate total|estimate total|grand total|total amount)\b\s*[:$ ]+\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)/i
