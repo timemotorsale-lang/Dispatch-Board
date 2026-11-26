@@ -100,3 +100,11 @@ describe("issued document continuation", () => {
     expect(html).not.toContain("View Documents");
   });
 });
+
+it("links a saved estimate directly to its provided authorization context", () => {
+  const next = "/vehicles/repair-workbench?repairOrderId=ro-1&step=authorization&workflow=rapid#repair-workflow-action";
+  const html = renderToStaticMarkup(<EstimateWorkflowNextStep repairOrderId="ro-1" estimateId="est-2" nextHref={next} />);
+  expect(html).toContain("Continue to authorization");
+  expect(html).toContain("step=authorization&amp;workflow=rapid#repair-workflow-action");
+  expect(html).toContain("estimateId=est-2");
+});

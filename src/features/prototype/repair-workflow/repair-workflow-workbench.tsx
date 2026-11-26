@@ -365,7 +365,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       const guidedPath = selected === "diagnosis" && chosenPath
         ? ({ MECHANICAL: "DIAGNOSTIC", BODYWORK: "DIRECT_BODY", OUTSIDE_VENDOR: "VENDOR", DETAIL_PREP: undefined, INSPECTION_ONLY: undefined } as const)[chosenPath.value]
         : undefined;
-      tool = <>{estimate && <EstimateWorkflowNextStep reviewWorkflow repairOrderId={order.id} estimateId={estimate.id} />}{selected === "estimate" && <p><Link href={`/prototype/repair-explorer?${new URLSearchParams({ repairOrderId: order.id, workflow: "review" })}`}>Build estimate in simplified Labor Guide</Link></p>}<ShopPlanningWorkspace key={guidedPath} guidedPath={guidedPath} compactStage={shopView} initial={serialized({ ...planning, repairOrders: [order] })} reviewOrderId={order.id} focusStep={focusStep} returnTo={home} defaultLaborRate={rate.laborRate} canOverrideLaborRate={canManageSettings(user)} /></>;
+      tool = <>{estimate && selected !== "estimate" && <EstimateWorkflowNextStep reviewWorkflow repairOrderId={order.id} estimateId={estimate.id} />}{selected === "estimate" && <p><Link href={`/prototype/repair-explorer?${new URLSearchParams({ repairOrderId: order.id, workflow: "review", returnTo: repairReviewHref(order.id, "estimate", context) })}`}>Build estimate in simplified Labor Guide</Link></p>}<ShopPlanningWorkspace key={guidedPath} guidedPath={guidedPath} compactStage={shopView} initial={serialized({ ...planning, repairOrders: [order] })} reviewOrderId={order.id} focusStep={focusStep} estimateNextHref={selected === "estimate" && !closed && (current === "estimate" || current === "authorization") ? `${repairReviewHref(order.id, "authorization", context)}#repair-workflow-action` : undefined} returnTo={home} defaultLaborRate={rate.laborRate} canOverrideLaborRate={canManageSettings(user)} /></>;
     }
     return tool;
   }
@@ -425,7 +425,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     vendorAmount={vendor ? vendorAmount == null ? "Not recorded" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(vendorAmount / 100) : undefined}
     nextAction={nextAction}
     inlineNextAction={selected === "parts" && current === "parts" && !supportingTool}
-    suppressFooterAction={compactDiagnosis || (!supportingTool && (selected === "parts" || (selected === current && (selected === "assignment" || selected === "repair"))))}
+    suppressFooterAction={compactDiagnosis || (!supportingTool && (selected === "parts" || (selected === "estimate" && current === "estimate") || (selected === current && (selected === "assignment" || selected === "repair"))))}
     current={current}
     selected={selected}
     closed={closed}
