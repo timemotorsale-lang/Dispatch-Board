@@ -152,6 +152,23 @@ describe.skipIf(process.env.RUN_PIPELINE_DATABASE !== "1")("pipeline isolated Po
     const suppressed = (await readPipeline(salesperson)).rows.find(r => r.id === accepted.id)!;
     expect(suppressed.nextActionLabel).toContain("Internal review");
     await expect(pipelineCommand(salesperson, { action: "OUTCOME", id: suppressed.id, expectedVersion: suppressed.version, idempotencyKey: randomUUID(), reason: "Must not log outreach as eligible", outcome: "Spoke with customer", nextActionLabel: "Contact again", nextActionDueAt: dueAt })).rejects.toThrow(/do not contact/);
+    const intakeTask = await prisma.unifiedCrmOpportunityTaskLink.findFirstOrThrow({ where: { opportunityId: suppressed.id }, include: { task: true } });
+    const additional = Array.from({ length: 41 }, () => randomUUID());
+    await prisma.task.createMany({ data: additional.map(id => ({
+      id, title: "Retained unverified intake task", boardDayId: intakeTask.task.boardDayId, createdByUserId: sales,
+      assignedUserId: sales, ownerUserId: sales, dueAt: futureDueAt, priority: "MEDIUM", status: "NOT_STARTED",
+      sourceType: intakeTask.task.sourceType, workflowArea: intakeTask.task.workflowArea,
+    })) });
+    await prisma.unifiedCrmOpportunityTaskLink.createMany({ data: additional.map(taskId => ({
+      opportunityId: suppressed.id, organizationId: org, taskId, relationship: "FOLLOW_UP",
+      titleSnapshot: "Retained unverified intake task", briefSnapshot: "Synthetic intake follow-up",
+      dueAtSnapshot: futureDueAt, createdByUserId: sales, createdAt: new Date(),
+    })) });
+    await pipelineCommand(salesperson, { action: "EDIT", id: suppressed.id, expectedVersion: suppressed.version,
+      idempotencyKey: randomUUID(), reason: "Verified the unlinked intake identity", customerId: salesProfile.id,
+      pathway: "retail-sale", temperature: "WARM", estimatedValueCents: null,
+    });
+    expect(await prisma.task.count({ where: { id: { in: [...additional, intakeTask.taskId] }, customerId: salesProfile.id } })).toBe(42);
     const fallback = await pipelineCommand(actor, { action: "CAPTURE", title: "Retained routing failure", sourceCode: "TEST_ROUTING", sourceKey: randomUUID(), ownerUserId: "unavailable-owner", idempotencyKey: randomUUID(), pathway: "retail-sale" });
     expect((await readPipeline(actor)).rows.find(r => r.id === fallback.id)?.exceptions.some(e => e.code === "UNASSIGNED")).toBe(true);
     const { processPipelineImport, readPipelineImport } = await import("@/server/crm-next/pipeline-import");

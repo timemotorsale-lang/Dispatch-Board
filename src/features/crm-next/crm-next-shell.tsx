@@ -31,6 +31,7 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { PipelineDashboard } from "@/features/crm-next/pipeline-dashboard";
+import { CustomerPipelinePanel, opportunityStage, useCustomerPipeline } from "./customer-pipeline";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
 import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
 import { SavedDealsLibrary } from "@/features/crm-next/saved-deals-library";
@@ -1588,11 +1589,11 @@ function SalesTable({ records, title, summary }: { records: CrmNextSalesRecord[]
   );
 }
 
-export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) {
+export function CrmNextPipelineView({ model, initialOpportunityId, intakeCustomerId }: { model: CrmNextCommandCenter; initialOpportunityId?: string; intakeCustomerId?: string }) {
   return (
     <CrmNextFrame active="pipeline" userName={model.userName}>
       <Topbar />
-      <PipelineDashboard />
+      <PipelineDashboard key={JSON.stringify([initialOpportunityId, intakeCustomerId])} initialOpportunityId={initialOpportunityId} intakeCustomerId={intakeCustomerId} />
     </CrmNextFrame>
   );
 }
@@ -2177,7 +2178,7 @@ export function CrmNextCustomerRecordUnavailable({ userName }: { userName: strin
   </CrmNextFrame>;
 }
 
-const CUSTOMER_TOOLS = [["overview", "Work"], ["deals", "Deals & deposits"], ["vehicles", "Vehicles"], ["wishlist", "Wishlist"], ["documents-held", "Documents"], ["timeline", "Activity"]] as const;
+const CUSTOMER_TOOLS = [["overview", "Work"], ["deals", "Deals & deposits"], ["vehicles", "Vehicles"], ["wishlist", "Wishlist"], ["documents-held", "Documents"], ["timeline", "Activity"], ["pipeline", "Pipeline"]] as const;
 
 function subscribeCustomerTool(listener: () => void) {
   window.addEventListener("hashchange", listener);
@@ -2191,12 +2192,18 @@ function currentCustomerTool() {
   return CUSTOMER_TOOLS.some(([id]) => id === hash) ? hash : "overview";
 }
 
-export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false, dealsEnabled = false, wishlist = null, wishlistEditable = false, canLinkVehicle = false, duplicateReview = null }: {
+export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false, dealsEnabled = false, wishlist = null, wishlistEditable = false, canLinkVehicle = false, duplicateReview = null, initialOpportunityId }: {
   customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[];
   captureEnabled?: boolean; dealsEnabled?: boolean; wishlist?: CustomerWishlistValue | null; wishlistEditable?: boolean; canLinkVehicle?: boolean;
   duplicateReview?: import("@/server/unified-crm/customer-duplicate-candidate-contract").UnifiedCrmCustomerDuplicateCandidate[] | null;
+  initialOpportunityId?: string;
 }) {
   const section = useSyncExternalStore(subscribeCustomerTool, currentCustomerTool, () => "overview");
+  const pipeline = useCustomerPipeline(customer.id, initialOpportunityId);
+  const [opportunityId, setOpportunityId] = useState<string | undefined>(initialOpportunityId);
+  const opportunities = pipeline.data?.opportunities ?? [];
+  const selectedOpportunity = opportunityId ? opportunities.find(item => item.id === opportunityId) ?? null
+    : opportunities.find(item => item.active) ?? opportunities[0] ?? null;
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const quickActionsId = useId();
   const attention = model.attention ?? [];
@@ -2270,6 +2277,7 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
       {section === "overview" && <div className={customerTools.workLayout} data-show-quick={quickActionsOpen}>
       <section id="overview" className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-work-title">
         <h2 id="customer-work-title">Work this customer</h2>
+        {selectedOpportunity && <p><strong>{opportunityStage(selectedOpportunity)}</strong> · {selectedOpportunity.nextActionLabel ?? "No next action recorded"} · {selectedOpportunity.ownerName} · {selectedOpportunity.dueAt ? new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedOpportunity.dueAt)) : "No due date"} <a href="#pipeline">Open pipeline</a></p>}
         {Boolean(duplicateReview?.length) && <p className={customerTools.reviewNotice}><strong>Possible duplicate record.</strong> <a href="#compliance-review" onClick={() => {
           const review = document.querySelector<HTMLDetailsElement>("#compliance-review");
           if (review) review.open = true;
@@ -2371,6 +2379,9 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
           <SavedCustomerFiles key={customer.id} customerId={customer.id} />
         </> : <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>}
         {dealsEnabled && <Link href={packetsHref}>Saved deal packets</Link>}
+      </section>}
+      {section === "pipeline" && <section id="pipeline" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer pipeline">
+        <CustomerPipelinePanel {...pipeline} customerId={customer.id} selected={selectedOpportunity} select={setOpportunityId} exactMissing={Boolean(opportunityId && !selectedOpportunity)} />
       </section>}
       {section === "timeline" && <section id="timeline" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer activity">
         <h2>Recent activity</h2>

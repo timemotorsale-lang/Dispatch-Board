@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { pipelineSignals, resolvePipelinePeriod, type PipelineRow } from "@/lib/crm-pipeline";
-import { defaultPipelineFilters, filterPipelineRows, recordedPipelinePlan } from "@/lib/crm-pipeline-views";
+import { maskPipelineContactText, pipelineSignals, resolvePipelinePeriod, type PipelineRow } from "@/lib/crm-pipeline";
+import { defaultPipelineFilters, filterPipelineRows, pipelineRecoveryCandidates, recordedPipelinePlan } from "@/lib/crm-pipeline-views";
 import { previousPipelineRange, summarizePipeline } from "@/lib/crm-pipeline-reporting";
 import { estimatedPipelineTotal, leadInboxRows, operationRows } from "@/lib/crm-pipeline-workspaces";
 
@@ -34,6 +34,25 @@ describe("pipeline calendar periods", () => {
   });
 });
 describe("pipeline continuity and historical queues", () => {
+  it("masks contact details pasted with Unicode separators in the Customer 360 projection", () => {
+    expect(maskPipelineContactText("Call 612‑555‑0123 or email review@example.test")).toBe("Call [phone hidden] or email [email hidden]");
+  });
+  it("surfaces handoffs before they are overdue and preserves the owner", () => {
+    const pending = record({ pendingOwnerId: "receiver", handoffDueAt: "2026-11-02T18:00:00.000Z" });
+    expect(pipelineSignals(pending, now).find(([code]) => code === "HANDOFF_PENDING")?.[1]).toContain("current owner remains responsible");
+    expect(pipelineSignals({ ...pending, handoffDueAt: "2026-11-01T17:00:00.000Z" }, now).map(([code]) => code)).toContain("HANDOFF_OVERDUE");
+    expect(pipelineSignals({ ...pending, stage: "LOST" }, now)).toEqual([]);
+  });
+  it("uses evidence to suggest recovery and does not prompt re-engagement on restricted records", () => {
+    const exception = { id: "missed", code: "MISSED_APPOINTMENT", reason: "Missed", firstSeenAt: now.toISOString(), reviewDueAt: now.toISOString(), ownerUserId: "owner", state: "OPEN", queue: "SALES" };
+    const missed = record({ exceptions: [exception] });
+    expect(pipelineRecoveryCandidates({ rows: [missed, record({ id: "restricted", exceptions: [exception], contactSuppressed: true }), record({ id: "unrelated" })] }, now))
+      .toEqual([expect.objectContaining({ opportunityId: missed.id, reason: expect.stringContaining("Missed appointment") })]);
+  });
+  it("uses exact source and stage filters without losing overdue work", () => {
+    const due = record(), another = record({ id: "other", stage: "WORKING_DEAL", sourceCode: "OTHER" });
+    expect(filterPipelineRows([due, another], { ...defaultPipelineFilters, owner: "all", view: "exceptions", source: "TEST", stage: "NEW_INQUIRY" }, "owner", now)).toEqual([due]);
+  });
   it("retains qualified inquiries in their own inbox queue and tracks recorded review", () => {
     const reviewed = record({ id: "reviewed", stage: "QUALIFIED", inquiryReviewedAt: now.toISOString() }), fresh = record();
     expect(leadInboxRows([reviewed, fresh], "all")).toHaveLength(2);

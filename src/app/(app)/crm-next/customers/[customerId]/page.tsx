@@ -14,9 +14,10 @@ import { getUnifiedCrmCustomerDuplicateCandidates } from "@/server/services/unif
 
 type CrmNextCustomerPageProps = {
   params: Promise<{ customerId: string }>;
+  searchParams?: Promise<{ opportunity?: string }>;
 };
 
-export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPageProps) {
+export default async function CrmNextCustomerPage({ params, searchParams }: CrmNextCustomerPageProps) {
   const user = await requireCurrentUser();
   const access = resolveCrmNextAccess(user);
 
@@ -25,6 +26,7 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
   }
 
   const { customerId } = await params;
+  const query = await searchParams;
   const [{ customer, model }, collections] = await Promise.all([
     getCrmNextOperationalCustomer360(user, customerId),
     // Read-only; empty unless Collections is on for this person and the customer has an account.
@@ -55,6 +57,7 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
   ]);
   return (
     <CrmNextCustomer360View
+      key={JSON.stringify([customer.id, query?.opportunity])}
       canLinkVehicle={canLinkVehicle}
       dealsEnabled={canUseOwnDeals(user)}
       wishlist={wishlist}
@@ -64,6 +67,7 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
       model={model}
       collections={collections}
       duplicateReview={duplicateReview}
+      initialOpportunityId={typeof query?.opportunity === "string" ? query.opportunity : undefined}
     />
   );
 }

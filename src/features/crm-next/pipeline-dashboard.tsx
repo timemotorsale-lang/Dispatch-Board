@@ -7,8 +7,8 @@ import { PipelineAutomationWorkbench } from "./pipeline-automation-workbench";
 import { PipelineForecast } from "./pipeline-forecast";
 import { PipelineInsights } from "./pipeline-insights";
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { PIPELINE_PERIODS, PIPELINE_PATHS, PIPELINE_SEQUENCES, PIPELINE_DISPOSITIONS, activePipelineRow, pipelineLabel, pipelineSignals, resolvePipelinePeriod, inPipelinePeriod, type PipelineRow, type PipelineWorkspace } from "@/lib/crm-pipeline";
-import { applyPipelineView, defaultPipelineFilters, filterPipelineRelatedWork, filterPipelineRows, latestPipelineActivity, pipelineBasisDate, mergePipelinePages, pipelineWorkPriority, PIPELINE_VIEWS, type PipelineFilters } from "@/lib/crm-pipeline-views";
+import { customerPipelineHref, PIPELINE_STAGES, PIPELINE_PERIODS, PIPELINE_PATHS, PIPELINE_SEQUENCES, PIPELINE_DISPOSITIONS, activePipelineRow, pipelineLabel, pipelineSignals, resolvePipelinePeriod, inPipelinePeriod, type PipelineRow, type PipelineWorkspace } from "@/lib/crm-pipeline";
+import { applyPipelineView, defaultPipelineFilters, filterPipelineRelatedWork, filterPipelineRows, latestPipelineActivity, pipelineBasisDate, mergePipelinePages, pipelineRecoveryCandidates, pipelineWorkPriority, PIPELINE_VIEWS, type PipelineFilters } from "@/lib/crm-pipeline-views";
 import { listAllowedUnifiedCrmOpportunityTransitions, type UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
 import s from "./pipeline-dashboard.module.css";
@@ -35,9 +35,12 @@ function Form({ action, children, extra = {}, label = "Save", record }: { action
   return <form className={s.form} onChange={value.markDirty} onSubmit={value.submit(action, record ?? value.chosen ?? undefined, extra)}>{children}<button disabled={value.busy || !value.canWrite} className={s.primary}>{value.busy ? "Saving…" : label}</button></form>;
 }
 
-export function PipelineDashboard() {
+export function PipelineDashboard({ initialOpportunityId, intakeCustomerId }: { initialOpportunityId?: string; intakeCustomerId?: string } = {}) {
+  const [pinned, setPinned] = useState<PipelineRow | null>(null);
+  const [pinnedError, setPinnedError] = useState("");
+  const [intakeIdentity, setIntakeIdentity] = useState<{id: string; name: string} | null>(null);
   const [data, setData] = useState<PipelineWorkspace | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState("Pipeline"), [filters, setFilters] = useState<PipelineFilters>(startFilters), [selected, setSelected] = useState<string | null>(null), [showIntake, setShowIntake] = useState(false), [panel, setPanel] = useState("Up next");
+  const [tab, setTab] = useState("Pipeline"), [filters, setFilters] = useState<PipelineFilters>(startFilters), [selected, setSelected] = useState<string | null>(initialOpportunityId ?? null), [showIntake, setShowIntake] = useState(Boolean(intakeCustomerId)), [panel, setPanel] = useState("Up next");
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("All records");
   const [saved, setSaved] = useState<{ name: string; filters: PipelineFilters }[]>([]), [importRows, setImportRows] = useState<Record<string, unknown>[]>([]), [importResults, setImportResults] = useState<{ index: number; ok: boolean; error?: string }[]>([]);
   const [drill, setDrill] = useState<{ label: string; ids: string[] } | null>(null);
@@ -50,6 +53,12 @@ export function PipelineDashboard() {
   const refresh = useCallback(async () => {
     const version = ++refreshVersion.current;
     const pageCount = loadedPages.current;
+    if (initialOpportunityId) void fetch(`/api/crm-next/pipeline?${new URLSearchParams({ opportunity: initialOpportunityId })}`, { cache: "no-store" })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Opportunity unavailable.");
+        if (mounted.current && version === refreshVersion.current) { setPinned(result); setPinnedError(""); }
+      }).catch(e => { if (mounted.current && version === refreshVersion.current) { setPinned(null); setPinnedError(e instanceof Error ? e.message : "Opportunity unavailable."); } });
     try {
       let combined: PipelineWorkspace | null = null, cursor: string | null | undefined;
       for (let page = 0; page < pageCount; page++) {
@@ -71,13 +80,24 @@ export function PipelineDashboard() {
           let preference: { tab?: string; filters?: Partial<PipelineFilters> } | null = null;
           try { preference = JSON.parse(localStorage.getItem(`crm-pipeline:queue-start:${combined.actorId}`) ?? "null"); } catch { /* Use the sales queue when a saved preference cannot be read. */ }
           const stored = Object.fromEntries(Object.entries(preference?.filters ?? {}).filter(([, value]) => typeof value === "string"));
-          if (preference?.tab && tabNames.includes(preference.tab)) setTab(preference.tab);
+          if (!initialOpportunityId && !intakeCustomerId && preference?.tab && tabNames.includes(preference.tab)) setTab(preference.tab);
           setFilters({ ...startFilters, owner: combined.canManage ? "all" : "mine", ...stored });
         }
       }
     }
     catch (e) { if (mounted.current && version === refreshVersion.current) setError(e instanceof Error ? e.message : "Pipeline is unavailable."); }
-  }, []);
+  }, [initialOpportunityId, intakeCustomerId]);
+  useEffect(() => {
+    if (!intakeCustomerId) return;
+    const controller = new AbortController();
+    void fetch(`/api/crm-next/pipeline?${new URLSearchParams({ customerIdentity: intakeCustomerId })}`, { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Customer unavailable.");
+        if (!controller.signal.aborted) { setIntakeIdentity(result); setIntakeKey(crypto.randomUUID()); }
+      }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Customer unavailable."); });
+    return () => controller.abort();
+  }, [intakeCustomerId]);
   useEffect(() => { mounted.current = true; const initial = setTimeout(() => void refresh(), 0); const timer = setInterval(() => { setClock(Date.now()); if (!dirty.current) void refresh(); }, 60000); return () => { mounted.current = false; clearTimeout(initial); clearInterval(timer); }; }, [refresh]);
   const command = async (body: Record<string, unknown>, record?: PipelineRow) => {
     setBusy(true); setError(""); setNotice("");
@@ -176,7 +196,8 @@ export function PipelineDashboard() {
     if (filters.basis === "due") return !["WON", "LOST"].includes(l.stage ?? "") && (inPipelinePeriod(l.nextActionAt, range) || ["today", "this_week", "this_month"].includes(filters.period) && l.nextActionAt < range.start);
     return false;
   }) : [];
-  const chosen = data?.rows.find(r => r.id === selected) ?? null;
+  const chosen = (pinned?.id === selected ? pinned : data?.rows.find(r => r.id === selected)) ?? null;
+  const recoverable = data ? pipelineRecoveryCandidates(data, now) : [];
   const signals = chosen ? pipelineSignals(chosen, now) : []; const canWork = chosen && (activePipelineRow(chosen) || chosen.stage === "WON" && Boolean(chosen.dealId));
   const change = (key: keyof PipelineFilters, value: string) => { setDrill(null); setBulkPreview(null); setFilters(f => ({ ...f, [key]: value })); };
   const resetQueue = () => {
@@ -260,6 +281,7 @@ export function PipelineDashboard() {
     })}</tbody>
   </table></div>;
   return <FormContext.Provider value={{ submit, chosen, busy, canWrite: data?.canWrite ?? false, markDirty: () => { dirty.current = true; } }}><section className={s.workspace} aria-label="Pipeline operations">
+    {pinnedError && selected === initialOpportunityId && <p role="alert">Selected opportunity: {pinnedError}</p>}
     <header className={s.header}><div><h1>{tab === "Leads" ? "Leads inbox" : tab === "Insights" ? "Revenue insights" : tab === "Automation" ? "Automation" : tab === "Activities" ? "Activities" : "Pipeline"}</h1><p>{tab === "Leads" ? "Capture, review, and qualify every inquiry." : tab === "Automation" ? "Make repeatable work visible, governed, and accountable." : tab === "Insights" ? "Find the next management action in your numbers." : "See who owns each relationship, what happened, and what’s due next."}</p></div><div className={s.buttons}><Link href="/crm-next/deals">Deals</Link><button onClick={() => void refresh()} disabled={busy}>Refresh</button><button className={s.primary} disabled={!data?.canWrite} onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes before capturing another inquiry?")) return; dirty.current = false; setIntakeKey(crypto.randomUUID()); setMatches([]); setShowIntake(true); }}>+ Lead</button>{data && <details className={s.routines}><summary>Operating routines</summary><div aria-label="Operating routines"><button onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes before changing work views?")) return; dirty.current = false; setDrill(null); setTab("Activities"); setFilters(f => ({ ...f, owner: "mine", view: "all", basis: "due", period: "today", mode: "queue" })); }}>My work today</button>{data.canManage && <button onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes before changing work views?")) return; dirty.current = false; setDrill(null); setTab("Pipeline"); setFilters(f => ({ ...f, owner: "all", view: "exceptions", mode: "list" })); }}>Manager daily review</button>}<button onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes before changing work views?")) return; dirty.current = false; setDrill(null); setTab("Pipeline"); setFilters(f => applyPipelineView(f, "close_week")); }}>Close this week</button><button onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes before changing work views?")) return; dirty.current = false; setDrill(null); setTab("Insights"); setFilters(f => ({ ...f, period: "this_month" })); }}>Month review</button><button onClick={() => { try { localStorage.setItem(`crm-pipeline:queue-start:${data.actorId}`, JSON.stringify({ tab, filters })); setNotice("Your starting workspace is saved on this browser."); } catch { setError("The browser could not save your preference. The current workspace remains available."); } }}>Use this as my start view</button></div></details>}</div></header>
     <nav className={s.tabs} aria-label="Pipeline areas">{tabNames.map(name => <button key={name} aria-pressed={tab === name} onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved changes in this workspace?")) return; dirty.current = false; setTab(name); }}>{name}</button>)}</nav>
     {error && <div role="alert" className={s.error}>{error} <button onClick={() => void refresh()}>Refresh records</button></div>}
@@ -267,6 +289,15 @@ export function PipelineDashboard() {
 
     {!data && !error && <p role="status">Loading authorized pipeline records…</p>}
     {data && <>
+      {tab === "Pipeline" && <details className={s.legacy}>
+        <summary>Recovery opportunities · {recoverable.length} suggested for review</summary>
+        <p>Suggestions come from recorded activity in the loaded queue. Review customer intent before starting new work. Nothing is sent or created automatically.</p>
+        {recoverable.length ? recoverable.map(item => <div key={item.id}>
+          <span>{item.title} · {item.reason}</span>
+          {item.href ? <Link href={item.href}>Review customer</Link>
+            : item.opportunityId && <button type="button" onClick={() => choose(item.opportunityId!)}>Review opportunity</button>}
+        </div>) : <p>No recovery suggestions in the loaded records.</p>}
+      </details>}
       {!currentQueue && <div className={s.queueReturn}><button type="button" onClick={resetQueue}>Back to sales work queue</button></div>}
       <div className={s.toolbar}>
         <Field label="Work view"><select value={filters.view} onChange={e => { setDrill(null); setFilters(f => ({ ...applyPipelineView(f, e.target.value), ...(e.target.value === "unassigned" && data.canManage ? { owner: "all" } : {}) })); }}>{Object.entries(PIPELINE_VIEWS).map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select></Field>
@@ -275,6 +306,8 @@ export function PipelineDashboard() {
         <Field label="Date basis"><select value={filters.basis} onChange={e => { setDrill(null); setFilters(f => ({ ...f, basis: e.target.value, view: operational ? "all" : f.view })); }}>{[["due", "Next action due"], ["received", "Inquiry received"], ["close", "Expected close"], ["sold", "Actually sold"], ["completed", "Completed"]].map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select></Field>
         <Field label="Search"><input value={filters.q} onChange={e => change("q", e.target.value)} placeholder="Customer, vehicle, reference…" /></Field>
         <details className={s.filters}><summary>Filters and saved views</summary><div>
+          <Field label="Stage"><select value={filters.stage ?? "all"} onChange={e => change("stage", e.target.value)}><option value="all">All stages</option>{PIPELINE_STAGES.map(stage => <option key={stage} value={stage}>{pipelineLabel(stage)}</option>)}</select></Field>
+          <Field label="Source"><select value={filters.source ?? "all"} onChange={e => change("source", e.target.value)}><option value="all">All loaded sources</option>{[...new Set(data.rows.map(row => row.sourceCode))].sort().map(source => <option key={source} value={source}>{source}</option>)}</select></Field>
           <Field label="Revenue pathway"><select value={filters.pathway} onChange={e => change("pathway", e.target.value)}><option value="all">All pathways</option>{PIPELINE_PATHS.map(path => <option key={path} value={path}>{pathLabel(path)}</option>)}</select></Field>
           <Field label="Historical view"><select value={filters.history} onChange={e => change("history", e.target.value)}><option value="current">Current status of selected cohort</option><option value="plan">Closing plan at period end · recorded history</option></select></Field>
           <button onClick={readSaved}>Load my saved views</button>
@@ -317,7 +350,7 @@ export function PipelineDashboard() {
             {!(currentQueue ? visibleWork.length : visibleRows.length) && <p className={s.empty}>No records match this view.</p>}
           </div>
           {chosen && <aside key={chosen.id} className={s.panel} aria-label={`Opportunity ${chosen.customerName}`} onChange={() => { dirty.current = true; }}>
-            <header className={s.header}><div><h2>{chosen.customerName}</h2><p>{chosen.vehicle || chosen.title}</p><small>{chosen.opportunityNumber} · Version {chosen.version}</small></div><button aria-label="Close opportunity panel" onClick={() => { if (!dirty.current || window.confirm("Leave this unsaved form?")) { dirty.current = false; setSelected(null); } }}>×</button></header>
+            <header className={s.header}><div><h2>{chosen.customerName}</h2><p>{chosen.vehicle || chosen.title}</p><small>{chosen.opportunityNumber} · Version {chosen.version}</small>{chosen.lostReason && <small>Lost reason · {chosen.lostReason}</small>}</div><button aria-label="Close opportunity panel" onClick={() => { if (!dirty.current || window.confirm("Leave this unsaved form?")) { dirty.current = false; setSelected(null); } }}>×</button></header>
             <nav className={s.panelTabs} aria-label="Opportunity sections">{["Up next", "Details", "Activity", "Documents", "Sequence", "Forecast"].map(name => <button key={name} aria-pressed={panel === name} onClick={() => { if (dirty.current && !window.confirm("Leave the unsaved form in this section?")) return; dirty.current = false; setPanel(name); }}>{name}</button>)}</nav>
             {panel === "Up next" && <>
               <div className={s.next}><strong>UP NEXT</strong><h3>{chosen.contactReview || chosen.nextActionLabel || "Set a dated next action"}</h3><p>{chosen.ownerName} · {date(chosen.nextActionDueAt)}</p><p>{chosen.contact?.phone || "Phone needs review"} · {chosen.contact?.email || "Email not provided"}</p></div>
@@ -332,7 +365,7 @@ export function PipelineDashboard() {
                 <Field label="Short note"><textarea name="reason" required maxLength={1000} /></Field><Field label="Next action"><input name="nextActionLabel" required maxLength={240} /></Field><FutureField />
               </Form> : <p>Sales follow-up is closed. Continue fulfillment on the linked deal and resolve remaining activities in the staff task queue, or ask a manager to reopen the opportunity.</p>}
               {canWork && <details><summary>Schedule a follow-up without completing an activity</summary><Form action="FOLLOW_UP"><Field label="Next action"><input name="nextActionLabel" required /></Field><FutureField /></Form></details>}
-              <div className={s.buttons}>{chosen.customerId && <Link href={`/crm-next/customers/${encodeURIComponent(chosen.customerId)}`}>Customer record &amp; files</Link>}{chosen.dealId ? <Link href={chosen.dealHref ?? `/crm-next/deals/start?draftId=${encodeURIComponent(chosen.dealId)}`}>Continue existing deal</Link> : <button disabled={busy} onClick={() => chosen.dealChoices?.length ? setPanel("Documents") : void command({ action: "CONVERT" }, chosen)}>Open deal</button>}</div>
+              <div className={s.buttons}>{chosen.customerId && <Link href={customerPipelineHref(chosen.customerId, chosen.id)}>Customer 360 pipeline</Link>}{chosen.dealId ? <Link href={chosen.dealHref ?? `/crm-next/deals/start?draftId=${encodeURIComponent(chosen.dealId)}`}>Continue existing deal</Link> : <button disabled={busy} onClick={() => chosen.dealChoices?.length ? setPanel("Documents") : void command({ action: "CONVERT" }, chosen)}>Open deal</button>}</div>
             </>}
             {panel === "Details" && <>
               <Form action="EDIT" label="Save opportunity details"><Field label="Customer link"><select name="customerId" defaultValue={chosen.customerId ?? ""}><option value="">Customer not linked</option>{data.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}{matches.filter(m => !data.customers.some(c => c.id === m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field><Field label="Revenue pathway"><select name="pathway" defaultValue={chosen.pathway}>{PIPELINE_PATHS.map(path => <option key={path} value={path}>{pathLabel(path)}</option>)}</select></Field><Field label="Engagement temperature"><select name="temperature" defaultValue={chosen.temperature}>{["HOT", "WARM", "COLD"].map(v => <option key={v}>{v}</option>)}</select></Field><Field label="Estimated value · USD"><input name="amount" type="number" min="0" step="0.01" defaultValue={chosen.estimatedValueCents === null ? "" : chosen.estimatedValueCents / 100} /></Field><Field label="Expected close date · store calendar"><input type="date" name="expectedCloseDate" defaultValue={chosen.expectedCloseAt?.slice(0, 10) ?? ""} /></Field><Field label="Reason for changes"><input name="reason" required /></Field></Form>
@@ -379,11 +412,11 @@ export function PipelineDashboard() {
       </section>}
       {tab === "Insights" && range && <div className={s.insights}><PipelineInsights rows={reportingRows} range={range} now={now} onDrill={drillInto} /></div>}
     </>}
-    {showIntake && data && <IntakeDialog onClose={() => { if (!dirty.current || window.confirm("Discard the unsaved inquiry?")) { dirty.current = false; setShowIntake(false); } }}><div className={s.intake}><header className={s.header}><h2 id="pipeline-intake-title">Capture inquiry</h2><button onClick={() => { if (!dirty.current || window.confirm("Discard the unsaved inquiry?")) { dirty.current = false; setShowIntake(false); } }}>Close</button></header><p>Capture incomplete inquiries now. Missing contact or ownership stays in an accountable review queue.</p>{error && <p role="alert" className={s.error}>{error}</p>}<form className={s.form} onChange={() => { dirty.current = true; }} onSubmit={submit("CAPTURE")}><Field label="Name or inquiry description"><input autoFocus name="title" required maxLength={160} /></Field><Field label="Existing customer · verify identity"><select name="customerId"><option value="">Unverified inquiry · review required</option>{data.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}{matches.filter(m => !data.customers.some(c => c.id === m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field><Field label="Phone"><input name="phone" maxLength={80} /></Field><Field label="Email"><input name="email" maxLength={160} /></Field><button type="button" onClick={async e => {
+    {showIntake && data && <IntakeDialog onClose={() => { if (!dirty.current || window.confirm("Discard the unsaved inquiry?")) { dirty.current = false; setShowIntake(false); } }}><div className={s.intake}><header className={s.header}><h2 id="pipeline-intake-title">Capture inquiry</h2><button onClick={() => { if (!dirty.current || window.confirm("Discard the unsaved inquiry?")) { dirty.current = false; setShowIntake(false); } }}>Close</button></header><p>Capture incomplete inquiries now. Missing contact or ownership stays in an accountable review queue.</p>{error && <p role="alert" className={s.error}>{error}</p>}<form className={s.form} onChange={() => { dirty.current = true; }} onSubmit={submit("CAPTURE")}><Field label="Name or inquiry description"><input autoFocus name="title" required maxLength={160} /></Field><Field label="Existing customer · verify identity">{intakeCustomerId ? <><span>{intakeIdentity?.name ?? "Customer must be verified before saving"}</span><input type="hidden" name="customerId" value={intakeIdentity?.id ?? ""} /></> : <select name="customerId"><option value="">Unverified inquiry · review required</option>{data.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}{matches.filter(m => !data.customers.some(c => c.id === m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}</Field><Field label="Phone"><input name="phone" maxLength={80} /></Field><Field label="Email"><input name="email" maxLength={160} /></Field><button type="button" onClick={async e => {
           const form = e.currentTarget.closest("form")!, values = new FormData(form), q = String(values.get("phone") || values.get("email") || values.get("title") || "");
           const response = await fetch(`/api/crm-next/pipeline?match=${encodeURIComponent(q)}`, { cache: "no-store" }); const result = await response.json();
           if (!response.ok) { setError(result.error); return; } setMatches(result.items); setNotice(result.items.length ? "Review possible customer matches before linking." : "No accessible match found. The inquiry can still be captured for review.");
         }}>Check existing customers</button>
-        {matches.map(m => <p key={m.id}>{m.name} · {m.phoneHint}</p>)}<p className={s.meta}>Choose a verified match in Existing customer above. Shared contact details alone do not prove identity.</p><Field label="Source"><input name="sourceCode" required defaultValue="MANUAL" maxLength={80} /></Field><Field label="Source reference · keep for retries"><input name="sourceKey" required defaultValue={intakeKey} maxLength={160} /></Field><Field label="Vehicle interest"><input name="vehicle" maxLength={240} /></Field><Field label="Revenue pathway"><select name="pathway">{PIPELINE_PATHS.map(path => <option key={path} value={path}>{pathLabel(path)}</option>)}</select></Field><Field label="Owner"><select name="ownerUserId" defaultValue={data.actorId}>{data.canManage && <option value="">Intake manager queue</option>}{data.owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field><Field label="Inquiry note"><textarea name="note" maxLength={1000} /></Field><button className={s.primary} disabled={busy}>Capture and retain inquiry</button></form><p>Possible duplicates must be reviewed before linking; matching names or shared contact details do not automatically merge people.</p></div></IntakeDialog>}
+        {matches.map(m => <p key={m.id}>{m.name} · {m.phoneHint}</p>)}<p className={s.meta}>Choose a verified match in Existing customer above. Shared contact details alone do not prove identity.</p><Field label="Source"><input name="sourceCode" required defaultValue="MANUAL" maxLength={80} /></Field><Field label="Source reference · keep for retries"><input name="sourceKey" required defaultValue={intakeKey} maxLength={160} /></Field><Field label="Vehicle interest"><input name="vehicle" maxLength={240} /></Field><Field label="Revenue pathway"><select name="pathway">{PIPELINE_PATHS.map(path => <option key={path} value={path}>{pathLabel(path)}</option>)}</select></Field><Field label="Owner"><select name="ownerUserId" defaultValue={data.actorId}>{data.canManage && <option value="">Intake manager queue</option>}{data.owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field><Field label="Inquiry note"><textarea name="note" maxLength={1000} /></Field><button className={s.primary} disabled={busy || !data.canWrite || Boolean(intakeCustomerId && !intakeIdentity)}>Capture and retain inquiry</button></form><p>Possible duplicates must be reviewed before linking; matching names or shared contact details do not automatically merge people.</p></div></IntakeDialog>}
   </section></FormContext.Provider>;
 }
