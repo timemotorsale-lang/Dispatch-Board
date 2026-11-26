@@ -1,5 +1,6 @@
 import { persistDealContext } from "@/server/deal-continuity/service";
-import { dealCustomer } from "@/server/deal-continuity/identities";
+import { dealCustomer, dealOrganization } from "@/server/deal-continuity/identities";
+import { legacyRentalReturnWithoutCompletion } from "@/server/deal-continuity/custody-selection";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -7,9 +8,11 @@ import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/
 import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
 import { isSavedDealStatus } from "@/lib/saved-deal-status";
 import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
+import { isManager } from "@/server/policies/access";
 import { SalesDocumentsError } from "./domain";
 
 const text = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 240) : "";
+const hasSaleClaim = (snapshot: Prisma.JsonValue | undefined) => Boolean(snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) && snapshot["desk:soldVehicleId"]);
 export function sanitizeDealDraftSnapshot(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeDealDraftSnapshot);
   if (!value || typeof value !== "object") return value;
@@ -40,8 +43,16 @@ export async function listSavedDealLibrary(actor: AuthenticatedUser | null, para
   return { items, total, page, pages: Math.max(1, Math.ceil(total / 25)), counts: Object.fromEntries(groups.map((group) => [group.status, group._count._all])) };
 }
 
-export async function readDealDeskDraft(actor: AuthenticatedUser | null, id: string) {
-  const draft = await prisma.dealDeskDraft.findFirst({ where: { ...scope(actor), id } });
+export async function readDealDeskDraft(actor: AuthenticatedUser | null, id: string, rentalActionOnly = false) {
+  const access = scope(actor);
+  const draft = await prisma.dealDeskDraft.findFirst({ where: { ...access, id } });
+  if (!draft && rentalActionOnly && isManager(actor)) {
+    const assignment = await prisma.dealDeskDraft.findFirst({
+      where: { id, organizationId: access.organizationId, pathway: { in: ["daily-rental", "vehicle-loaner"] } },
+      select: { id: true, dealNumber: true, pathway: true, customerName: true, vehicleReference: true, status: true, revision: true, updatedAt: true }
+    });
+    if (assignment) return { ...assignment, snapshot: {}, rentalActionOnly: true };
+  }
   if (!draft) throw new SalesDocumentsError("Saved deal draft was not found.", 404);
   return draft;
 }
@@ -50,11 +61,13 @@ export async function archiveDuplicateDealDraft(actor: AuthenticatedUser | null,
   const access = scope(actor), id = text(raw.id);
   if (!id || !Number.isInteger(raw.revision) || Number(raw.revision) < 0) throw new SalesDocumentsError("Refresh the deals list before archiving.", 409);
   return prisma.$transaction(async db => {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${dealOrganization() + ":deal-context:" + id}, 0))`;
     const current = await db.dealDeskDraft.findFirst({ where: { ...access, id } });
     if (!current) throw new SalesDocumentsError("Saved deal draft was not found.", 404);
     if (current.status === "ARCHIVED") return { id, status: "ARCHIVED" };
+    if (hasSaleClaim(current.snapshot)) throw new SalesDocumentsError("Resolve the recorded sale through the sales unwind workflow before archiving this draft.", 409);
     if (!["IN_PROGRESS", "PENDING"].includes(current.status)) throw new SalesDocumentsError("Only working or pending duplicate drafts can be archived here.", 409);
-    if (await db.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before archiving this deal.", 409);
+    if (await db.vehicleUseBooking.count({ where: { contextId: id, OR: [{ status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, legacyRentalReturnWithoutCompletion] } })) throw new SalesDocumentsError("Resolve the active vehicle assignment or pending return review before archiving this deal.", 409);
     const history = Array.isArray(current.statusHistory) ? current.statusHistory : [];
     const updated = await db.dealDeskDraft.updateMany({ where: { ...access, id, revision: Number(raw.revision), status: current.status }, data: { status: "ARCHIVED", revision: { increment: 1 }, statusHistory: [...history, { from: current.status, to: "ARCHIVED", actorId: access.ownerUserId, at: new Date().toISOString(), reason: "Duplicate deal archived" }] as Prisma.InputJsonValue } });
     if (updated.count !== 1) throw new SalesDocumentsError("This deal changed in another window. Refresh the list and review it before archiving.", 409);
@@ -73,10 +86,16 @@ export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Re
   const snapshot = sanitizeDealDraftSnapshot(JSON.parse(serialized)) as Prisma.InputJsonValue;
   const data = { snapshot, pathway, customerId: text(raw.customerId) || null, customerName: text(raw.customerName) || "Customer not selected", vehicleReference: text(raw.vehicleReference) };
   return prisma.$transaction(async (db) => {
+    const rental = ["daily-rental", "vehicle-loaner"].includes(pathway);
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${dealOrganization() + ":deal-context:" + id}, 0))`;
     const identity = (snapshot as Record<string, unknown>)["desk:identity"] as Record<string, unknown> | undefined;
     if (identity?.customerId && data.customerId) data.customerName = (await dealCustomer(actor, data.customerId, db)).name;
     const current = await db.dealDeskDraft.findUnique({ where: { id } });
     const status = raw.status === undefined ? current?.status ?? "IN_PROGRESS" : raw.status as string;
+    if (status !== current?.status && ["SOLD", "COMPLETED"].includes(status)) throw new SalesDocumentsError("Use the sales or completion workflow to record this transition.", 409);
+    if (current && (current.status === "SOLD" || hasSaleClaim(current.snapshot)) && status !== current.status) throw new SalesDocumentsError("Use the sales unwind workflow to change a recorded sale.", 409);
+    if (rental && status !== (current?.status ?? "IN_PROGRESS")) throw new SalesDocumentsError("Use the rental or loaner workflow actions to change its status.", 409);
+    if (rental && current?.status === "CANCELLED") throw new SalesDocumentsError("This assignment was cancelled. Start a new rental or loaner to continue.", 409);
     const contextOptions = { allowVehicleOnlyDraft: status === "IN_PROGRESS" };
     const history = Array.isArray(current?.statusHistory) ? current.statusHistory : [];
     const statusData = { status, ...(!current || current.status !== status ? { statusHistory: [...history, { from: current?.status ?? null, to: status, actorId: access.ownerUserId, at: new Date().toISOString() }] as Prisma.InputJsonValue } : {}) };
@@ -91,6 +110,12 @@ export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Re
     const savedJackets = savedSnapshot.jackets && typeof savedSnapshot.jackets === "object" && !Array.isArray(savedSnapshot.jackets) ? savedSnapshot.jackets : {};
     const savedReferences = savedSnapshot.references && typeof savedSnapshot.references === "object" && !Array.isArray(savedSnapshot.references) ? savedSnapshot.references : {};
     const savedJacket = savedJackets[current.pathway], savedReference = savedReferences[current.pathway];
+    if (rental && typeof savedJacket === "string") {
+      const nextJackets = (snapshot as Record<string, unknown>).jackets as Record<string, unknown> | undefined;
+      if (nextJackets?.[current.pathway] !== savedJacket && await db.salesDocumentJacket.findFirst({ where: {
+        id: savedJacket, organizationId: access.organizationId, pathway: current.pathway, versions: { some: { phase: "CHECKOUT" } }
+      }, select: { id: true } })) throw new SalesDocumentsError("Keep the finalized checkout packet linked to this assignment. Review its documents before continuing.", 409);
+    }
     if (typeof savedJacket === "string" || typeof savedReference === "string") {
       const preserved = await db.salesDocumentJacket.findFirst({ where: { organizationId: access.organizationId, pathway: current.pathway, ...(typeof savedJacket === "string" ? { id: savedJacket } : { dealReference: savedReference as string }), state: { in: ["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"] } }, select: { id: true } });
       if (preserved) throw new SalesDocumentsError("This deal has preserved final paperwork or a pending unwind review. A manager must reopen finalized deals for corrections from the Deals list.", 409);

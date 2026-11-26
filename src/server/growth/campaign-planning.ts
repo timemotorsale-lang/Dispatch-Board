@@ -86,7 +86,7 @@ function hashCommand(value: unknown) {
 
 function assertCommand(command: GrowthCampaignCommand) {
   if (!command.idempotencyKey.trim()) throw new Error("Idempotency key is required.");
-  if (command.reason.trim().length < 10) throw new Error("Reason must explain the business purpose.");
+  if (!command.reason.trim()) throw new Error("Reason must explain the business purpose.");
 }
 
 function clonePlan(plan: GrowthCampaignPlan): GrowthCampaignPlan {

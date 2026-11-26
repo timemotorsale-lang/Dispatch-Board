@@ -694,7 +694,7 @@ export function RepairOrderEnterpriseWorkbench({
   const authorization = latestDecision && ["ACCEPTED", "PARTIAL"].includes(latestDecision.disposition) ? latestDecision : null;
   const intakeChecks = [
     ["Customer and vehicle", Boolean(order.customer || order.inventoryUnit) && Boolean(order.vehicle)],
-    ["Concern captured", concernSummary.length >= 10 && concernSummary !== "Concern not recorded."],
+    ["Concern captured", concernSummary !== "Concern not recorded."],
     ["Keys and custody", order.serviceVisit.keysReceivedCount >= 0],
     ["Consent disposition", Boolean(order.serviceVisit.consentStatus)],
     ["Accountable owner", Boolean(ownerUserId)],

@@ -156,7 +156,7 @@ export async function addReconciliationNote(actor: AuthenticatedUser | null, acc
   const access = await collectionsAccess(actor, "APPROVE_MONEY");
   await findAccount(prisma, access, accountId);
   const reason = text(note, 1000);
-  if (reason.length < 10) throw new CollectionsError("Explain the difference (at least 10 characters).");
+  if (reason.trim().length === 0) throw new CollectionsError("Explain the difference.");
   await recordAccountEvent(prisma, { organizationId: access.organizationId, accountId, type: "RECONCILIATION_NOTE", userId: access.actor.id, reason });
   return { ok: true as const, message: "Note saved." };
 }

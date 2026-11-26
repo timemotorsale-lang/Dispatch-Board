@@ -65,7 +65,7 @@ export function validateGrowthCommandBoundary<TPayload extends Record<string, un
 
   if (!envelope.actorId.trim()) failures.push("Actor is required.");
   if (!envelope.idempotencyKey.trim()) failures.push("Idempotency key is required.");
-  if (envelope.reason.trim().length < 10) failures.push("Reason must explain the business purpose.");
+  if (!envelope.reason.trim()) failures.push("Reason must explain the business purpose.");
   if (!rolesByScope[envelope.scope].includes(envelope.actorRole)) failures.push(`${envelope.actorRole} cannot run ${envelope.scope}.`);
   if (boundary !== "GrowthOnly" && !options.allowExternalMutation) {
     failures.push(`${boundary} mutation is locked. This command may only prepare a preview or dry run.`);

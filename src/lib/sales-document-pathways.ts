@@ -1,3 +1,5 @@
+export const SALES_DOCUMENT_CHECKOUT_FINALIZED = "sales-document-checkout-finalized";
+
 export const SALES_DOCUMENT_PATHWAYS = {
   "retail-sale": "Retail Cash / One Pay",
   "outside-finance-one-pay": "Retail Outside Finance",

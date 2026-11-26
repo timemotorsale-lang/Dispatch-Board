@@ -12,6 +12,17 @@ const actor: AuthenticatedUser = { id: "staff-1", name: "Staff", email: "staff@l
 const draft = { id: "draft-12345678", revision: 0, pathway: "bhph", customerName: "Buyer", vehicleReference: "Vehicle", snapshot: { "bhph:terms": { salePrice: "$14000", downPayment: "$2000" } } };
 
 describe("Saved deal draft controls", () => {
+  it("only exposes the narrow cross-owner rental action record to a manager", async () => {
+    mocks.findFirst.mockReset();
+    const manager = { ...actor, roles: ["General Manager"] };
+    const assignment = { id: draft.id, pathway: "daily-rental", revision: 4, customerName: "Renter", vehicleReference: "Vehicle" };
+    mocks.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(assignment);
+    await expect(readDealDeskDraft(manager, draft.id, true)).resolves.toEqual({ ...assignment, snapshot: {}, rentalActionOnly: true });
+    expect(mocks.findFirst.mock.calls[1][0].select).not.toHaveProperty("snapshot");
+    mocks.findFirst.mockReset().mockResolvedValue(null);
+    await expect(readDealDeskDraft(actor, draft.id, true)).rejects.toMatchObject({ status: 404 });
+    expect(mocks.findFirst).toHaveBeenCalledOnce();
+  });
   it("lets the database assign the number and prevents a client from replacing it", async () => {
     mocks.findUnique.mockResolvedValue(null); mocks.create.mockImplementation(({ data }) => ({ ...data, dealNumber: 1234 }));
     expect((await saveDealDeskDraft(actor, { ...draft, dealNumber: 9999 })).dealNumber).toBe(1234);
@@ -67,7 +78,7 @@ describe("Saved deal draft controls", () => {
     mocks.findUnique.mockResolvedValue(null);
     identities.vehicle.mockRejectedValueOnce(new Error("Choose an active canonical vehicle."));
     await expect(saveDealDeskDraft(actor, working)).rejects.toThrow("Choose an active canonical vehicle.");
-    await expect(saveDealDeskDraft(actor, { ...working, status: "SOLD" })).rejects.toThrow("Choose one shared CRM customer");
+    await expect(saveDealDeskDraft(actor, { ...working, status: "SOLD" })).rejects.toThrow("Use the sales or completion workflow");
     expect(identities.upsert).not.toHaveBeenCalled();
   });
   it("does not allow another account to overwrite a draft", async () => {

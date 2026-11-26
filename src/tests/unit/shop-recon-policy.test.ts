@@ -49,12 +49,12 @@ describe("Shop Recon governed transition policy", () => {
 
   it("version-controls a changed scope and requires a material finding", () => {
     expect(normalizeShopReconScopeChange({ expectedVersion: 4, idempotencyKey: "scope-1", reason: "New condition found during repair.", finding: "Corrosion extends beyond the approved repair area.", affectedRepairJobIds: ["job-1"], originalScope: { line: "A" }, proposedScope: { line: "B" } })).toMatchObject({ expectedVersion: 4, affectedRepairJobIds: ["job-1"] });
-    expect(() => normalizeShopReconScopeChange({ expectedVersion: 4, idempotencyKey: "scope-2", reason: "New condition found during repair.", finding: "short", originalScope: {}, proposedScope: {} })).toThrow("New finding is required");
+    expect(() => normalizeShopReconScopeChange({ expectedVersion: 4, idempotencyKey: "scope-2", reason: "New condition found during repair.", finding: " ", originalScope: {}, proposedScope: {} })).toThrow("New finding is required");
   });
 
   it("requires an attributable reason when returning a repair to parts readiness", () => {
     expect(normalizeShopReconPartsReadinessReturn({ expectedVersion: 4, idempotencyKey: "parts-return-1", reason: "Required parts are not purchased or available." })).toMatchObject({ expectedVersion: 4, idempotencyKey: "parts-return-1" });
-    expect(() => normalizeShopReconPartsReadinessReturn({ expectedVersion: 4, idempotencyKey: "parts-return-2", reason: "short" })).toThrow("Parts-readiness reason is required");
+    expect(() => normalizeShopReconPartsReadinessReturn({ expectedVersion: 4, idempotencyKey: "parts-return-2", reason: " " })).toThrow("Parts-readiness reason is required");
   });
 
   it("assigns the approved authorities across planning and dispatch stages", () => {

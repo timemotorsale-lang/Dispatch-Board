@@ -73,7 +73,7 @@ export function normalizePhase7MechanicalAcknowledgementPersistenceCommand(value
   const acknowledgement = raw.acknowledgement as Phase7MechanicalShadowAcknowledgementRecord | undefined;
   if (!Number.isInteger(expectedCaseVersion) || expectedCaseVersion < 1) throw new Error("Phase 7 acknowledgement persistence requires a positive case version.");
   if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("Phase 7 acknowledgement persistence requires an idempotency key.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Phase 7 acknowledgement persistence reason must be 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Phase 7 acknowledgement persistence reason is required and must be at most 500 characters.");
   if (!acknowledgement || typeof acknowledgement !== "object") throw new Error("Phase 7 acknowledgement persistence requires an acknowledgement record.");
   if (acknowledgement.policyVersion !== PHASE_7_MECHANICAL_SHADOW_ACKNOWLEDGEMENT_VERSION) throw new Error("Phase 7 acknowledgement persistence requires the Phase 7 acknowledgement policy.");
   if (!checksumOk(acknowledgement.acknowledgementChecksum) || !checksumOk(acknowledgement.readinessResultChecksum)) throw new Error("Phase 7 acknowledgement persistence requires acknowledgement and readiness checksums.");

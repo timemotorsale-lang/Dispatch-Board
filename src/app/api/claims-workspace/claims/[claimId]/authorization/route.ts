@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     const actor = await getCurrentUser(); const { claimId } = await params; const dependencies = await claimsWorkspaceDependencies();
     const model = await getClaimWorkspaceReadModel(actor, claimId, dependencies);
     const input = await request.json().catch(() => null);
-    if (!input || model.claim.status !== "OPEN" || input.action !== "WITHDRAW" || !CLAIM_PERMISSION_CATEGORIES.includes(input.category) || typeof input.reason !== "string" || input.reason.trim().length < 10 || input.reason.length > 1000) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Select a permission and record the customer's withdrawal request (10-1000 characters).");
+    if (!input || model.claim.status !== "OPEN" || input.action !== "WITHDRAW" || !CLAIM_PERMISSION_CATEGORIES.includes(input.category) || typeof input.reason !== "string" || input.reason.trim().length === 0 || input.reason.length > 1000) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Select a permission and record the customer's withdrawal request (up to 1000 characters).");
     const result = await attachClaimEvidence(actor, claimId, { category: input.category, status: "BLOCKED", title: `${input.category === "CLAIM_COMMUNICATION" ? "Claim communication" : "Direct payment"} permission withdrawn`, notes: input.reason.trim(), relationshipTargets: ["CLAIM", "CUSTOMER"] }, dependencies);
     return NextResponse.json(result);
   } catch (error) { return failure(error); }

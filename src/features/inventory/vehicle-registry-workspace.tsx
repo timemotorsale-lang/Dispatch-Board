@@ -23,6 +23,7 @@ type VehicleListItem = {
   version: number;
   updatedAt: string;
   work?: VehicleWorkActions;
+  custodyLabel?: string | null;
   _count: { duplicateCasesAsCandidate: number; duplicateCasesAsPrimary: number };
 };
 
@@ -520,8 +521,9 @@ export function VehicleRegistryWorkspace({
               <li className={styles.result} key={item.id}>
                 <div className={styles.identity}>
                   <strong>{vehicleTitle(item)}</strong>
-                  <span>{[item.vehicleNumber, item.stockNumber && `Stock ${item.stockNumber}`, item.licensePlate && `Plate ${item.licensePlate}`].filter(Boolean).join(" · ")}</span>
+                  <span>{[item.vehicleNumber, (item.stockNumber || deriveStockNumberFromVin(item.vin)) && `Stock ${item.stockNumber || deriveStockNumberFromVin(item.vin)}`, item.licensePlate && `Plate ${item.licensePlate}`].filter(Boolean).join(" · ")}</span>
                   {item.vin && <span>VIN {item.vin}</span>}
+                  {item.custodyLabel && <span>{item.custodyLabel}</span>}
                   {item.status !== "ACTIVE" && <span className={styles.badge}>{item.status.toLowerCase().replaceAll("_", " ")}</span>}
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <span className={styles.badge}>Duplicate review</span>}
                 </div>
@@ -556,6 +558,7 @@ export function VehicleRegistryWorkspace({
                 <p>{[selected.year, selected.make, selected.model, selected.color].filter(Boolean).join(" · ")}</p>
               </div>
               <dl className="etw-facts compact">
+                {selected.custodyLabel && <div><dt>Temporary use</dt><dd>{selected.custodyLabel}</dd></div>}
                 <div><dt>VIN</dt><dd>{selected.vin ?? selected.vinRaw ?? selected.nonVinReason ?? "Not recorded"}</dd></div>
                 <div><dt>Stock</dt><dd>{selected.stockNumber ?? "Not recorded"}</dd></div>
                 <div><dt>Plate</dt><dd>{selected.licensePlate ?? "Not recorded"}</dd></div>

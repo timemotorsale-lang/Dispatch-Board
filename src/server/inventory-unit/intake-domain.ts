@@ -3,9 +3,9 @@ export type IntakeDetails = { source: string; seller: string; boughtFrom: string
 export function intakePending(details: IntakeDetails) {
   return [!details.source && "Acquisition source", !details.seller && "Seller", !details.boughtFrom && "Purchase location", !details.buyer && "Who acquired the vehicle", !details.acquiredOn && "Acquisition date", details.purchaseCents === null && "Purchase price", !details.whereabouts && "Current whereabouts", details.odometer === null && "Odometer", !details.condition && "Condition", details.keys === null && "Keys", details.titleStatus !== "RECEIVED" && "Title", !details.documents && "Documents"].filter((value): value is string => Boolean(value));
 }
-export function intakeConfirmationIssue(details: IntakeDetails) {
+export function intakeConfirmationIssue(details: IntakeDetails): { field: "whereabouts" | "condition"; message: string } | null {
   if (!details.whereabouts.trim()) return { field: "whereabouts", message: "Enter where the vehicle is now before confirming intake." };
-  if (details.condition.trim().length < 10) return { field: "condition", message: "Describe the arrival condition / damage (at least 10 characters)." };
+  if (!details.condition.trim()) return { field: "condition", message: "Describe the arrival condition / damage." };
   return null;
 }
 export function normalizeIntake(value: unknown, now: Date) {
@@ -23,7 +23,7 @@ export function normalizeIntake(value: unknown, now: Date) {
   if (!["DRAFT", "CONFIRMED"].includes(String(body.status))) throw new Error("Intake action is invalid.");
   const expectedVersion = integer(body.expectedVersion, 2_000_000_000), expectedUnitVersion = integer(body.expectedUnitVersion, 2_000_000_000);
   if (expectedVersion === null || typeof body.idempotencyKey !== "string" || !body.idempotencyKey.trim() || body.idempotencyKey.length > 200) throw new Error("Intake revision and retry key are required.");
-  if (body.reason != null && (typeof body.reason !== "string" || body.reason.length > 1000 || (body.reason.trim().length > 0 && body.reason.trim().length < 10))) throw new Error("An optional intake note must contain at least 10 characters and at most 1000.");
+  if (body.reason != null && (typeof body.reason !== "string" || body.reason.length > 1000)) throw new Error("An optional intake note must be text of at most 1000 characters.");
   const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : body.status === "CONFIRMED" ? "Confirm acquisition intake." : "Save acquisition intake draft.";
   const pendingItems = intakePending(details);
   if (body.status === "CONFIRMED") {

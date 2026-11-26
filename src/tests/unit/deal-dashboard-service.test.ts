@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
-const mocks = vi.hoisted(() => ({ query: vi.fn(), jackets: vi.fn(), tasks: vi.fn(), bookings: vi.fn(), access: vi.fn(), taxes: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { $queryRaw: mocks.query, salesDocumentJacket: { findMany: mocks.jackets }, task: { findMany: mocks.tasks }, vehicleUseBooking: { findMany: mocks.bookings }, complianceTaxRecord: { findMany: mocks.taxes } } }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), jackets: vi.fn(), draftLedgers: vi.fn(), tasks: vi.fn(), bookings: vi.fn(), access: vi.fn(), taxes: vi.fn() }));
+vi.mock("@/server/db/client", () => ({ prisma: {
+  $queryRaw: mocks.query,
+  salesDocumentJacket: { findMany: mocks.jackets },
+  documentLibraryAuditEvent: { findMany: mocks.draftLedgers },
+  task: { findMany: mocks.tasks },
+  vehicleUseBooking: { findMany: mocks.bookings },
+  complianceTaxRecord: { findMany: mocks.taxes },
+} }));
 vi.mock("@/server/compliance/service", () => ({ complianceAccess: mocks.access }));
 import { buildDealDashboard } from "@/server/sales-documents/dashboard";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
@@ -36,16 +43,41 @@ describe("scoped deal dashboard", () => {
   });
   it("shows active rentals and return alerts independently of generic working status", async () => {
     mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental" }]);
-    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: null, status: "CHECKED_OUT", expectedReturnAt: new Date(Date.now() - 1000) }]);
+    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: null, status: "CHECKED_OUT", startsAt: new Date(Date.now() - 120000), checkedOutAt: new Date(Date.now() - 60000), expectedReturnAt: new Date(Date.now() - 1000) }]);
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams());
     expect(result.items[0]).toMatchObject({ stage: "Rental Overdue", needsAttention: true });
     expect(result.items[0].nextAction).toContain("actual return");
   });
-  beforeEach(() => { vi.resetAllMocks(); mocks.query.mockResolvedValue([]); mocks.jackets.mockResolvedValue([]); mocks.tasks.mockResolvedValue([]); mocks.bookings.mockResolvedValue([]); mocks.access.mockRejectedValue({ status: 403 }); });
+  it("counts rental and loaner lifecycle stages before filtering rows and keeps closed paperwork separate from custody", async () => {
+    const makeRental = (id: string, pathway = "daily-rental", status = "IN_PROGRESS") => ({ ...row(id, status), pathway });
+    const custody = { startsAt: new Date("2026-11-01T15:00:00Z"), checkedOutAt: new Date("2026-11-01T15:00:00Z"), returnedAt: new Date("2026-11-02T15:00:00Z"), expectedReturnAt: new Date("2026-11-02T15:00:00Z"), departureSnapshot: null };
+    mocks.query.mockResolvedValue([makeRental("draft"), makeRental("cancel", "vehicle-loaner", "CANCELLED"), { ...makeRental("held", "vehicle-loaner", "COMPLETED"), jacketId: "held-jacket", packetState: "CLOSED" }, makeRental("complete")]);
+    mocks.jackets.mockResolvedValue([{ id: "held-jacket", requirements: [], versions: [{ phase: "RETURN", disposition: "CLOSED", finalizedAt: custody.returnedAt }], packet: { documents: [] } }]);
+    mocks.bookings.mockResolvedValue([
+      { ...custody, contextId: "held", agreementJacketId: "held-jacket", status: "RETURNED_REVIEW", returnSnapshot: null },
+      { ...custody, contextId: "complete", status: "RETURNED", returnSnapshot: { completion: { recordedAt: "2026-11-03T03:30:00Z" } } },
+    ]);
+    const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=rentals&rentalStage=RETURNED_REVIEW"));
+    expect(result.total).toBe(1);
+    expect(result.dashboard.rentalCounts).toMatchObject({ DRAFT: 1, CANCELLED: 1, RETURNED_REVIEW: 1, COMPLETE: 1 });
+    expect(result.items[0]).toMatchObject({ id: "held", rental: { occupancy: "Held · return review", actions: ["COMPLETE"] }, needsAttention: true });
+    const closed = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=rentals&rentalStage=COMPLETE"));
+    expect(closed.items[0]).toMatchObject({ id: "complete", completedDate: "2026-11-02" });
+    await expect(buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("rentalStage=__proto__"))).rejects.toMatchObject({ status: 400 });
+  });
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.query.mockResolvedValue([]);
+    mocks.jackets.mockResolvedValue([]);
+    mocks.draftLedgers.mockResolvedValue([]);
+    mocks.tasks.mockResolvedValue([]);
+    mocks.bookings.mockResolvedValue([]);
+    mocks.access.mockRejectedValue({ status: 403 });
+  });
   it("does not use the last edit as a completion date and keeps undated records out of period totals", async () => {
     mocks.query.mockResolvedValue([{ ...row("sold", "SOLD"), packetState: "CLOSED", statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }, row("old", "COMPLETED"), { ...row("rental", "COMPLETED"), pathway: "daily-rental", statusHistory: [{ to: "COMPLETED", at: "2026-10-31T18:00:00Z" }] }]);
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day&bucket=completed"));
-    expect(result.total).toBe(2);
+    expect(result.total).toBe(1);
     expect(result.dashboard.summary.groups.find(group => group.key === "SALES")?.completed).toBe(1);
     expect(result.dashboard.summary.undatedCompleted).toBe(1);
     expect(result.dashboard.taxes.available).toBe(false);
@@ -109,9 +141,9 @@ describe("scoped deal dashboard", () => {
   });
   it("surfaces overdue vehicle returns and does not treat them as overdue reminders", async () => {
     mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental", jacketId: "rental-packet", packetState: "CHECKED_OUT" }]);
-    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: "rental-packet", status: "CHECKED_OUT", expectedReturnAt: new Date("2026-01-01") }]);
+    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: "rental-packet", status: "CHECKED_OUT", checkedOutAt: new Date("2025-12-31"), expectedReturnAt: new Date("2026-01-01") }]);
     const returns = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("bucket=returns"));
-    expect(returns.items[0]).toMatchObject({ nextAction: "Contact customer and record actual return or approved extension", indicators: { overdue: false, alerts: expect.arrayContaining(["Vehicle return due"]) } });
+    expect(returns.items[0]).toMatchObject({ nextAction: "Contact the customer and record actual return or an approved extension", indicators: { overdue: false, alerts: expect.arrayContaining(["Vehicle return is overdue."]) } });
     expect((await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("bucket=overdue"))).total).toBe(0);
   });
   it("rejects team scope for staff and shows no-follow-up work explicitly", async () => {
@@ -131,5 +163,17 @@ describe("scoped deal dashboard", () => {
     const result = await buildDealDashboard(manager, Prisma.sql`SELECT 1`, new URLSearchParams("status=CURRENT&date=2026-10-31&period=day"));
     expect(result.items).toHaveLength(0);
     expect(result.dashboard.financials).toMatchObject({ recordedDeals: 1, paymentsCents: 50000, netCents: 50000 });
+  });
+  it("includes a daily rental payment recorded before the deal has a document packet", async () => {
+    mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental" }, row("sale")]);
+    mocks.draftLedgers.mockResolvedValue([{ id: "rental-payment", subjectId: "rental", action: "DEAL_FINANCIAL_RECORDED",
+      occurredAt: new Date("2026-10-31T18:00:00Z"), metadata: { kind: "PAYMENT", amountCents: 5000, businessDate: "2026-10-31", reference: "CASH-RENTAL" } }]);
+    const manager = { ...actor, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+    const result = await buildDealDashboard(manager, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day"));
+    expect(mocks.draftLedgers).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId,
+      subjectType: "DEAL", subjectId: { in: ["rental"] }, packetId: null, action: "DEAL_FINANCIAL_RECORDED",
+    } }));
+    expect(result.dashboard.financials).toMatchObject({ recordedDeals: 1, paymentsCents: 5000, netCents: 5000 });
   });
 });

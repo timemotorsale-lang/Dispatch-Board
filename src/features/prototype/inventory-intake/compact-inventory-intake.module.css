@@ -60,6 +60,9 @@
 .feedback ul { margin: 5px 0 0; padding-left: 18px; }
 .footer { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 10px 16px; border-top: 1px solid #c9d5e1; background: var(--surface, #fff); border-radius: 0 0 5px 5px; }
 .footer > span { font-size: 11px; color: var(--text-secondary, #526273); }
+.saveError, .saveStatus { flex: 0 0 100%; padding: 6px 9px; border-inline-start: 3px solid; border-radius: 3px; }
+.saveError { background: #fff1f2; color: #842029; }
+.saveStatus { background: var(--surface-muted, #eef4fa); border-color: #337dc1; }
 .actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .workspace button { min-height: 34px; max-width: 100%; border: 1px solid #9eb7cf; border-radius: 3px; padding: 6px 10px; font: inherit; font-weight: 600; color: var(--text-primary, #214b74); background: var(--surface, #fff); cursor: pointer; }
 .workspace button:hover { background: var(--surface-muted, #eaf2fa); }

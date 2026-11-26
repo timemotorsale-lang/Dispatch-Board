@@ -175,7 +175,6 @@ export function normalizeReceivedPartOutcome(value: unknown) {
     return { ...input, outcome, repairJobId: required(raw.repairJobId, "Repair job ID", 100), evidence, reason: "Record verified installation of received repair parts." } as const;
   }
   const reason = required(raw.returnReason, "Return reason", 500);
-  if (reason.length < 10) throw new Error("Return reason must be at least 10 characters.");
   const deadlineAt = date(raw.deadlineAt, "Return deadline");
   if (deadlineAt < input.occurredAt) throw new Error("Return deadline cannot precede the outcome time.");
   return { ...input, outcome, deadlineAt, reason } as const;

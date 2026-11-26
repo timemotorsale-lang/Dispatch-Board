@@ -11,13 +11,14 @@ export function DealWorkspaceOverview({ savedSummary, customer, vehicle, pathway
  customer: string; vehicle: string; pathway: string; pathwayLabel: string; owner: string; status: keyof typeof SAVED_DEAL_STATUSES; finalized: boolean; saved: boolean; saveStatus: string; section: DealWorkspaceSection; onNavigate: (section: DealWorkspaceSection) => void;
 }) {
  const repair = pathway === "repairs";
+ const rental = pathway === "daily-rental" || pathway === "vehicle-loaner";
  const sectionLabel = (key: DealWorkspaceSection, label: string) =>
   repair && key === "terms" ? "Repair concern" :
   repair && key === "documents" ? "Repair documents" :
   repair && key === "completion" ? "Repair handoff" :
-  pathway === "daily-rental" && key === "completion" ? "Checkout & Return" : label;
+  rental && key === "completion" ? "Checkout & Return" : label;
  const next = dealNextAction({ customer: Boolean(customer), vehicle: Boolean(vehicle), pathway, status, finalized });
- const statusLabel = status === "SOLD" ? finalized ? "Sold · finalized" : "Sold · paperwork pending" : pathway === "daily-rental" ? "Daily Rental · checkout & return" : SAVED_DEAL_STATUSES[status];
+ const statusLabel = rental ? pathwayLabel : status === "SOLD" ? finalized ? "Sold · finalized" : "Sold · paperwork pending" : SAVED_DEAL_STATUSES[status];
  return <div className={styles.workspace}>
   <header className={styles.heading}><div><h1>{repair ? "Repair deal" : pathway === "daily-rental" ? "Daily Rental" : savedSummary ? "Deal summary" : "Deal overview"}</h1><p>{pathway === "daily-rental" ? "Prepare checkout, activate the rental, monitor due-back and record return." : saved ? "Continue this saved deal" : "Prepare the deal; it is saved when you select a customer or save your work."}</p></div><div className={styles.links}><Link href="/crm-next/deals">Deals Home</Link><span className={styles.status} data-state={status === "SOLD" ? finalized ? "complete" : "pending" : undefined}>{statusLabel}</span></div></header>
   {(!savedSummary || section !== "overview") && <div className={styles.identity} aria-label="Deal identity summary"><div><small>Customer</small>{customer ? <strong>{customer}</strong> : <button type="button" onClick={() => onNavigate("identity")}>Choose customer</button>}</div><div><small>Vehicle</small><strong>{vehicle || "Choose vehicle"}</strong></div><div><small>Pathway</small><strong>{pathwayLabel}</strong></div><div><small>Assigned staff</small><strong>{owner}</strong><small>{saveStatus}</small></div></div>}

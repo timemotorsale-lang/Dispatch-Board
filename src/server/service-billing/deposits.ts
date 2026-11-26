@@ -50,7 +50,7 @@ export async function getRepairDepositView(db: Database, organizationId: string,
 export async function executeRepairDeposit(actor: AuthenticatedUser | null, repairOrderId: string, raw: Record<string, unknown>, organizationId: string, enforceRollout = true) {
   const action = String(raw.action) as keyof typeof kinds;
   if (!DEPOSIT_ACTIONS.includes(action)) throw new Error("Unsupported deposit action.");
-  const idempotencyKey = text(raw.idempotencyKey, "Idempotency key"), reason = text(raw.reason, "Detailed financial reason", 10), reference = text(raw.reference, "Receipt reference");
+  const idempotencyKey = text(raw.idempotencyKey, "Idempotency key"), reason = text(raw.reason, "Detailed financial reason", 1), reference = text(raw.reference, "Receipt reference");
   const evidence = Array.isArray(raw.evidence) ? raw.evidence.map(item => text(item, "Verified payment evidence")) : [];
   if (!evidence.length) throw new Error("Verified deposit evidence is required.");
   const amountCents = Number(raw.amountCents), expectedVersion = Number(raw.expectedVersion), occurredAt = new Date(String(raw.occurredAt));

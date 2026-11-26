@@ -1,6 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
+import { describeVehicleCustodySelection } from "@/lib/vehicle-use-custody";
+import { vehicleCustodySelection } from "@/server/deal-continuity/custody-selection";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 
@@ -83,11 +85,16 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
       ] }));
       const [total, items] = await Promise.all([
         database.vehicle.count({ where }),
-        database.vehicle.findMany({ where, orderBy: [{ updatedAt: "desc" }, { vehicleNumber: "asc" }], skip: (input.page - 1) * input.pageSize, take: input.pageSize, select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, vinState: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, status: true, version: true, updatedAt: true, _count: { select: { duplicateCasesAsCandidate: { where: { status: "OPEN" } }, duplicateCasesAsPrimary: { where: { status: "OPEN" } } } } } })
+        database.vehicle.findMany({ where, orderBy: [{ updatedAt: "desc" }, { vehicleNumber: "asc" }], skip: (input.page - 1) * input.pageSize, take: input.pageSize, select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, vinState: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, status: true, version: true, updatedAt: true, vehicleUseBookings: vehicleCustodySelection(organizationId), _count: { select: { duplicateCasesAsCandidate: { where: { status: "OPEN" } }, duplicateCasesAsPrimary: { where: { status: "OPEN" } } } } } })
       ]);
-      return { items, page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
+      return { items: items.map(({ vehicleUseBookings, ...item }) => ({ ...item, custodyLabel: describeVehicleCustodySelection(vehicleUseBookings ?? [])?.label ?? null })), page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
     },
-    getDetail(organizationId: string, id: string) { return database.vehicle.findFirst({ where: { id, organizationId }, include: detailInclude }); },
+    async getDetail(organizationId: string, id: string) {
+      const row = await database.vehicle.findFirst({ where: { id, organizationId }, include: { ...detailInclude, vehicleUseBookings: vehicleCustodySelection(organizationId) } });
+      if (!row) return null;
+      const { vehicleUseBookings, ...vehicle } = row;
+      return { ...vehicle, custodyLabel: describeVehicleCustodySelection(vehicleUseBookings ?? [])?.label ?? null };
+    },
     findPotentialDuplicate(organizationId: string, identity: Pick<RegistryIdentity, "stockNumberNormalized" | "vin">, excludeId?: string) {
       const matches: Prisma.VehicleWhereInput[] = [];
       if (identity.vin) matches.push({ vin: identity.vin });

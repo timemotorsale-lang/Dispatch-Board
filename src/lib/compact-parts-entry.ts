@@ -104,7 +104,7 @@ export async function runCompactPartsEntry(input: CompactPartsEntryInput, model:
   if (wantsOutcome && !progress.steps.outcome) {
     if ((!input.receiptId && !receiving) || !positive(quantity) || quantity > input.quantity || !validDate(input.usageOccurredAt)) return finish("BLOCKED", "Choose received parts, a valid outcome quantity and date.", "Complete the explicit parts outcome details.");
     if (input.usage === "USED" && (!evidence.length || evidence.some(item => !item.trim()) || !model.repairJobs?.some(job => job.id === input.repairJobId && job.repairOrderId === input.repairOrderId && job.status && !["UNKNOWN", "CANCELLED", "QC_PASSED"].includes(job.status)))) return finish("BLOCKED", "Installation needs an active job on this repair order and evidence.", "Refresh job status and record the installation details.");
-    if (input.usage === "RETURN" && ((input.returnReason?.trim().length ?? 0) < 10 || !input.deadlineAt || !Number.isFinite(Date.parse(input.deadlineAt)) || Date.parse(input.deadlineAt) < Date.parse(input.usageOccurredAt!))) return finish("BLOCKED", "Return follow-up needs a reason and a deadline on or after its recorded time.", "Complete the return follow-up details.");
+    if (input.usage === "RETURN" && (!input.returnReason?.trim() || !input.deadlineAt || !Number.isFinite(Date.parse(input.deadlineAt)) || Date.parse(input.deadlineAt) < Date.parse(input.usageOccurredAt!))) return finish("BLOCKED", "Return follow-up needs a reason and a deadline on or after its recorded time.", "Complete the return follow-up details.");
   }
   const completeReceipt = async (message: string, nextAction: string, lineIndex = 0) => {
     if (!wantsOutcome) return finish("COMPLETE", message, nextAction);

@@ -46,24 +46,32 @@ describe("controlled revenue pathway change", () => {
     expect(data.snapshot).not.toHaveProperty("test-drive:generatedPacketId");
     expect(data.statusHistory[0]).toMatchObject({ fromPathway: "lease-to-own", toPathway: "test-drive", reason: "Prospect requested a test drive" });
   });
-  it("blocks stale edits without blocking sold deals, historical paperwork or active custody", async () => {
+  it("blocks conversion to sales or leasing while temporary vehicle custody remains open", async () => {
     await expect(changeDealPathway(actor, { ...command, revision: 2 })).rejects.toMatchObject({ status: 409 });
     mocks.booking.mockResolvedValue(1); mocks.packet.mockResolvedValue({ id: "signed" }); mocks.find.mockResolvedValue({ ...draft, pathway: "daily-rental", status: "COMPLETED" });
+    await expect(changeDealPathway(actor, command)).rejects.toMatchObject({ status: 409, message: expect.stringContaining("complete the vehicle return") });
+    expect(mocks.update).not.toHaveBeenCalled();
+    mocks.booking.mockResolvedValue(0);
     await changeDealPathway(actor, command);
     const data = mocks.update.mock.calls[0][0].data;
     expect(data.status).toBe("PENDING");
-    expect(data.snapshot["desk:assignmentPathway"]).toBe("daily-rental");
-    expect(data.statusHistory[0]).toMatchObject({ from: "COMPLETED", to: "PENDING", preservedPacketId: "signed", activeAssignmentPreserved: true });
+    expect(data.statusHistory[0]).toMatchObject({ from: "COMPLETED", to: "PENDING", preservedPacketId: "signed", activeAssignmentPreserved: false });
   });
-  it.each(["SOLD", "COMPLETED", "PENDING"])("moves or keeps %s in Pending and changes the pathway atomically without a reason", async status => {
+  it.each(["COMPLETED", "PENDING"])("moves or keeps %s in Pending and changes the pathway atomically without a reason", async status => {
     mocks.find.mockResolvedValue({ ...draft, status });
     const result = await changeDealPathway(actor, { ...command, reason: "" });
     expect(result).toMatchObject({ pathway: "lease-to-own", status: "PENDING", revision: 4 });
     expect(mocks.update).toHaveBeenCalledOnce();
     expect(mocks.update.mock.calls[0][0]).toMatchObject({ where: { id: draft.id, status, revision: 3, pathway: "retail-sale" }, data: { status: "PENDING", pathway: "lease-to-own", statusHistory: [expect.objectContaining({ from: status, to: "PENDING", reason: "", actorId: actor.id })] } });
   });
+  it("keeps recorded sales and pending sale unwinds in the sales pathway", async () => {
+    mocks.find.mockResolvedValueOnce({ ...draft, status: "SOLD" }).mockResolvedValueOnce({ ...draft, status: "PENDING", snapshot: { ...draft.snapshot, "desk:soldVehicleId": "vehicle" } });
+    await expect(changeDealPathway(actor, command)).rejects.toThrow("sales unwind workflow");
+    await expect(changeDealPathway(actor, command)).rejects.toThrow("sales unwind workflow");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
   it("does not move status or write history if the atomic update loses a race", async () => {
-    mocks.find.mockResolvedValue({ ...draft, status: "SOLD" }); mocks.update.mockResolvedValue({ count: 0 });
+    mocks.find.mockResolvedValue({ ...draft, status: "PENDING" }); mocks.update.mockResolvedValue({ count: 0 });
     await expect(changeDealPathway(actor, { ...command, reason: "" })).rejects.toMatchObject({ status: 409 });
     expect(mocks.update).toHaveBeenCalledOnce();
   });

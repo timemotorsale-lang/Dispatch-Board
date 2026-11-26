@@ -12,7 +12,7 @@ describe("inventory unit foundation domain", () => {
     expect(() => normalizeInventoryUnitCreate({ ...input, inventoryNumber: "bad number!" }, now)).toThrow(/inventory number/i);
   });
   it("requires attributable waiting and blocker reasons", () => {
-    expect(() => normalizeInventoryUnitControlUpdate({ expectedVersion: 1, idempotencyKey: "one", locationId: "loc", nextAction: "Call carrier", operatingState: "BLOCKED", ownerUserId: "owner", reason: "Update the blocked control state.", stateReason: "short", targetAt: "2026-07-17T08:00:00Z" })).toThrow("at least 10");
+    expect(() => normalizeInventoryUnitControlUpdate({ expectedVersion: 1, idempotencyKey: "one", locationId: "loc", nextAction: "Call carrier", operatingState: "BLOCKED", ownerUserId: "owner", reason: "Update the blocked control state.", stateReason: " ", targetAt: "2026-07-17T08:00:00Z" })).toThrow("Waiting or blocker reason is required");
     expect(() => normalizeInventoryUnitControlUpdate({ expectedVersion: 1, idempotencyKey: "one", locationId: "loc", nextAction: "Close", operatingState: "CLOSED", ownerUserId: "owner", reason: "Attempt premature close state.", stateReason: "Unit is delivered", targetAt: "2026-07-17T08:00:00Z" })).toThrow("invalid for the foundation");
   });
   it("measures total age, stage age, and overdue targets", () => {

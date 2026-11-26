@@ -1,5 +1,22 @@
 # Daily rental workflow refinement
 
+## Rentals and loaners in CRM Next
+
+Open **Deals → Rentals & Loaners**. Use the lifecycle filter to find drafts, reserved vehicles, vehicles out or overdue, returns awaiting review, completed assignments, and cancellations. The row and details drawer open the saved assignment at its next action. Times on these screens use America/Chicago. During the repeated fall hour, select the occurrence shown in the actual evidence.
+
+In **Terms & Payments**, tab out of a complete VIN to decode blank vehicle fields and check the registry. If it is missing, open **Register this VIN** to reuse the number. A registered vehicle without an open inventory unit links to Inventory Intake. Release and return photo slots offer **Take photo** and **Upload photo** and show a filename after the upload is accepted.
+
+- **Prepare Checkout** shows the linked customer, vehicle, terms, and checkout blockers. Reserve in advance when needed. Confirm actual handoff, driver, keys, condition, mileage, and coverage through the due-back time before the vehicle becomes **Rented Out** or **Loaner Active**. Routine checkout records the reason and links accepted documents automatically. Managers enter a dated record and explanation for historical handoff.
+- **Record Return** records physical receipt and places the vehicle on hold. Finalize the linked return packet and use **Complete Rental** or **Complete Loaner** to confirm inspection and record the settlement or no-charge reference. Managers can record a settlement exception with a reason. Completion releases rental custody.
+- **Cancel** is for work before handoff. Once checkout paperwork is signed and finalized, a manager confirms physical handoff never occurred before cancelling. Existing agreement versions and usage history are retained. For actual handoffs more than 24 hours old, a manager records the dated evidence and original checkout time. Existing documents or scheduled dates alone never establish actual custody.
+- To convert a resolved rental or loaner to a sale, use **Change revenue pathway** and the existing sales workflow. Inventory, the vehicle registry, and deal vehicle selection show temporary-use holds. The database serializes checkout and sales decisions for the same canonical vehicle.
+
+Apply the cross-workflow custody and return-review migrations together on an isolated database before release. Neither migration backfills facts or changes historical documents. A legacy return without explicit completion remains held for review. A legacy sale needs a canonical vehicle link, exact VIN, or exact stock, vehicle, or inventory number for automatic conflict matching.
+
+Pause rental and loaner returns during the production cutover until the health endpoint reports the new revision. The previous app writes returns directly to `RETURNED`, which the upgraded database rejects for rentals and loaners. If the release needs recovery, keep returns paused and prefer a corrected image that supports `RETURNED_REVIEW`. Use the verified pre-migration database snapshot only after reconciling writes made since it was taken. Before resuming returns, verify an actual return enters `RETURNED_REVIEW` and only a completed review releases the vehicle.
+
+## Prior daily-rental implementation
+
 Branch: `codex/enterprise-general-refinement`. Base: `e7124bd272da8c2fc2cd2a5711eeb098f0a90eca`.
 
 ## Review
@@ -31,6 +48,14 @@ Existing finalized documents alone never activate a legacy rental. A legacy rent
 ## Verification limits
 
 Activation no longer requires a separate reservation submission: an unreserved Daily Rental uses an ACTIVATE command to create the booking and complete validated handover, custody, follow-up and audit writes in one transaction. Checkout dates, fuel and mileage are prefilled from saved terms without marking handover facts verified. Opening or refreshing checkout does not save or reset terms. Clean saved drafts do not need another draft save before a custody action. Actual handover, signed paperwork, coverage and vehicle availability checks remain required, and failures retain entered checkout values. Insurance and handover evidence are included in retry fingerprints.
+
+For a dealership-owned vehicle with confirmed intake and no open repair order, a staff member with inventory readiness permission can confirm that the vehicle is on site, safe to rent, and needs no repairs. This confirmation is recorded on the rental or loaner and tied to the current inventory and intake revisions. It leaves the retail stage unchanged. Checkout still requires the finalized agreement, verified insurance, and actual handoff.
+
+Use **Review & finalize checkout packet** to see missing evidence and upload it in the checklist. Generated forms are available for signing. Upload the signed agreement, driver license, insurance proof, and checkout condition record, then verify each item. Select **Finalize packet & continue to handoff** to save the reviewed paperwork. Coverage must reach the due-back time before release. Once the driver receives the vehicle and keys, confirm the actual checkout time and physical handoff, then select **Activate Rental** or **Activate Loaner**. Documents opens with **Rented Out** or **Loaner Active** and **Close checkout & return to Rentals**. Reopening the assignment shows when activation was saved.
+
+In the **Money** tab, a manager can use **Collect payment** to record cash received at the counter or a payment confirmed through a card terminal, check, or bank transfer. Use **Open latest receipt** to print or save the branded receipt. The same receipt stays available after reopening the rental, and verified refunds or reversals appear on reprints. A recorded agreed amount is required to show a balance. Security holds and the external card, bank, or refund transaction use their existing channels.
+
+In the **Rental** drawer, save staff updates under **Progress notes**. Record damage or theft under **Return incidents** after actual checkout. The incident creates a high-priority follow-up in Tasks, where staff can track it through completion. Authorized staff can open internal Claims Desk intake or link an existing claim for the same vehicle and customer.
 
 The Details drawer includes a Rental tab with lifecycle progress, the next operational action, actual checkout/due-back/return dates, coverage exceptions, checkout and return evidence, linked follow-ups and the rental audit trail. Return and extension links open the original draft's checkout controls. Rental document review omits generic funding/delivery badges; generic manager milestone overrides are hidden for rentals. Existing financial records remain unchanged. Resume uses the persisted deal pathway as authoritative, and the picker explicitly explains that selecting a saved deal does not load it until Resume is clicked.
 

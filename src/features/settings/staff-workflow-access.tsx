@@ -47,7 +47,7 @@ export function StaffWorkflowAccess({ staff }: { staff: StaffAccess[] }) {
         {selected && <>
           <label><input type="checkbox" checked={deals} onChange={event => setDeals(event.target.checked)} /> Allow Deals</label>{" "}
           <label><input type="checkbox" checked={calendar} onChange={event => setCalendar(event.target.checked)} /> Allow Calendar</label>
-          <label className="field"><span>Reason</span><input value={reason} onChange={event => setReason(event.target.value)} minLength={10} maxLength={500} required /></label>
+          <label className="field"><span>Reason</span><input value={reason} onChange={event => setReason(event.target.value)} maxLength={500} required /></label>
           <button type="submit">{saving ? "Saving…" : "Save access"}</button>
         </>}
       </fieldset>

@@ -117,7 +117,7 @@ export async function overrideTaskCompletion(actor: AuthenticatedUser | null, ta
   if (!isManager(user)) throw new Error("Manager access is required to override completion evidence.");
   const candidate = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const reason = typeof candidate.reason === "string" ? candidate.reason.trim() : "";
-  if (reason.length < 10) throw new Error("Completion overrides require a reason of at least 10 characters.");
+  if (!reason) throw new Error("Completion overrides require a reason.");
   const repository = dependencies.repository ?? createTaskExecutionRepository();
   const task = await repository.findTask(taskId.trim());
   if (!task) throw new Error("Task not found.");

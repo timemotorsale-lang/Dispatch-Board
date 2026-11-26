@@ -174,8 +174,8 @@ export function evaluateDiagnosticEstimateAdvisorControls(input: DiagnosticEstim
   if (input.repairHandoff && (input.repairHandoff.status !== "PUBLISHED" || input.repairHandoff.handoffType !== "PUBLISH_DIAGNOSIS" || !input.repairHandoff.repairDiagnosisVersionId)) blockers.push("ADVISOR_ESTIMATE_REPAIR_DIAGNOSIS_PUBLICATION_REQUIRED");
   if (input.repairHandoff && input.repairHandoff.operations.length === 0) blockers.push("ADVISOR_ESTIMATE_OPERATION_PACKAGE_REQUIRED");
   if (!["HANDED_OFF", "POST_REPAIR_VERIFICATION", "VERIFIED_CLOSED"].includes(input.currentCaseStatus)) blockers.push("ADVISOR_ESTIMATE_CASE_NOT_HANDED_OFF");
-  if (input.advisorSummary.trim().length < 10) blockers.push("ADVISOR_ESTIMATE_SUMMARY_REQUIRED");
-  if (input.customerConcernSummary.trim().length < 5 || input.customerCauseSummary.trim().length < 10 || input.customerCorrectionSummary.trim().length < 10) blockers.push("ADVISOR_ESTIMATE_CUSTOMER_LANGUAGE_REQUIRED");
+  if (!input.advisorSummary.trim()) blockers.push("ADVISOR_ESTIMATE_SUMMARY_REQUIRED");
+  if (input.customerConcernSummary.trim().length < 5 || !input.customerCauseSummary.trim() || !input.customerCorrectionSummary.trim()) blockers.push("ADVISOR_ESTIMATE_CUSTOMER_LANGUAGE_REQUIRED");
   if (!input.draftLines.length) blockers.push("ADVISOR_ESTIMATE_LINES_REQUIRED");
   if (!input.taxBoundary.trim()) blockers.push("ADVISOR_ESTIMATE_TAX_BOUNDARY_REQUIRED");
   if (new Date(input.expiresAt) <= new Date(input.occurredAt)) blockers.push("ADVISOR_ESTIMATE_EXPIRY_REQUIRED");

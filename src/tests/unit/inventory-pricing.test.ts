@@ -19,7 +19,7 @@ describe("vehicle pricing policy", () => {
     expect(comparePricing([], input)).toMatchObject({ known: false, marginCents: null, meetsThreshold: false });
     expect(comparePricing([...costs, { id: "other", category: "TITLE", currency: "CAD", status: "INCURRED", amountCents: 100 }], input).known).toBe(false);
   });
-  it.each([{ priceCents: 0 }, { packEnabled: false, packCents: 1 }, { threshold: 10001 }, { threshold: null }, { includeEstimates: "false" }, { expectedVersion: 0 }, { reason: "short" }])("rejects invalid settings %j", invalid => {
+  it.each([{ priceCents: 0 }, { packEnabled: false, packCents: 1 }, { threshold: 10001 }, { threshold: null }, { includeEstimates: "false" }, { expectedVersion: 0 }, { reason: " " }])("rejects invalid settings %j", invalid => {
     expect(() => normalizePricing({ ...input, ...invalid })).toThrow();
   });
   it("allows managers and explicit grants to change price settings but not cost records", () => {

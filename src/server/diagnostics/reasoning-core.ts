@@ -36,7 +36,7 @@ export function normalizeDiagnosticReasoningCommand(value: unknown) {
   const idempotencyKey = typeof raw.idempotencyKey === "string" ? raw.idempotencyKey.trim() : ""; const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected diagnostic-case version must be a positive integer.");
   if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("Reasoning idempotency key is required and cannot exceed 200 characters.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Reasoning evaluation requires a reason of 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Reasoning evaluation requires a reason of up to 500 characters.");
   const supersedesId = raw.supersedesId == null || raw.supersedesId === "" ? null : String(raw.supersedesId).trim();
   return { expectedVersion, idempotencyKey, reason, supersedesId, bounds: normalizeBounds(raw.bounds && typeof raw.bounds === "object" && !Array.isArray(raw.bounds) ? raw.bounds as Partial<ReasoningBounds> : {}) };
 }

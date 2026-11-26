@@ -17,7 +17,7 @@ export function normalizePricing(value: unknown) {
   if (!body.packEnabled && packCents !== 0) throw new Error("Disabled pack must be zero.");
   const marginMode = body.marginMode as "OFF" | "AMOUNT" | "PERCENT";
   if (marginMode === "OFF" && body.threshold != null) throw new Error("Disabled enforcement must not carry a threshold.");
-  return { priceCents: integer("priceCents", 1), packEnabled: body.packEnabled, packCents, includeEstimates: body.includeEstimates, marginMode, threshold: marginMode === "OFF" ? null : integer("threshold", 0, marginMode === "PERCENT" ? 10000 : 2_000_000_000), expectedVersion: integer("expectedVersion", 1), idempotencyKey: string("idempotencyKey", 1, 200), reason: string("reason", 10, 1000) };
+  return { priceCents: integer("priceCents", 1), packEnabled: body.packEnabled, packCents, includeEstimates: body.includeEstimates, marginMode, threshold: marginMode === "OFF" ? null : integer("threshold", 0, marginMode === "PERCENT" ? 10000 : 2_000_000_000), expectedVersion: integer("expectedVersion", 1), idempotencyKey: string("idempotencyKey", 1, 200), reason: string("reason", 1, 1000) };
 }
 
 export function comparePricing(costs: readonly { id?: string; category: string; status: string; currency: string; amountCents: number }[], proposal: { priceCents: number; packCents: number; includeEstimates: boolean; marginMode: string; threshold: number | null }) {

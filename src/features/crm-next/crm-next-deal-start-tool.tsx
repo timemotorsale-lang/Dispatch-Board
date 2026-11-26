@@ -1,13 +1,15 @@
 "use client";
 
-import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { openPrintablePdfDocument } from "@/lib/printable-pdf";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
+import { isTemporaryVehicleConflict, RentalVehicleConflictActions, type ConflictingRentalAssignment } from "./rental-vehicle-conflict";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
+import { RentalPhotoCapture } from "./rental-photo-capture";
 import type { DealCustomerList } from "@/lib/deal-continuity";
 import { DealSavedSummary } from "./deal-saved-summary";
 import { DealWorkspaceOverview, DealActivityPanel } from "./deal-workspace-overview";
@@ -1460,6 +1462,8 @@ function DailyRentalExecutionDesk({
   onAmountChange,
   onCustomerNameChange,
   onSaveDraft,
+  onChooseVehicle,
+  onChooseDifferentVehicle,
   onVehicleChange,
   statusKind,
   vehicle
@@ -1474,6 +1478,8 @@ function DailyRentalExecutionDesk({
   onAmountChange: (value: string) => void;
   onCustomerNameChange?: (value: string) => void;
   onSaveDraft: () => void;
+  onChooseVehicle: (vehicle: DealVehicleChoice) => void;
+  onChooseDifferentVehicle: () => void;
   onVehicleChange: (value: string) => void;
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
@@ -1483,11 +1489,17 @@ function DailyRentalExecutionDesk({
   const workflowTitle = isLoaner ? "Vehicle loaner" : "Daily rental";
   const checkoutDeskRef = useRef<HTMLDivElement>(null);
   const vinDecoderRef = useRef<VinDecoderHandle>(null);
+  const linkedVehicle = useContext(SharedDealVehicleContext);
+  const [registryCheck, setRegistryCheck] = useState<{ vin: string; status: "checking" | "found" | "missing" | "error" }>();
+  const [showRegistryPicker, setShowRegistryPicker] = useState(false);
+  const registryRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => registryRequest.current?.abort(), []);
   const workflowUnitLabel = isLoaner ? "Loaner unit" : "Rental unit";
   const feeStatusLabel = isLoaner ? "Deferred - waived if purchase completes" : "Due at checkout";
   const [preparedForms, setPreparedForms] = useDealDraftState<string[]>("preparedForms", []);
   const [contractPacket, setContractPacket] = useArchivedDealPacket<GeneratedContractPacket>();
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetConflict, setPacketConflict] = useState<ConflictingRentalAssignment | null>(null);
   const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
@@ -1622,7 +1634,7 @@ function DailyRentalExecutionDesk({
     setLocalActionMessage("");
     const vin = normalizeVin(value);
     const stockNumber = getStockNumberFromVin(vin);
-    setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
+    setRentalVinFacts(vin, stockNumber);
     onVehicleChange(stockNumber || vin || vehicle);
   }
 
@@ -1630,10 +1642,15 @@ function DailyRentalExecutionDesk({
     setLocalActionMessage("");
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
-    if (!vin) { setVehicleFacts((current) => ({ ...current, vin: "", stockNumber: "" })); return; }
-    setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
+    setRentalVinFacts(vin || "", vin ? getStockNumberFromVin(vin) : "");
   }
 
+  function setRentalVinFacts(vin: string, stockNumber: string) {
+    setVehicleFacts(current => ({
+      ...current, ...(/^[A-HJ-NPR-Z0-9]{17}$/.test(current.vin) && current.vin !== vin ? { year: "", make: "", model: "", trim: "" } : {}),
+      vin, stockNumber
+    }));
+  }
 
   function useAuthorizationTotal() {
     const total = formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents);
@@ -1659,9 +1676,25 @@ function DailyRentalExecutionDesk({
     setter((current) => ({ ...current, [id]: file.name }));
   }
 
+  function checkRentalVin() {
+    const vin = vehicleFacts.vin.trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || linkedVehicle?.vin === vin) return;
+    if (registryCheck?.vin === vin && ["checking", "found"].includes(registryCheck.status)) return;
+    registryRequest.current?.abort();
+    const controller = new AbortController();
+    registryRequest.current = controller;
+    setRegistryCheck({ vin, status: "checking" });
+    void fetch(`/api/crm/v1/deal-identities?type=vehicles&q=${encodeURIComponent(vin)}`, { cache: "no-store", signal: controller.signal }).then(async response => {
+      if (!response.ok) throw new Error("Registry lookup failed.");
+      const result = await response.json() as { items: DealVehicleChoice[] };
+      if (!controller.signal.aborted) setRegistryCheck({ vin, status: result.items.some(item => item.vin.toUpperCase() === vin) ? "found" : "missing" });
+    }).catch(() => { if (!controller.signal.aborted) setRegistryCheck({ vin, status: "error" }); });
+  }
+
   function saveRentalDraft() {
+    checkRentalVin();
     onSaveDraft();
-    setLocalActionMessage(`${workflowTitle} draft saved. Completion stays locked until the listed gates are clear.`);
+    setLocalActionMessage("");
   }
 
   function completeReceiving() {
@@ -1730,10 +1763,25 @@ function DailyRentalExecutionDesk({
   const identityDraft = useDealDraft();
   async function generateRentalPacket() {
     if (identityDraft && !await identityDraft.save()) return;
+    setPacketConflict(null);
     setPacketStatus({ kind: "generating", message: `Generating and archiving ${workflowNoun} packet...` });
+    const documentContext = getDocumentContext();
+    let packetVehicle = linkedVehicle;
+    if (documentContext.vehicleId && packetVehicle?.id !== documentContext.vehicleId) {
+      try {
+        const selected = await fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(documentContext.vehicleId)}`, { cache: "no-store" });
+        const saved = await selected.json();
+        if (!selected.ok) throw new Error(saved.error || "The saved vehicle could not be opened.");
+        packetVehicle = saved as DealVehicleChoice;
+      } catch (error) {
+        setPacketStatus({ kind: "error", message: error instanceof Error ? error.message : "Open the shared vehicle and try again." });
+        return;
+      }
+    }
     const response = await requestContractPacket({
       body: JSON.stringify({
-        ...getDocumentContext(),
+        ...documentContext,
+        ...(packetVehicle ? { vin: packetVehicle.vin, stockNumber: packetVehicle.stockNumber } : {}),
         customerName,
         dailyRental: {
           ...rentalFacts,
@@ -1753,13 +1801,13 @@ function DailyRentalExecutionDesk({
         preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredRentalForms,
         salePrice: formatCurrency(estimatedRentalCents),
         vehicle: {
-          color: vehicleFacts.color,
-          make: vehicleFacts.make,
-          model: vehicleFacts.model,
-          stockNumber: vehicleFacts.stockNumber,
+          color: packetVehicle?.color || vehicleFacts.color,
+          make: packetVehicle?.make || vehicleFacts.make,
+          model: packetVehicle?.model || vehicleFacts.model,
+          stockNumber: packetVehicle?.stockNumber || vehicleFacts.stockNumber,
           trim: vehicleFacts.trim,
-          vin: vehicleFacts.vin,
-          year: vehicleFacts.year
+          vin: packetVehicle?.vin || vehicleFacts.vin,
+          year: packetVehicle?.year || vehicleFacts.year
         }
       }),
       headers: { "content-type": "application/json" },
@@ -1767,7 +1815,13 @@ function DailyRentalExecutionDesk({
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : `${workflowTitle} packet could not be generated.` });
+      const message = typeof payload.error === "string" ? payload.error : `${workflowTitle} packet could not be generated.`;
+      setPacketStatus({ kind: "error", message });
+      if (identityDraft && isTemporaryVehicleConflict(message)) {
+        const assignment = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(identityDraft.draftId())}`, { cache: "no-store" })
+          .then(async result => result.ok ? await result.json() as { conflictingAssignment?: ConflictingRentalAssignment } : null).catch(() => null);
+        setPacketConflict(assignment?.conflictingAssignment ?? null);
+      }
       return;
     }
     const generatedPacket = payload as GeneratedContractPacket;
@@ -1833,7 +1887,7 @@ function DailyRentalExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, plate, or unit" /></label>
-          <label><span>VIN</span><input onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>VIN</span><input onBlur={() => { vinDecoderRef.current?.decodeOnExit(); checkRentalVin(); }} value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
           <CrmNextVinDecoder ref={vinDecoderRef} vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values, onlyEmpty) => {
             setVehicleFacts((current) => onlyEmpty ? fillEmptyDecodeFields(current, values) : ({ ...current, ...values }));
@@ -1851,6 +1905,12 @@ function DailyRentalExecutionDesk({
           <label><span>Fuel out</span><select value={rentalFacts.fuelOut} onChange={(event) => updateRentalFact("fuelOut", event.target.value)}><option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Empty</option></select></label>
           <label><span>Fuel return rule</span><select value={rentalFacts.returnFuel} onChange={(event) => updateRentalFact("returnFuel", event.target.value)}><option>Return full</option><option>Return same level</option><option>Prepaid fuel</option><option>Manager exception</option></select></label>
         </div>
+        {linkedVehicle && !linkedVehicle.inventoryUnitId && linkedVehicle.vin === vehicleFacts.vin.toUpperCase() && <p>The VIN is registered. <a href={`/prototype/inventory-intake?vehicleId=${encodeURIComponent(linkedVehicle.id)}`} target="_blank" rel="noopener noreferrer">Open Inventory Intake</a> to establish the inventory unit before checkout.</p>}
+        {registryCheck?.vin === vehicleFacts.vin.toUpperCase() && linkedVehicle?.vin !== registryCheck.vin && <div>
+          <p role="status">{registryCheck.status === "checking" ? "Checking the vehicle registry…" : registryCheck.status === "error" ? "The registry could not be checked. Use Find vehicle before adding another record." : registryCheck.status === "found" ? "This VIN is registered. Select the existing vehicle for this rental." : "No active registry vehicle matched this VIN. Register it before assigning it to the rental."}</p>
+          {registryCheck.status !== "checking" && <button type="button" onClick={() => setShowRegistryPicker(true)}>{registryCheck.status === "missing" ? "Register this VIN" : "Find vehicle in registry"}</button>}
+          {showRegistryPicker && registryCheck.status !== "checking" && <SharedDealVehiclePicker key={registryCheck.vin} initialQuery={registryCheck.vin} startAdding={registryCheck.status === "missing"} label={isLoaner ? "Loaner vehicle" : "Rental vehicle"} temporaryUse onSelect={selected => { onChooseVehicle(selected); setShowRegistryPicker(false); }} />}
+        </div>}
       </section>
 
       <section className={styles.retailSection} id="rental-protection">
@@ -1903,22 +1963,22 @@ function DailyRentalExecutionDesk({
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Release photos</h3>
-            <p>Use a phone camera when available. These photo slots document condition before staff releases the {workflowNoun} vehicle.</p>
+            <p>Take or upload a photo for each view before staff releases the {workflowNoun} vehicle.</p>
             <div className={styles.rentalEvidenceGrid}>
               {RENTAL_RELEASE_PHOTO_REQUIREMENTS.map((item) => (
-                <label className={releasePhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                <div className={`${styles.rentalPhotoTile} ${releasePhotos[item.id] ? styles.rentalEvidenceCaptured : ""}`} key={item.id}>
                   <span>{item.label}</span>
                   <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
                   <StorageDestination>vehicle file and {workflowNoun} deal jacket</StorageDestination>
-                  <input data-document-type="release-condition" data-checkout-field={!releasePhotos[item.id] ? "release-photo" : undefined} accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
-                </label>
+                  <RentalPhotoCapture label={item.label} slot={item.id} documentType="release-condition" missing={!releasePhotos[item.id]} onFile={file => captureEvidence(setReleasePhotos, item.id, file)} />
+                </div>
               ))}
             </div>
           </section>
           <section>
             <h3>Signed document recording</h3>
-            <p>Record the signed packet and proof documents against this {workflowNoun} workflow. These are the documents that should be stored in the governed evidence archive once backend storage is connected here.</p>
+            <p>Attach the signed agreement and supporting documents to this {workflowNoun}. Review them in Sales Documents before checkout.</p>
             <div className={styles.rentalEvidenceGrid}>
               {RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.map((item) => (
                 <label className={signedDocuments[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
@@ -1936,13 +1996,13 @@ function DailyRentalExecutionDesk({
             <p>Receiving cannot be completed until staff records the return condition, mileage, fuel, interior, and damage review.</p>
             <div className={styles.rentalEvidenceGrid}>
               {RENTAL_RETURN_PHOTO_REQUIREMENTS.map((item) => (
-                <label className={returnPhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                <div className={`${styles.rentalPhotoTile} ${returnPhotos[item.id] ? styles.rentalEvidenceCaptured : ""}`} key={item.id}>
                   <span>{item.label}</span>
                   <strong>{returnPhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
                   <StorageDestination>vehicle file and {workflowNoun} receiving record</StorageDestination>
-                  <input data-document-type="return-condition" accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReturnPhotos, item.id, event.currentTarget.files?.[0])} type="file" />
-                </label>
+                  <RentalPhotoCapture label={item.label} slot={item.id} documentType="return-condition" onFile={file => captureEvidence(setReturnPhotos, item.id, file)} />
+                </div>
               ))}
             </div>
             <div className={styles.retailNextActionBar} aria-label={`${workflowTitle} receiving next actions`}>
@@ -1991,6 +2051,7 @@ function DailyRentalExecutionDesk({
             <strong>{rentalReadyFacts >= 5 && releaseEvidenceReady ? `Ready to complete ${workflowNoun} checkout` : releaseEvidenceReady ? `${rentalReadyFacts}/5 counter facts ready` : "Release photos and signed documents required"}</strong>
             <CompletionGateList missing={rentalMissingGates} />
             <small className={styles.actionGateMessage} id={`${workflowNoun}-checkout-gate`}>{checkoutBlockerText}</small>
+            {registryCheck?.vin === vehicleFacts.vin.toUpperCase() && linkedVehicle?.vin !== registryCheck.vin && registryCheck.status === "missing" && <small role="status">This VIN needs a registry record. <a href="#rental-unit" onClick={() => setShowRegistryPicker(true)}>Register this VIN</a></small>}
             {localActionMessage ? <small className={styles.actionFeedbackMessage} role="status">{localActionMessage}</small> : null}
           </div>
           <button type="button" onClick={saveRentalDraft}>Save {workflowNoun} draft</button>
@@ -2014,7 +2075,7 @@ function DailyRentalExecutionDesk({
         <div className={styles.retailPacketLauncher}>
           <div>
             <span>Packet readiness</span>
-            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} forms prepared`}</strong>
             <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
           <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
@@ -2035,7 +2096,7 @@ function DailyRentalExecutionDesk({
                 <div>
                   <span>Required forms ready</span>
                   <strong>{preparedRequiredCount}/{requiredRentalForms.length}</strong>
-                  <small>{isLoaner ? "Prepare the official courtesy loaner packet before release." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
+                  <small>{isLoaner ? "Generate forms for signing. Upload the signed agreement and checkout evidence in the checkout checklist." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>
@@ -2044,6 +2105,10 @@ function DailyRentalExecutionDesk({
                 <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
               </div>
               <PacketFeedback status={packetStatus} closeDrawer={() => setPacketDrawerOpen(false)}><SavedPacketLink packet={contractPacket} /></PacketFeedback>
+              {packetStatus.kind === "error" && isTemporaryVehicleConflict(packetStatus.message) && <RentalVehicleConflictActions conflict={packetConflict} onChooseVehicle={() => {
+                setPacketDrawerOpen(false);
+                onChooseDifferentVehicle();
+              }} />}
               {contractPacket ? (
                 <div className={styles.retailPacketArchive} aria-label="Generated rental packet archive">
                   <div>
@@ -4601,11 +4666,18 @@ function DealStartDesk({
   const workspaceParams = useSearchParams();
   const requestedSection = workspaceParams?.get("section");
   const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>(requestedSection === "terms" ? "terms" : "overview");
+  const [handoffConfirmation, setHandoffConfirmation] = useState<{ draftId?: string; pathway: string; message: string } | null>(null);
+  const handoffLanding = useRef<HTMLDivElement>(null);
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
   const identityPanel = useRef<HTMLDivElement>(null);
   const [identityNavigation, setIdentityNavigation] = useState(0);
   const [packetRequested, setPacketRequested] = useState(false);
+  useEffect(() => {
+    if (!handoffConfirmation) return;
+    handoffLanding.current?.focus({ preventScroll: true });
+    handoffLanding.current?.scrollIntoView({ block: "center" });
+  }, [handoffConfirmation]);
   useEffect(() => {
     const navigate = (event: Event) => {
       const section = (event as CustomEvent<string>).detail;
@@ -4648,7 +4720,7 @@ function DealStartDesk({
   const documentUploadQueue = useRef(Promise.resolve());
   const pendingDocumentUploads = useRef(0);
   const [documentUploadBusy, setDocumentUploadBusy] = useState(false);
-  const failedDocumentUploads = useRef(new Set<HTMLInputElement>());
+  const failedDocumentUploads = useRef(new Set<HTMLInputElement | string>());
   const [documentArchiveMessage, setDocumentArchiveMessage] = useState("");
   const [documentArchiveError, setDocumentArchiveError] = useDealDraftState("documentArchiveError", "");
   const [documentJacketHref, setDocumentJacketHref] = useDealDraftState("documentJacketHref", "/sales-documents");
@@ -4698,7 +4770,7 @@ function DealStartDesk({
     return () => controller.abort();
   }, [identity.vehicleId, setIdentity, setForm]);
   useEffect(() => {
-    if (workflowId !== "bhph" || !identity.vehicleId) return;
+    if ((workflowId !== "bhph" && workflowId !== "daily-rental" && workflowId !== "vehicle-loaner") || !identity.vehicleId) return;
     const controller = new AbortController(), vehicleId = identity.vehicleId;
     void fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(vehicleId)}`, { signal: controller.signal, cache: "no-store" }).then(async response => {
       const vehicle = await response.json();
@@ -4760,8 +4832,8 @@ function DealStartDesk({
         const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(savedDeal.draftId())}`, { cache: "no-store" });
         const result = await response.json();
         if (!response.ok && response.status !== 404) throw new Error(result.error || "Recheck the current assignment before changing vehicle.");
-        if (result.bookings?.some((booking: { status: string }) => ["RESERVED", "CHECKED_OUT"].includes(booking.status))) {
-          setSourceError("Return or cancel the current vehicle assignment before changing its vehicle. Your existing selection is unchanged.");
+        if (result.bookings?.some((booking: { status: string }) => ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"].includes(booking.status))) {
+          setSourceError("Cancel the unused reservation or complete the current vehicle return review before choosing another vehicle.");
           return;
         }
       } catch (error) { setSourceError(error instanceof Error ? error.message : "The current assignment could not be checked."); return; }
@@ -4927,6 +4999,10 @@ function DealStartDesk({
     );
   }
 
+  const archiveScope = JSON.stringify([savedDeal?.draftId(), workflowId, identity.customerId, identity.vehicleId, identity.vehicle?.vin]);
+  const latestArchiveScope = useRef(archiveScope);
+  useLayoutEffect(() => { latestArchiveScope.current = archiveScope; }, [archiveScope]);
+
   function getDocumentContext() {
     const key = `crm-next:document-jacket:${form.customerId}:${workflowId}:${form.vehicle.trim()}`;
     const reference = savedDeal?.reference(key) ?? crypto.randomUUID();
@@ -4937,6 +5013,8 @@ function DealStartDesk({
     const file = input.files?.[0], documentType = input.dataset.documentType;
     if (!file || !documentType) return;
     const context = getDocumentContext();
+    const photoSlot = input.dataset.rentalPhoto;
+    const failureKey = photoSlot ? `${archiveScope}:${documentType}:${photoSlot}` : input;
     pendingDocumentUploads.current += 1;
     setDocumentUploadBusy(true);
     setDocumentArchiveMessage("Saving document to the deal jacket...");
@@ -4953,14 +5031,24 @@ function DealStartDesk({
         const saved = await fetch(`/api/sales-documents/${encodeURIComponent(jacket.id)}/documents`, { method: "POST", body: upload });
         const payload = await saved.json();
         if (!saved.ok) throw new Error(payload.error || "The document could not be saved.");
+        if (latestArchiveScope.current !== archiveScope) {
+          if (photoSlot) input.dispatchEvent(new CustomEvent("rental-photo-error", { detail: "The photo was saved to its original deal jacket. Choose a photo for the current vehicle." }));
+          return;
+        }
         savedDeal?.recordJacket(context.pathway, jacket.id);
-        failedDocumentUploads.current.delete(input);
-        if (!failedDocumentUploads.current.size) setDocumentArchiveError("");
+        failedDocumentUploads.current.delete(failureKey);
+        if (![...failedDocumentUploads.current].some(failure => typeof failure !== "string" || failure.startsWith(`${archiveScope}:`))) setDocumentArchiveError("");
         setDocumentJacketHref(`/sales-documents?jacketId=${encodeURIComponent(jacket.id)}`);
         setDocumentArchiveMessage(`${file.name} saved. Pending staff review.`);
+        if (input.dataset.rentalPhoto) input.dispatchEvent(new CustomEvent("rental-photo-saved", { detail: file }));
       } catch (error) {
-        failedDocumentUploads.current.add(input);
+        if (latestArchiveScope.current !== archiveScope) {
+          if (photoSlot) input.dispatchEvent(new CustomEvent("rental-photo-error", { detail: "The upload did not finish for its original vehicle." }));
+          return;
+        }
+        failedDocumentUploads.current.add(failureKey);
         setDocumentArchiveError(error instanceof Error ? error.message : "The document could not be saved.");
+        if (input.dataset.rentalPhoto) input.dispatchEvent(new CustomEvent("rental-photo-error", { detail: error instanceof Error ? error.message : "The photo could not be saved." }));
         input.value = "";
       } finally {
         pendingDocumentUploads.current -= 1;
@@ -4973,10 +5061,16 @@ function DealStartDesk({
     <div ref={identityPanel} role="group" aria-label="Choose customer and vehicle" tabIndex={-1} data-deal-workspace-section="identity" hidden={!testDriveWorkflow && workspaceSection !== "identity"}>
       <div className={identityStyles.identityGrid}>
         <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
-        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
+        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} temporaryUse={rentalLikeWorkflow} /></div>
       </div>
     </div>
   );
+
+  if (saveState.record?.rentalActionOnly) return <section aria-label="Rental or loaner assignment">
+    <Link href={CRM_NEXT_DEALS_HREF}>Back to Deals</Link>
+    <h1>{saveState.record.customerName} · {saveState.record.vehicleReference}</h1>
+    <VehicleUseTool key={saveState.record.id} pathway={saveState.record.pathway} />
+  </section>;
 
   return (
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
@@ -4993,7 +5087,11 @@ function DealStartDesk({
         </details>
       </section>}
       {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
-      {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
+      {rentalLikeWorkflow && <VehicleUseTool key={`${workflowId}:${savedDeal?.draftId()}`} pathway={workflowId} onNavigate={navigateWorkspace} onPrepareCheckoutPacket={openDocumentPreparation}
+        onHandoffSaved={message => {
+          setHandoffConfirmation({ draftId: savedDeal?.draftId(), pathway: workflowId, message });
+          navigateWorkspace("documents");
+        }} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
       {testDriveWorkflow ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} identityPicker={customerVehiclePicker} showIdentityPicker={workspaceSection === "identity"} /></DealDraftScope> : customerVehiclePicker}
@@ -5013,9 +5111,14 @@ function DealStartDesk({
               onMissingIdentity={focusRepairIdentity} onContinue={() => void continueRepair()} />}
         {status.kind !== "idle" && <p role={status.kind === "error" ? "alert" : "status"}>{status.message}</p>}
       </>}
-      {!repairWorkflow && workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}
+      {!repairWorkflow && workspaceSection === "documents" && <section id="deal-documents-panel" className={workspaceStyles.panel} aria-label="Deal documents">
+        {rentalLikeWorkflow && handoffConfirmation && handoffConfirmation.draftId === savedDeal?.draftId() && handoffConfirmation.pathway === workflowId && <div className={identityStyles.handoffConfirmation} ref={handoffLanding} tabIndex={-1} aria-labelledby="rental-handoff-saved">
+          <strong id="rental-handoff-saved" role="status">{handoffConfirmation.message}</strong>
+          <p>Physical handoff saved. File any remaining supporting paperwork below.</p>
+          <Link className={workspaceStyles.primary} href={`${CRM_NEXT_DEALS_HREF}?area=rentals`}>Close checkout &amp; return to Rentals</Link>
+        </div>}
+        <h2>Documents and signing packet</h2><p>{rentalLikeWorkflow ? "Review the checkout packet and file any remaining supporting paperwork. Record the return and settle any open issues when the vehicle comes back." : "Choose forms, generate and preview documents, then attach completed evidence to this exact deal."}</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}
       {!repairWorkflow && workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
-      <div hidden={workspaceSection !== "completion"}>{workflowId !== "daily-rental" && rentalLikeWorkflow && <VehicleUseTool pathway={workflowId} />}</div>
       {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
       {!repairWorkflow && <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
       <details className={workspaceStyles.advanced}><summary>Additional packet controls</summary><header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
@@ -5345,6 +5448,8 @@ function DealStartDesk({
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
+                onChooseVehicle={chooseSharedVehicle}
+                onChooseDifferentVehicle={() => navigateWorkspace("identity")}
                 onVehicleChange={(value) => update("vehicle", value)}
                 statusKind={status.kind}
                 vehicle={form.vehicle}

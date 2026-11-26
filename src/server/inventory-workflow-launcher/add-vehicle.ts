@@ -90,14 +90,13 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
   const externalLocation = optional(raw.externalLocation, 240);
   if (whereabouts !== "AT_DEALERSHIP" && externalLocation.length < 3) throw new Error("Off-site facility or location detail is required.");
   const description = required(raw.description, "Brief description", 240);
-  if (description.length < 10) throw new Error("Brief description must be at least 10 characters.");
   const year = Number(raw.year);
   if (!Number.isInteger(year) || year < 1886 || year > new Date().getFullYear() + 2) throw new Error("Vehicle year is outside the supported range.");
   const vin = optional(raw.vin, 40);
   const nonVinExplanation = optional(raw.nonVinReason, 500);
   const nonVinExceptionCode = raw.nonVinExceptionCode === "NO_VIN_ASSIGNED" ? "NO_VIN_ASSIGNED" as const : undefined;
   const nonVinAttested = raw.nonVinAttested === true;
-  if (!vin && (!nonVinExceptionCode || !nonVinAttested || nonVinExplanation.length < 10)) throw new Error("VIN is required unless staff attest that no VIN was assigned and provide an explanation of at least 10 characters.");
+  if (!vin && (!nonVinExceptionCode || !nonVinAttested || !nonVinExplanation)) throw new Error("VIN is required unless staff attest that no VIN was assigned and provide an explanation.");
   if (!vin && /unknown|unavailable|not found|could not (?:find|locate|be found|be located)|hidden|damaged|unreadable/i.test(nonVinExplanation)) throw new Error("An unknown, unavailable, hidden, damaged, or unreadable VIN does not qualify for the no-VIN-assigned exception.");
   const nonVinReason = vin ? "" : `${nonVinExceptionCode}: ${nonVinExplanation}`;
   const odometer = optionalInteger(raw.odometer, "Odometer reading", 9_999_999);

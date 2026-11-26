@@ -6486,7 +6486,8 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.rentalEvidenceGrid label {
+.rentalEvidenceGrid label,
+.rentalPhotoTile {
   background: #f8fbff;
   border: 1px solid #dbe6f8;
   border-radius: 12px;
@@ -6494,6 +6495,28 @@
   gap: 6px;
   min-width: 0;
   padding: 12px;
+}
+
+.rentalPhotoCapture {
+  display: grid;
+  gap: 8px;
+}
+
+.rentalPhotoCapture video {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.rentalPhotoActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rentalPhotoActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .rentalEvidenceGrid strong {

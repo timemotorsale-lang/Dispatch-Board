@@ -60,7 +60,8 @@ describe("Add Vehicle workflow", () => {
   });
 
   it("requires a useful brief description", () => {
-    expect(() => normalizeAddVehicleWorkflowInput({ ...base, description: "Brake" })).toThrow("at least 10 characters");
+    expect(() => normalizeAddVehicleWorkflowInput({ ...base, description: " " })).toThrow("Brief description is required");
+    expect(normalizeAddVehicleWorkflowInput({ ...base, description: " Brake " }).description).toBe("Brake");
   });
 
   it("routes dealership recon directly to internal repair intake", () => {

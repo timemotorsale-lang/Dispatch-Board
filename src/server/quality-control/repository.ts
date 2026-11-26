@@ -85,7 +85,7 @@ export function createQualityControlRepository(database:PrismaClient=prisma){ret
     if (data.recommendation && !decision.allowed) {
       throw new Error("A recommendation requires a passed Final QC inspection. Record failures with rework instructions.");
     }
-    if(!decision.allowed&&(!data.reworkInstructions||data.reworkInstructions.length<10))throw new Error("Failed QC requires rework instructions of at least 10 characters.");
+    if(!decision.allowed&&!data.reworkInstructions?.trim())throw new Error("Failed QC requires rework instructions.");
     if(decision.allowed&&data.reworkInstructions)throw new Error("Passed QC cannot include rework instructions.");
     const latest=job.qualityInspections[0];
     const procedureSnapshot=job.procedureVersion?{procedureId:job.procedureVersion.id,procedureVersion:job.procedureVersion.version,qcRules:job.procedureVersion.qcRules}:{procedureId:null,procedureVersion:null,qcRules:[],source:"MANAGER_REPAIR_RESULT"};

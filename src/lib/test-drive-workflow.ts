@@ -67,7 +67,7 @@ export function driveReturnFacts(value: Record<string, unknown>, departureMileag
   if (!Number.isSafeInteger(mileage) || mileage < departureMileage) throw new Error("Return odometer must be a whole number at least as high as checkout.");
   if (!String(value.fuelIn ?? "").trim() || !String(value.returnCondition ?? "").trim() || !String(value.receivedBy ?? "").trim()) throw new Error("Record return fuel, condition and receiving employee.");
   if (value.keysReturned !== true && !exception) throw new Error("Confirm all keys returned or record an exception.");
-  if (exception && (note.length < 10 || note.length > 1000)) throw new Error("Describe the exception and next action in 10–1000 characters.");
+  if (exception && (!note || note.length > 1000)) throw new Error("Describe the exception and next action in up to 1000 characters.");
   return { returnedAt: new Date(returnedAt), mileage, exception, note, keysReturned: value.keysReturned === true, fuel: String(value.fuelIn).trim().slice(0, 100), condition: String(value.returnCondition).trim().slice(0, 1000), recipient: String(value.receivedBy).trim().slice(0, 200) };
 }
 

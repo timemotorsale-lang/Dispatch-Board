@@ -2,7 +2,7 @@ export const FINAL_REPAIR_QC_TEMPLATE = "FINAL_REPAIR_CHECKLIST";
 
 export const FINAL_REPAIR_QC_RECOMMENDATION_LABEL = "Reviewed · recommendation";
 export const FINAL_REPAIR_QC_FINDING_MAX = 200;
-export const FINAL_REPAIR_QC_NOTE_MIN = 10;
+export const FINAL_REPAIR_QC_NOTE_MIN = 1;
 export const FINAL_REPAIR_QC_NOTE_MAX = 1000;
 
 export type FinalRepairQcRecommendation = { finding: string; note: string };

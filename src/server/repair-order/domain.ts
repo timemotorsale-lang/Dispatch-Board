@@ -13,7 +13,7 @@ function optional(value: unknown, max = 500) { const result = typeof value === "
 function timestamp(value: unknown, label: string, optionalValue = false) { if (optionalValue && !value) return null; const result = new Date(required(value, label, 100)); if (Number.isNaN(result.getTime())) throw new Error(`${label} must be a valid date and time.`); return result; }
 function oneOf<T extends readonly string[]>(value: unknown, values: T, label: string): T[number] { const result = String(value ?? ""); if (!values.includes(result)) throw new Error(`${label} is invalid.`); return result as T[number]; }
 function operating(value: unknown): CoreState { return oneOf(value ?? "ACTIVE", REPAIR_ORDER_CORE_STATES, "Repair-order operating state"); }
-function stateReason(state: CoreState, value: unknown) { if (state === "ACTIVE") return null; const result = required(value, "Waiting or blocker reason", 500); if (result.length < 10) throw new Error("Waiting or blocker reason must be at least 10 characters."); return result; }
+function stateReason(state: CoreState, value: unknown) { if (state === "ACTIVE") return null; return required(value, "Waiting or blocker reason", 500); }
 
 export function repairOrderConcernFingerprint(value:string){
   const tokens=value.normalize("NFKD").toLocaleLowerCase("en-US").replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean).map(token=>CONCERN_SYNONYMS[token]??(token.length>4&&token.endsWith("s")?token.slice(0,-1):token)).filter(token=>!CONCERN_CONTEXT_WORDS.has(token));
@@ -78,7 +78,6 @@ export function normalizeRepairOrderNoWorkClose(value: unknown) {
   const expectedVersion = Number(raw.expectedVersion);
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected repair-order version must be a positive whole number.");
   const reason = required(raw.reason, "Closure reason", 500);
-  if (reason.length < 10) throw new Error("Add a clear closure reason of at least 10 characters.");
   return {
     expectedVersion,
     occurredAt: timestamp(raw.occurredAt, "Closure time", true),

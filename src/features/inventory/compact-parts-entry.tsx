@@ -98,8 +98,8 @@ export function readCompactPartsEntry(
   if (usage === "USED" && (!repairJobId || invalidOutcomeDate)) {
     throw new Error("Select a repair job and enter a used date between receipt and today.");
   }
-  if (usage === "RETURN" && (returnReason.length < 10 || invalidOutcomeDate || !Number.isFinite(Date.parse(deadlineAt)) || Date.parse(deadlineAt) < outcomeTime || deadlineAt.slice(0, 10) < today)) {
-    throw new Error("Enter the return decision date, a reason of at least 10 characters, and a follow-up date of today or later.");
+  if (usage === "RETURN" && (returnReason.trim().length === 0 || invalidOutcomeDate || !Number.isFinite(Date.parse(deadlineAt)) || Date.parse(deadlineAt) < outcomeTime || deadlineAt.slice(0, 10) < today)) {
+    throw new Error("Enter the return decision date, a reason, and a follow-up date of today or later.");
   }
   const usageDetails = usage === "USED" ? { usage, usageQuantity, usageOccurredAt, repairJobId, evidence: [installationEvidence || "Staff marked the received quantity as used on the selected repair job."] }
     : usage === "RETURN" ? { usage, usageQuantity, usageOccurredAt, returnReason, deadlineAt } : usage ? { usage } : {};
@@ -439,7 +439,7 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
 
             </div>}
             {usage === "RETURN" && <div className={styles.purchase}>
-              <label>Return reason<input required name="returnReason" minLength={10} maxLength={500} /></label>
+              <label>Return reason<input required name="returnReason" maxLength={500} /></label>
               <label>Return decision at<input required name="usageOccurredAt" type="datetime-local" step="0.001" max={today + "T23:59:59.999"} /></label>
               <label>Follow up by<input required name="deadlineAt" type="datetime-local" step="0.001" min={today + "T00:00"} /></label>
               <p>This opens a return case for follow-up. Shipment and refund are separate steps.</p>

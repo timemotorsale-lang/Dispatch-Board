@@ -604,7 +604,7 @@ export function normalizeDiagnosticTroubleshootingSessionCommand(value: unknown)
   return {
     expectedVersion: positiveVersion(raw.expectedVersion),
     idempotencyKey: text(raw.idempotencyKey, "Troubleshooting idempotency key", 200, 1),
-    reason: text(raw.reason, "Command reason", 500, 10),
+    reason: text(raw.reason, "Command reason", 500, 1),
     intakeRefinement: safeJsonObject(raw.intakeRefinement, "Intake refinement"),
     vehicleIntelligenceAcknowledgements: list(raw.vehicleIntelligenceAcknowledgements, "Vehicle intelligence acknowledgements", 12),
     selectedTestKey: selectedTestKey || null,

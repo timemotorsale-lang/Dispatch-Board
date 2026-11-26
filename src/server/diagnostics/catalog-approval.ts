@@ -20,7 +20,7 @@ export function validateCatalogApproval(value: unknown): CatalogApprovalConfigur
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Catalog approval configuration is required.");
   const config = value as CatalogApprovalConfiguration;
   if (config.version !== 1 || config.catalogVersion !== LIGHT_DUTY_CATALOG_VERSION || typeof config.enabled !== "boolean" || config.scopeDigest !== catalogScopeDigest(config.systemId)) throw new Error("Catalog scope changed or configuration is invalid. Create and independently review a new policy.");
-  for (const reference of [config.reviewReference, config.capabilityReference]) if (typeof reference !== "string" || reference.trim().length < 10 || reference.length > 2000) throw new Error("A detailed shop scope and capability review reference is required.");
+  for (const reference of [config.reviewReference, config.capabilityReference]) if (typeof reference !== "string" || !reference.trim() || reference.length > 2000) throw new Error("A detailed shop scope and capability review reference is required.");
   return config;
 }
 

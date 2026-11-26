@@ -227,7 +227,7 @@ function acceptedEvidence(snapshot: DiagnosticPilotEvidenceSnapshot | null, key:
     && record.evidenceReference.trim()
     && record.reviewedBy.trim()
     && record.reviewedAt.trim()
-    && record.note.trim().length >= 10
+    && record.note.trim().length > 0
     && validChecksum(record.evidenceChecksum));
 }
 

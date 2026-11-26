@@ -8,7 +8,7 @@ import styles from "./crm-next-shell.module.css";
 type Props = {
   vin: string; query: string; fields: Record<string, string>; onApply: (values: Record<string, string>, onlyEmpty?: boolean) => void;
 };
-export type VinDecoderHandle = { decodeAndFill: () => void };
+export type VinDecoderHandle = { decodeAndFill: () => void; decodeOnExit: () => void };
 export const CrmNextVinDecoder = forwardRef<VinDecoderHandle, Props>(function CrmNextVinDecoder(props, ref) {
   return <VinDecoderSession key={props.vin || props.query} {...props} ref={ref} />;
 });
@@ -21,9 +21,18 @@ const VinDecoderSession = forwardRef<VinDecoderHandle, Props>(function VinDecode
   const [yearHint, setYearHint] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const lastAutoLookup = useRef("");
   useEffect(() => () => controller.current?.abort(), []);
 
-  useImperativeHandle(ref, () => ({ decodeAndFill: () => void decode(undefined, true) }));
+  useImperativeHandle(ref, () => ({
+    decodeAndFill: () => void decode(undefined, true),
+    decodeOnExit: () => {
+      const candidate = vin.trim().toUpperCase();
+      if (busy || !/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate) || lastAutoLookup.current === candidate) return;
+      lastAutoLookup.current = candidate;
+      void decode(candidate, true);
+    }
+  }));
 
   async function decode(candidateVin?: string, autoFill = false) {
     controller.current?.abort();

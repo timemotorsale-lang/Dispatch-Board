@@ -91,7 +91,7 @@ export async function recoveryAction(actor: AuthenticatedUser | null, accountId:
           warningMethod = (WARNING_METHODS as string[]).includes(String(input.warningMethod)) ? (input.warningMethod as StarterWarningMethod) : null;
           if (!warningMethod) throw new CollectionsError("Choose how the customer was (or will be) warned.");
           if (warningMethod === "NONE") {
-            why = reason(input.reason, 10);
+            why = reason(input.reason, 1);
             warnings.push("No warning: check Minnesota notice requirements with your attorney.");
           } else {
             const date = parseBusinessDate(input.warningDate);

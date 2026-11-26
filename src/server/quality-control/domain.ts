@@ -1,7 +1,6 @@
 import {
   FINAL_REPAIR_QC_FINDING_MAX,
   FINAL_REPAIR_QC_NOTE_MAX,
-  FINAL_REPAIR_QC_NOTE_MIN,
   FINAL_REPAIR_QC_TEMPLATE,
   needsRepairRoadTest,
   repairChecklistItems,
@@ -26,9 +25,6 @@ function normalizeRecommendation(value: unknown, templateCode: string): FinalRep
   const recommendation = value as Record<string, unknown>;
   const finding = required(recommendation.finding, "Recommendation finding", FINAL_REPAIR_QC_FINDING_MAX);
   const note = required(recommendation.note, "Recommended next step", FINAL_REPAIR_QC_NOTE_MAX);
-  if (note.length < FINAL_REPAIR_QC_NOTE_MIN) {
-    throw new Error("Describe the recommended next step in at least 10 characters.");
-  }
   return { finding, note };
 }
 

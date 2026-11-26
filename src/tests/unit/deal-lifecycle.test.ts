@@ -54,7 +54,7 @@ describe("existing-deal lifecycle transaction", () => {
   it("requires manager permission and a reason to reopen, preserving original signed versions", async () => {
     jacket.state = "CLOSED"; draft.status = "SOLD"; jacket.versions = [{ version: 1, disposition: "CLOSED", phase: "CLOSING", finalizedAt: new Date("2026-10-15T18:00:00Z") }];
     await expect(manageDealLifecycle(actor(["Sales"]), request("REOPEN"))).rejects.toMatchObject({ status: 403 });
-    await expect(manageDealLifecycle(actor(), { ...request("REOPEN"), note: "short" })).rejects.toMatchObject({ status: 400 });
+    await expect(manageDealLifecycle(actor(), { ...request("REOPEN"), note: " " })).rejects.toMatchObject({ status: 400 });
     await expect(manageDealLifecycle(actor(), request("REOPEN"))).resolves.toMatchObject({ status: "SOLD", state: "WORKING" });
     expect(jacket.versions).toHaveLength(1); expect(mocks.version).not.toHaveBeenCalled();
   });

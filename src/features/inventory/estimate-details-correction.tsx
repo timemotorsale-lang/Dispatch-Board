@@ -78,7 +78,7 @@ export function EstimateDetailsCorrection({ repairOrderId, document, onSaved, on
           <label>Unit <select name="unit" defaultValue={mileage?.unit ?? "MILES"}><option value="MILES">Miles</option><option value="KILOMETERS">Kilometers</option></select></label></p>
         <p>Leave unknown dates or mileage blank.</p>
         <p><label>Memo (optional, shown on estimate) <input type="text" name="memo" maxLength={120} size={28} defaultValue={details?.memo ?? ""} placeholder="Claim Authorization #" /></label></p>
-        <p><label>Correction reason <textarea name="reason" required minLength={10} maxLength={500} /></label></p>
+        <p><label>Correction reason <textarea name="reason" required maxLength={500} /></label></p>
         <button type="submit">{saving ? "Saving…" : "Save corrected estimate"}</button>
       </fieldset>
     </form>}

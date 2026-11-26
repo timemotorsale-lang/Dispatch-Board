@@ -113,7 +113,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
   const gates = [
     { label: "Vehicle identity", ready: Boolean(selectedVehicle) },
     { label: "Duplicate check", ready: Boolean(selectedVehicle) },
-    { label: "Primary concern", ready: draft.concern.trim().length >= 10 },
+    { label: "Primary concern", ready: draft.concern.trim().length > 0 },
     { label: "Service context", ready: Boolean(selectedRepairOrder || draft.customerId && draft.locationId) },
     { label: "Conditions detail", ready: Boolean(draft.symptomCategory && draft.frequency && draft.operability) },
     { label: "Safety screening", ready: Boolean(draft.safetyScreening) },
@@ -122,18 +122,18 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
   ];
   const completeCount = gates.filter((gate) => gate.ready).length;
   const allReady = completeCount === gates.length;
-  const concernFacts = [draft.concern.trim().length >= 10, Boolean(draft.symptomCategory), Boolean(draft.frequency), Boolean(draft.operability), conditions.length > 0, attachments.length > 0];
+  const concernFacts = [draft.concern.trim().length > 0, Boolean(draft.symptomCategory), Boolean(draft.frequency), Boolean(draft.operability), conditions.length > 0, attachments.length > 0];
   const concernFactsCaptured = concernFacts.filter(Boolean).length;
   const concernMissing = [
     !selectedVehicle && "Vehicle identity",
-    draft.concern.trim().length < 10 && "Customer concern narrative",
+    draft.concern.trim().length === 0 && "Customer concern narrative",
     !draft.symptomCategory && "Symptom category",
     !draft.frequency && "Frequency",
     !draft.operability && "Operability",
   ].filter((item): item is string => Boolean(item));
   const nextConcernAction = !selectedVehicle
     ? "Identify the canonical vehicle"
-    : draft.concern.trim().length < 10
+    : draft.concern.trim().length === 0
       ? "Capture the customer's original concern"
       : !draft.symptomCategory
         ? "Classify the symptom family"
@@ -142,7 +142,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
           : !draft.operability
             ? "Assess current vehicle operability"
             : "Proceed to safety and authorization review";
-  const reportStatus = draft.concern.trim().length < 10
+  const reportStatus = draft.concern.trim().length === 0
     ? "Concern statement required"
     : !selectedVehicle
       ? "Vehicle context required"
@@ -351,7 +351,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
             {selectedVehicle ? <div className={styles.selectedVehicle}><CheckCircle2 /><div><small>Existing canonical vehicle selected</small><strong>{vehicleLabel(selectedVehicle)}</strong><span>{selectedVehicle.vin ?? selectedVehicle.vehicleNumber}{selectedRepairOrder ? ` · ${selectedRepairOrder.repairOrderNumber}` : ""}</span></div><button onClick={() => setDraft((current) => ({ ...current, repairOrderId: "", vehicleId: "" }))} type="button">Change</button></div> : null}
           </section>
 
-          {showAddVehicle ? <section className={`${styles.card} ${styles.addVehicle}`}><header><div><h2>Add Vehicle</h2><p>Create a canonical Vehicle Registry record without leaving diagnostic intake.</p></div><button aria-label="Close add vehicle" onClick={() => setShowAddVehicle(false)} type="button"><X /></button></header><label className={styles.nonVin}><input checked={nonVin} onChange={(event) => setNonVin(event.target.checked)} type="checkbox" />VIN unavailable or unreadable</label><div className={styles.formGrid}>{nonVin ? <label className={styles.wide}><span>Non-VIN exception reason</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, nonVinReason: event.target.value }))} value={newVehicle.nonVinReason} /></label> : <label className={styles.wide}><span>VIN</span><input autoFocus maxLength={17} onChange={(event) => setNewVehicle((current) => ({ ...current, vin: event.target.value.toUpperCase() }))} placeholder="17-character VIN" value={newVehicle.vin} /></label>}<label><span>Year</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, year: event.target.value }))} type="number" value={newVehicle.year} /></label><label><span>Make</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, make: event.target.value }))} value={newVehicle.make} /></label><label><span>Model</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, model: event.target.value }))} value={newVehicle.model} /></label><label><span>License plate</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, licensePlate: event.target.value.toUpperCase() }))} value={newVehicle.licensePlate} /></label><label><span>Stock number</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, stockNumber: event.target.value }))} value={newVehicle.stockNumber} /></label><label><span>Color</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, color: event.target.value }))} value={newVehicle.color} /></label></div><footer><button onClick={() => setShowAddVehicle(false)} type="button">Cancel</button><button className={styles.primarySmall} disabled={busy || nonVin ? newVehicle.nonVinReason.trim().length < 10 : newVehicle.vin.length !== 17} onClick={() => void createVehicle()} type="button">{busy ? "Creating..." : "Create & Select Vehicle"}</button></footer></section> : null}
+          {showAddVehicle ? <section className={`${styles.card} ${styles.addVehicle}`}><header><div><h2>Add Vehicle</h2><p>Create a canonical Vehicle Registry record without leaving diagnostic intake.</p></div><button aria-label="Close add vehicle" onClick={() => setShowAddVehicle(false)} type="button"><X /></button></header><label className={styles.nonVin}><input checked={nonVin} onChange={(event) => setNonVin(event.target.checked)} type="checkbox" />VIN unavailable or unreadable</label><div className={styles.formGrid}>{nonVin ? <label className={styles.wide}><span>Non-VIN exception reason</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, nonVinReason: event.target.value }))} value={newVehicle.nonVinReason} /></label> : <label className={styles.wide}><span>VIN</span><input autoFocus maxLength={17} onChange={(event) => setNewVehicle((current) => ({ ...current, vin: event.target.value.toUpperCase() }))} placeholder="17-character VIN" value={newVehicle.vin} /></label>}<label><span>Year</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, year: event.target.value }))} type="number" value={newVehicle.year} /></label><label><span>Make</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, make: event.target.value }))} value={newVehicle.make} /></label><label><span>Model</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, model: event.target.value }))} value={newVehicle.model} /></label><label><span>License plate</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, licensePlate: event.target.value.toUpperCase() }))} value={newVehicle.licensePlate} /></label><label><span>Stock number</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, stockNumber: event.target.value }))} value={newVehicle.stockNumber} /></label><label><span>Color</span><input onChange={(event) => setNewVehicle((current) => ({ ...current, color: event.target.value }))} value={newVehicle.color} /></label></div><footer><button onClick={() => setShowAddVehicle(false)} type="button">Cancel</button><button className={styles.primarySmall} disabled={busy || nonVin ? newVehicle.nonVinReason.trim().length === 0 : newVehicle.vin.length !== 17} onClick={() => void createVehicle()} type="button">{busy ? "Creating..." : "Create & Select Vehicle"}</button></footer></section> : null}
 
           <section className={`${styles.card} ${styles.concern}`}><header><div><h2>3. Primary Concern / Issue to Diagnose <b>Required</b></h2><p>Capture the condition in the customer&apos;s own words before diagnosis begins.</p></div></header><div className={styles.concernGrid}><label><span>Customer concern in their own words</span><textarea maxLength={2000} onChange={(event) => update("concern", event.target.value)} placeholder="Customer states... Include the symptom, when it occurs, operating conditions, frequency, and what changed." rows={5} value={draft.concern} /><small>{draft.concern.length} / 2,000</small></label><div><label><span>Symptom Category</span><select onChange={(event) => update("symptomCategory", event.target.value)} value={draft.symptomCategory}><option value="">Select category</option><option>Starting / No-Start</option><option>Driveability / Performance</option><option>Electrical / Network</option><option>Brakes / Chassis</option><option>HVAC / Comfort</option><option>Noise / Vibration</option><option>Other / New Concern</option></select></label><label><span>Frequency</span><select onChange={(event) => update("frequency", event.target.value)} value={draft.frequency}><option value="">Select frequency</option><option>Constant</option><option>Intermittent</option><option>Single occurrence</option><option>Progressively worsening</option></select></label><label><span>Operability</span><select onChange={(event) => update("operability", event.target.value)} value={draft.operability}><option value="">Select operability</option><option>Normal operation</option><option>Limited operation</option><option>Inoperative</option><option>Unsafe to operate</option></select></label></div></div><div className={styles.conditionChips}><span>Observed conditions</span>{conditionChoices.map((condition) => <button aria-pressed={conditions.includes(condition)} key={condition} onClick={() => setConditions((current) => current.includes(condition) ? current.filter((item) => item !== condition) : [...current, condition])} type="button">{conditions.includes(condition) ? <Check /> : null}{condition}</button>)}</div><div className={styles.clarification}><label><span>Staff clarification</span><input onChange={(event) => update("staffClarification", event.target.value)} placeholder="Clarify without replacing the customer's statement..." value={draft.staffClarification} /></label><label className={styles.evidenceButton}><FileUp />Add Evidence<input multiple onChange={(event) => setAttachments(Array.from(event.target.files ?? []).map((file) => file.name))} type="file" /></label><small>{attachments.length ? `${attachments.length} file(s) selected for evidence intake` : "Photos, video, audio, scan report, or customer document"}</small></div><footer><ShieldCheck />The original concern is preserved; staff clarification and later corrections remain separately auditable.</footer></section>
 
@@ -381,7 +381,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
           </header>
 
           <div className={layoutStyles.reportMetrics} aria-label="Concern intake summary">
-            <article><MessageSquareText /><span>Original concern</span><strong>{draft.concern.trim().length >= 10 ? "Captured" : "Required"}</strong><small>{draft.concern.length} of 2,000 characters</small></article>
+            <article><MessageSquareText /><span>Original concern</span><strong>{draft.concern.trim().length > 0 ? "Captured" : "Required"}</strong><small>{draft.concern.length} of 2,000 characters</small></article>
             <article><Stethoscope /><span>Structured facts</span><strong>{concernFactsCaptured} / {concernFacts.length}</strong><small>Facts captured, not diagnostic confidence</small></article>
             <article><FileUp /><span>Evidence intake</span><strong>{attachments.length}</strong><small>{attachments.length ? "Files selected" : "No files attached"}</small></article>
             <article><CarFront /><span>Vehicle context</span><strong>{selectedVehicle ? "Linked" : "Missing"}</strong><small>{vehicleLabel(selectedVehicle)}</small></article>
@@ -389,7 +389,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
 
           <div className={layoutStyles.reportSummaryGrid}>
             <section className={layoutStyles.concernSummary}>
-              <header><div><span>Authoritative intake statement</span><h3>Customer Concern Summary</h3></div><b>{draft.concern.trim().length >= 10 ? "PRESERVED" : "INCOMPLETE"}</b></header>
+              <header><div><span>Authoritative intake statement</span><h3>Customer Concern Summary</h3></div><b>{draft.concern.trim().length > 0 ? "PRESERVED" : "INCOMPLETE"}</b></header>
               <label><span>Customer&apos;s own words</span><textarea maxLength={2000} onChange={(event) => update("concern", event.target.value)} placeholder="Customer states... Include the symptom, when it occurs, operating conditions, frequency, and what changed." rows={6} value={draft.concern} /><small>{draft.concern.length} / 2,000</small></label>
               <p><ShieldCheck />Staff clarification and structured fields support this statement; they never replace it.</p>
             </section>

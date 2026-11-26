@@ -7,7 +7,6 @@ export function normalizeCostRecord(value: unknown, now = new Date()) {
     return value.trim();
   };
   const reason = required("reason", 1000);
-  if (reason.length < 10) throw new Error("Provide a meaningful cost record reason.");
   if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 1) throw new Error("Current inventory version is required.");
   const base = { reason, expectedVersion: Number(body.expectedVersion), idempotencyKey: required("idempotencyKey", 200) };
   if (body.action === "VOID_COST") return { ...base, action: "VOID_COST" as const, costId: required("costId", 200) };

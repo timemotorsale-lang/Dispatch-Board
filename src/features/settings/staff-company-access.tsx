@@ -30,7 +30,7 @@ export function StaffCompanyAccess({ model }: { model: Awaited<ReturnType<typeof
       <p>This establishes company membership used by spending and other company-scoped tools. Existing roles still control access. It does not grant manager powers, other staff spending visibility or appointment permissions.</p>
       <input type="hidden" name="userId" value={model.userId} />
       <label className="field"><span>Company location</span><select name="locationId" defaultValue={model.locations.length === 1 ? model.locations[0].id : ""} required><option value="">Choose location</option>{model.locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-      <label className="field"><span>Reason</span><textarea name="reason" required minLength={10} maxLength={1000} /></label>
+      <label className="field"><span>Reason</span><textarea name="reason" required maxLength={1000} /></label>
       <button className="pill" type="submit" disabled={busy || saved}>{busy ? "Saving…" : saved ? "Company access saved" : "Grant staff company access"}</button>
     </form> : null}
     {notice ? <p role={saved ? "status" : "alert"}>{notice}</p> : null}
