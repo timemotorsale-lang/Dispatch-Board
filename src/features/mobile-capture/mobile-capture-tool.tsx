@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,7 +25,7 @@ import {
 import styles from "./mobile-capture-tool.module.css";
 import { idFromBarcode, vinFromBarcode } from "./barcode-review";
 import { BarcodeScanner } from "./barcode-scanner";
-import { cameraErrorMessage, createCameraSession } from "./scanner-camera";
+import { PhotoCamera } from "./photo-camera";
 import { DocumentScanner } from "./document-scanner";
 import { IdFrontCapture } from "./id-front-capture";
 import type { FrontIdFields } from "./id-capture-fields";
@@ -191,14 +192,11 @@ export function MobileCaptureTool() {
   const [documentScannerOpen, setDocumentScannerOpen] = useState(false);
   const [frontScannerOpen, setFrontScannerOpen] = useState(false);
   const [reviewedIdFields, setReviewedIdFields] = useState<FrontIdFields | null>(null);
-  const [startingCamera, setStartingCamera] = useState(false);
   const [result, setResult] = useState<UploadResponse | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const cameraUploadRef = useRef<HTMLInputElement | null>(null);
+  const barcodeRequest = useRef(0);
+  const previewDialog = useRef<HTMLDialogElement>(null);
   const fileUploadRef = useRef<HTMLInputElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const cameraSessionRef = useRef<ReturnType<typeof createCameraSession> | null>(null);
   const returnTo = searchParams.get("returnTo");
   const requestedOwnerId = searchParams.get("ownerId");
 
@@ -210,8 +208,7 @@ export function MobileCaptureTool() {
       if (tool.key === "document") { setActiveIntent("DOCUMENT"); setDocumentScannerOpen(true); }
       else if (tool.key === "id-front") { setActiveIntent("DOCUMENT"); setFrontScannerOpen(true); }
       else if (tool.key === "barcode" || tool.key === "id-barcode") { setActiveIntent("BARCODE"); setScannerOpen(true); }
-      else if (window.isSecureContext && typeof navigator.mediaDevices?.getUserMedia === "function") { setActiveIntent("PHOTO"); setStartingCamera(true); setMode("CAMERA"); }
-      else setNotice("Tap Photo to use your phone camera, or upload a photo.");
+      else { setActiveIntent("PHOTO"); setMode("CAMERA"); }
     }, 0);
     return () => window.clearTimeout(timer);
   }, [requestedTool]);
@@ -222,46 +219,24 @@ export function MobileCaptureTool() {
   );
 
   useEffect(() => () => {
-    cameraSessionRef.current?.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-  }, []);
-
-  useEffect(() => () => {
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
   }, [capturedImageUrl]);
 
   useEffect(() => {
-    if (mode !== "CAMERA" || !videoRef.current) return;
-    const session = createCameraSession();
-    cameraSessionRef.current = session;
-    let cancelled = false;
-    void session.open(videoRef.current, "environment").then((stream) => {
-      if (!stream || cancelled) return;
-      streamRef.current = stream;
-      setStartingCamera(false);
-      setNotice("Fill the screen with the item, then capture.");
-    }).catch((error: unknown) => {
-      if (cancelled) return;
-      setStartingCamera(false);
-      setMode("READY");
-      setNotice(cameraErrorMessage(error));
-    });
-    return () => { cancelled = true; session.stop(); };
+    if (mode !== "PREVIEW") return;
+    const dialog = previewDialog.current;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog?.showModal();
+    return () => { dialog?.close(); if (previous?.isConnected) previous.focus(); };
   }, [mode]);
 
-  function stopCamera() {
-    cameraSessionRef.current?.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-  }
-
   function clearFileInputs() {
-    if (cameraUploadRef.current) cameraUploadRef.current.value = "";
     if (fileUploadRef.current) fileUploadRef.current.value = "";
   }
 
   function resetCapturedImage() {
+    barcodeRequest.current += 1;
+    setReadingBarcode(false);
     setIdMismatch(false);
     setReviewedIdFields(null);
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
@@ -273,17 +248,20 @@ export function MobileCaptureTool() {
 
   async function readBarcode(file = capturedFile) {
     if (!file?.type.startsWith("image/") || readingBarcode) return;
+    const request = ++barcodeRequest.current;
     setReadingBarcode(true);
     setBarcodeNotice("Reading barcode...");
     try {
       const bitmap = await createImageBitmap(file);
+      if (request !== barcodeRequest.current) { bitmap.close(); return; }
       const canvas = canvasRef.current;
-      if (!canvas) throw new Error("Scanner unavailable");
+      if (!canvas) { bitmap.close(); return; }
       canvas.width = bitmap.width;
       canvas.height = bitmap.height;
       canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
       bitmap.close();
       const { BarcodeFormat, BrowserMultiFormatReader, BrowserPDF417Reader } = await import("@zxing/browser");
+      if (request !== barcodeRequest.current) return;
       let result;
       try {
         result = (captureKind === "ID" ? new BrowserPDF417Reader() : new BrowserMultiFormatReader()).decodeFromCanvas(canvas);
@@ -294,9 +272,9 @@ export function MobileCaptureTool() {
       setBarcode({ format: BarcodeFormat[result.getBarcodeFormat()], value: result.getText() });
       setBarcodeNotice("Barcode read. Confirm it against the physical document before using it.");
     } catch {
-      setBarcodeNotice("No barcode found. Retake with the barcode sharp and fully in frame.");
+      if (request === barcodeRequest.current) setBarcodeNotice("No barcode found. Retake with the barcode sharp and fully in frame.");
     } finally {
-      setReadingBarcode(false);
+      if (request === barcodeRequest.current) setReadingBarcode(false);
     }
   }
 
@@ -323,16 +301,15 @@ export function MobileCaptureTool() {
     }
   }
 
-  function previewFile(file: File | null) {
-    if (!file) return;
+  function previewPhoto(file: File) {
     const error = validateFile(file);
-    if (error) { setNotice(error); clearFileInputs(); return; }
+    if (error) return error;
     resetCapturedImage();
     setCapturedFile(file);
     setCapturedImageUrl(URL.createObjectURL(file));
     setMode("PREVIEW");
-    setNotice(activeIntent === "BARCODE" ? "Barcode captured. Accept it, retake it, or cancel." : "Photo captured. Accept it, retake it, or cancel.");
-    if (activeIntent === "BARCODE") void readBarcode(file);
+    setNotice("Photo captured. Review it, retake it, or accept and send.");
+    return "";
   }
 
   function validateFile(file: File) {
@@ -342,29 +319,11 @@ export function MobileCaptureTool() {
     return "";
   }
 
-  async function startCamera(intent: CaptureIntent = activeIntent) {
-    if (busy || startingCamera) return;
-    setActiveIntent(intent);
-    setResult(null);
-    setNotice(intent === "BARCODE" ? "Opening barcode scanner..." : "Opening photo capture...");
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      setNotice("Live camera requires a secure phone browser. Opening the phone camera picker instead.");
-      cameraUploadRef.current?.click();
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setNotice("Live camera is not available here. Opening the phone camera picker instead.");
-      cameraUploadRef.current?.click();
-      return;
-    }
-    stopCamera();
-    setStartingCamera(true);
-    setMode("CAMERA");
-  }
-
   function startPhotoCapture() {
     setCaptureKind("PHOTO");
-    void startCamera("PHOTO");
+    setActiveIntent("PHOTO");
+    setResult(null);
+    setMode("CAMERA");
   }
 
   function startBarcodeCapture() {
@@ -379,51 +338,21 @@ export function MobileCaptureTool() {
     setDocumentScannerOpen(true);
   }
 
-  async function captureImage() {
-    if (busy) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
-      setNotice("Camera is still warming up. Try again in a moment.");
-      return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setNotice("Could not prepare the capture. Use upload instead.");
-      return;
-    }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-    if (!blob) {
-      setNotice("Could not capture the image. Try again.");
-      return;
-    }
-    stopCamera();
-    resetCapturedImage();
-    const file = new File([blob], "mobile-capture.jpg", { type: "image/jpeg" });
-    setCapturedFile(file);
-    setCapturedImageUrl(URL.createObjectURL(file));
-    setMode("PREVIEW");
-    setNotice(activeIntent === "BARCODE" ? "Barcode captured. Accept it, retake it, or cancel." : "Photo captured. Accept it, retake it, or cancel.");
-    if (activeIntent === "BARCODE") void readBarcode(file);
-  }
-
-  function closeCamera() {
-    stopCamera();
-    setStartingCamera(false);
-    setMode("READY");
-    setNotice("Capture canceled. Choose Photo or Barcode Scan when ready.");
-  }
-
   function retake() {
     resetCapturedImage();
     clearFileInputs();
     if (activeIntent === "DOCUMENT" && captureKind === "ID") { setMode("READY"); setFrontScannerOpen(true); }
     else if (activeIntent === "DOCUMENT") { setMode("READY"); setDocumentScannerOpen(true); }
     else if (activeIntent === "BARCODE") { setMode("READY"); setScannerOpen(true); }
-    else void startCamera(activeIntent);
+    else startPhotoCapture();
+  }
+
+  function cancelPreview() {
+    if (busy) return;
+    resetCapturedImage();
+    clearFileInputs();
+    setMode("READY");
+    setNotice("Capture canceled.");
   }
 
   async function sendFile(file: File | null) {
@@ -546,20 +475,8 @@ export function MobileCaptureTool() {
         <button disabled={busy} onClick={() => { setCaptureKind("ID"); setActiveIntent("BARCODE"); setScannerOpen(true); }} type="button"><IdCard size={20} /> Scan ID barcode</button>
         <button disabled={busy} onClick={() => { setCaptureKind("ID"); setActiveIntent("DOCUMENT"); setFrontScannerOpen(true); }} type="button"><IdCard size={20} /> Capture ID front / back</button>
         <button disabled={busy} onClick={startDocumentCapture} type="button"><FileText size={20} /> Scan document</button>
-        <input
-          accept="image/*"
-          capture="environment"
-          className={styles.nativeCameraInput}
-          disabled={busy}
-          onChange={(event) => previewFile(event.currentTarget.files?.[0] ?? null)}
-          ref={cameraUploadRef}
-          type="file"
-        />
-        <label>
-          <UploadCloud size={20} />
-          Upload
-          <input accept="application/pdf,image/*,text/plain" disabled={busy} onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)} ref={fileUploadRef} type="file" />
-        </label>
+        <button className={styles.uploadAction} disabled={busy} onClick={() => fileUploadRef.current?.click()} type="button"><UploadCloud size={20} /> Upload</button>
+        <input accept="application/pdf,image/*,text/plain" disabled={busy} hidden onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)} ref={fileUploadRef} type="file" />
       </section>
 
       {frontScannerOpen ? <IdFrontCapture onClose={() => setFrontScannerOpen(false)} onComplete={(file, fields, mismatch) => {
@@ -593,23 +510,13 @@ export function MobileCaptureTool() {
         setNotice("Code ready. Choose what to do next.");
       }} /> : null}
 
-      {mode === "CAMERA" ? (
-        <section className={styles.cameraOverlay} aria-label="Camera scanner">
-          <header>
-            <span>{activeIntent === "BARCODE" ? "Barcode scan" : "Photo capture"}</span>
-            <strong>{activeIntent === "BARCODE" ? "Center the barcode and capture" : "Frame the photo and capture"}</strong>
-          </header>
-          <video muted playsInline ref={videoRef} />
-          <span aria-hidden="true" />
-          <footer>
-            <button disabled={busy || startingCamera} onClick={() => void captureImage()} type="button"><Camera size={22} /> {startingCamera ? "Starting…" : "Capture"}</button>
-            <button onClick={closeCamera} type="button"><X size={22} /> Close</button>
-          </footer>
-        </section>
-      ) : null}
+      {mode === "CAMERA" ? <PhotoCamera onClose={() => {
+        setMode("READY");
+        setNotice("Photo capture canceled.");
+      }} onPhoto={previewPhoto} /> : null}
 
-      {mode === "PREVIEW" ? (
-        <section className={styles.previewOverlay} aria-label="Capture preview">
+      {mode === "PREVIEW" ? createPortal(
+        <dialog className={styles.previewOverlay} aria-label="Capture preview" onCancel={event => { event.preventDefault(); cancelPreview(); }} ref={previewDialog}>
           <header>
             <span>{activeIntent === "DOCUMENT" ? "Document review" : activeIntent === "BARCODE" ? "Barcode review" : "Photo review"}</span>
             <strong>Accept, retake, or cancel</strong>
@@ -617,7 +524,8 @@ export function MobileCaptureTool() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {capturedFile?.type === "application/pdf" ? <iframe src={capturedImageUrl} title="Document PDF preview" style={{ width: "100%", height: "100%", minHeight: 0, border: 0, background: "white" }} /> : capturedImageUrl ? <img alt="Captured scan preview" src={capturedImageUrl} /> : <p>Code ready for review</p>}
           <div className={styles.barcodeReview} aria-live="polite">
-            {capturedFile?.type === "application/pdf" ? <a href={capturedImageUrl} target="_blank" rel="noreferrer">Open PDF preview</a> : <button disabled={!capturedFile || readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : activeIntent === "BARCODE" ? "Read again" : "Read barcode"}</button>}
+            <p role="status">{notice}</p>
+            {capturedFile?.type === "application/pdf" ? <a href={capturedImageUrl} target="_blank" rel="noreferrer">Open PDF preview</a> : capturedFile ? <button disabled={readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : activeIntent === "BARCODE" ? "Read again" : "Read barcode"}</button> : null}
             {barcodeNotice ? <p>{barcodeNotice}</p> : null}
             {reviewedIdFields ? <><p>Reviewed ID: {reviewedIdFields.fullName || "Name not entered"} · {reviewedIdFields.issuingState || "State not entered"} · ID ending {reviewedIdFields.licenseNumber.slice(-4) || "not entered"}</p><button onClick={async () => { try { await navigator.clipboard.writeText(JSON.stringify(reviewedIdFields, null, 2)); setBarcodeNotice("Reviewed fields copied. Paste only into the intended customer intake form."); } catch { setBarcodeNotice("Copy is unavailable in this browser."); } }} type="button">Copy reviewed ID fields</button></> : null}
             {scannedVin ? <Link href={`/capture/vehicle?vin=${encodeURIComponent(scannedVin)}`}>Decode &amp; add vehicle · {scannedVin}</Link> : null}
@@ -631,9 +539,9 @@ export function MobileCaptureTool() {
           <footer>
             <button disabled={busy || !capturedFile} onClick={() => void sendCapture()} type="button"><Send size={20} /> {busy ? "Sending..." : "Accept and send"}</button>
             <button disabled={busy} onClick={retake} type="button"><RotateCcw size={20} /> Retake</button>
-            <button disabled={busy} onClick={() => { resetCapturedImage(); clearFileInputs(); setMode("READY"); setNotice("Capture canceled. Choose Photo or Barcode Scan when ready."); }} type="button"><X size={20} /> Cancel</button>
+            <button disabled={busy} onClick={cancelPreview} type="button"><X size={20} /> Cancel</button>
           </footer>
-        </section>
+        </dialog>, document.body
       ) : null}
 
       {mode === "SENT" ? (

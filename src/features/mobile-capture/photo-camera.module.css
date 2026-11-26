@@ -1,0 +1,31 @@
+.dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  width: min(100%, 840px);
+  height: min(100dvh, 820px);
+  max-width: 100%;
+  max-height: 100%;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border: 0;
+  border-radius: 12px;
+  background: #101d31;
+  color: #fff;
+}
+.dialog::backdrop { background: #060f1eee; }
+.dialog.fullscreen { width: 100%; height: 100dvh; margin: 0; border-radius: 0; background: #050b14; }
+.layout { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; height: 100%; }
+.layout header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.layout h2 { color: inherit; font-size: 1.15rem; margin: 0; }
+.layout button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 7px 12px; border: 1px solid #506682; border-radius: 8px; background: #20324d; color: #fff; font: inherit; cursor: pointer; }
+.layout button:disabled { opacity: .55; cursor: default; }
+.layout button:focus-visible { outline: 3px solid #92c8ff; outline-offset: 2px; }
+.viewfinder { position: relative; min-height: 0; overflow: hidden; border-radius: 10px; background: #060d18; }
+.viewfinder video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.documentGuide, .idGuide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(84%, 45dvh); max-height: 90%; aspect-ratio: .77; border: 2px solid #b9d6ff; border-radius: 9px; pointer-events: none; }
+.idGuide { width: min(82%, 60dvh); aspect-ratio: 1.58; }
+.layout footer { display: grid; justify-items: center; gap: 6px; }
+.layout footer p { margin: 0; color: #d5e6ff; text-align: center; font-size: .875rem; }
+.layout .shutter { min-height: 52px; background: #3167e3; border-color: #8eb5ff; font-weight: 700; }
+.secondary { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+@media (max-width: 700px) { .dialog { border-radius: 0; } }

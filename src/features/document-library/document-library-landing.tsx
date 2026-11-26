@@ -25,7 +25,8 @@ import {
   UserRound,
   Wrench
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { PhotoCamera } from "@/features/mobile-capture/photo-camera";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import type { DocumentRecord, DocumentSensitivity, DocumentStatus, ReviewDecision } from "@/server/document-library/domain";
 
@@ -295,10 +296,8 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
   const [scannerKind, setScannerKind] = useState<ScannerDocumentKind>("AUTO");
   const [scannerNotice, setScannerNotice] = useState("Use upload, or open the camera scanner on a phone or tablet.");
   const [capturedImageUrl, setCapturedImageUrl] = useState("");
+  const [capturedImageFile, setCapturedImageFile] = useState<File | null>(null);
   const [providerPreview, setProviderPreview] = useState<DocumentLibraryActionResponse["providerAction"] | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const scannerStreamRef = useRef<MediaStream | null>(null);
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "",
@@ -429,7 +428,6 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
   const selectedSmartIntake = smartIntakeQueue[0] ?? null;
 
   useEffect(() => () => {
-    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
   }, [capturedImageUrl]);
 
@@ -654,7 +652,9 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
       });
       const result = await response.json().catch(() => null) as DocumentLibraryUploadResponse | null;
       if (!response.ok) {
-        setNotice(result?.error ?? "Smart intake upload could not be read.");
+        const message = result?.error ?? "Smart intake upload could not be read.";
+        setNotice(message);
+        if (source === "MOBILE_SCANNER") setScannerNotice(message);
         return;
       }
       const smartDraft = result?.smartIntake;
@@ -677,6 +677,7 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
         if (source === "MOBILE_SCANNER") {
           if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
           setCapturedImageUrl("");
+          setCapturedImageFile(null);
           setScannerMode("UPLOAD");
         }
         return;
@@ -684,84 +685,27 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
       setNotice("File uploaded, but no smart intake draft was produced.");
     } catch {
       setNotice("Smart intake upload could not reach the document service.");
+      if (source === "MOBILE_SCANNER") setScannerNotice("The service did not respond. Your photo is still here. Try sending it again.");
     } finally {
       setUploadBusy(false);
     }
   }
 
-  function stopScannerCamera() {
-    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
-    scannerStreamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-  }
-
-  async function startScannerCamera() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerNotice("Camera scanning is not available in this browser. Use upload instead.");
-      return;
-    }
-    try {
-      stopScannerCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          height: { ideal: 1440 },
-          width: { ideal: 1920 }
-        }
-      });
-      scannerStreamRef.current = stream;
-      setScannerMode("CAMERA");
-      setScannerNotice("Center the document, avoid glare, then capture.");
-      requestAnimationFrame(() => {
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        void videoRef.current.play();
-      });
-    } catch {
-      setScannerNotice("Camera permission was blocked or unavailable. Use upload instead.");
-    }
-  }
-
-  function retakeScannerImage() {
-    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+  function cancelScanner() {
     setCapturedImageUrl("");
-    void startScannerCamera();
+    setCapturedImageFile(null);
+    setScannerMode("UPLOAD");
+    setScannerNotice("Capture closed. Upload is still available.");
   }
 
-  async function captureScannerImage() {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
-      setScannerNotice("Camera is still warming up. Try capture again in a moment.");
-      return;
+  function previewScannerImage(file: File) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > 25 * 1024 * 1024) {
+      return "Choose a JPEG, PNG, or WebP photo under 25 MB.";
     }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setScannerNotice("Could not prepare the capture. Use upload instead.");
-      return;
-    }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-    if (!blob) {
-      setScannerNotice("Could not capture the image. Try again.");
-      return;
-    }
-    stopScannerCamera();
-    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
-    setCapturedImageUrl(URL.createObjectURL(blob));
+    setCapturedImageFile(file);
+    setCapturedImageUrl(URL.createObjectURL(file));
     setScannerMode("PREVIEW");
-    setScannerNotice(blob.size < 120_000 ? "Image captured, but it may be low detail. Retake if the text looks soft." : "Image captured. Review it before sending to OCR.");
-  }
-
-  async function submitScannerImage() {
-    if (!capturedImageUrl) return;
-    const response = await fetch(capturedImageUrl);
-    const blob = await response.blob();
-    const file = new File([blob], `mobile-scan-${Date.now()}.jpg`, { type: "image/jpeg" });
-    await uploadSmartIntakeFile(file, "MOBILE_SCANNER");
+    setScannerNotice("Check that the text is sharp before sending it for reading.");
   }
 
   if (!library) {
@@ -814,10 +758,10 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
           <StatusBadge label={selectedSmartIntake?.reviewStatus ?? "READY"} tone={selectedSmartIntake ? statusTone(selectedSmartIntake.reviewStatus) : "success"} />
         </header>
         <div className={styles.smartIntakeGrid}>
-          <div className={`${styles.smartScanner} ${scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.scannerFullscreen : ""}`}>
+          <div className={`${styles.smartScanner} ${scannerMode === "PREVIEW" ? styles.scannerFullscreen : ""}`}>
             <div className={styles.scannerToolbar}>
-              <button className={scannerMode === "UPLOAD" ? styles.activeScannerMode : ""} onClick={() => { stopScannerCamera(); setScannerMode("UPLOAD"); }} type="button">Upload</button>
-              <button className={scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.activeScannerMode : ""} onClick={() => void startScannerCamera()} type="button">Scan</button>
+              <button className={scannerMode === "UPLOAD" ? styles.activeScannerMode : ""} disabled={uploadBusy} onClick={cancelScanner} type="button">Upload</button>
+              <button className={scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.activeScannerMode : ""} disabled={uploadBusy} onClick={() => setScannerMode("CAMERA")} type="button">Scan</button>
               <select aria-label="Scan document type" onChange={(event) => setScannerKind(event.target.value as ScannerDocumentKind)} value={scannerKind}>
                 <option value="AUTO">Auto</option>
                 <option value="BUSINESS_CARD">Business card</option>
@@ -826,21 +770,14 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
               </select>
             </div>
             {scannerMode === "CAMERA" ? (
-              <div className={styles.scannerCamera}>
-                <video muted playsInline ref={videoRef} />
-                <span aria-hidden="true" />
-                <footer>
-                  <button disabled={uploadBusy} onClick={() => void captureScannerImage()} type="button">Capture</button>
-                  <button onClick={() => { stopScannerCamera(); setScannerMode("UPLOAD"); setScannerNotice("Camera closed. Upload is still available."); }} type="button">Close</button>
-                </footer>
-              </div>
+              <PhotoCamera titleText="Scan a document" shutterLabel="Capture document" guidance="Frame the entire document and avoid glare." framing="document" onClose={() => setScannerMode(capturedImageFile ? "PREVIEW" : "UPLOAD")} onPhoto={previewScannerImage} />
             ) : scannerMode === "PREVIEW" ? (
               <div className={styles.scannerPreview}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img alt="Captured document preview" src={capturedImageUrl} />
                 <footer>
-                  <button disabled={uploadBusy} onClick={() => void submitScannerImage()} type="button">{uploadBusy ? "Reading..." : "Send to OCR"}</button>
-                  <button disabled={uploadBusy} onClick={() => void retakeScannerImage()} type="button">Retake</button>
+                  <button disabled={uploadBusy || !capturedImageFile} onClick={() => void uploadSmartIntakeFile(capturedImageFile, "MOBILE_SCANNER")} type="button">{uploadBusy ? "Reading..." : "Send to OCR"}</button>
+                  <button disabled={uploadBusy} onClick={() => setScannerMode("CAMERA")} type="button">Retake</button>
                 </footer>
               </div>
             ) : (
@@ -851,8 +788,7 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
                 <input accept="application/pdf,image/*,text/plain" disabled={uploadBusy} onChange={(event) => void uploadSmartIntakeFile(event.currentTarget.files?.[0] ?? null)} type="file" />
               </label>
             )}
-            <canvas ref={canvasRef} />
-            <p>{scannerNotice}</p>
+            <p role="status">{scannerNotice}</p>
           </div>
           <div className={styles.smartDraftList}>
             {smartIntakeQueue.slice(0, 4).map((draft) => (
