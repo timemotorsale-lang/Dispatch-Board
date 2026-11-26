@@ -29,6 +29,15 @@
 .dashboard { display: grid; gap: .8rem; min-inline-size: 0; }
 
 .workLayout { display: grid; min-inline-size: 0; gap: .85rem; align-items: start; }
+.workSummary, .workNext { display: grid; min-inline-size: 0; gap: .6rem; align-content: start; }
+.reviewNotice { border-inline-start: 3px solid #bc8135; padding-inline-start: .65rem; }
+.reviewSection { scroll-margin-block-start: 6rem; }
+@container (min-width: 580px) {
+  .workSummary { grid-template-columns: minmax(0, 1fr) minmax(14rem, .8fr); align-items: start; }
+  .workNext { grid-area: 1 / 1; }
+  .workSummary > :first-child { grid-area: 1 / 2; }
+}
+.workLayout > .panel { container-type: inline-size; }
 .quickToggle[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
 .quickPanel h2 { font-size: 1.125rem; }
 .quickPanel .quickTiles a { min-height: 54px; line-height: 1.2; gap: .3rem; padding: .45rem .35rem; overflow-wrap: anywhere; }

@@ -1660,7 +1660,8 @@ export function CrmNextDealStartView({
   initialWorkflowId,
   initialVehicleReference,
   initialVehicleFacts,
-  model
+  model,
+  backToCustomerId
 }: {
   captureEnabled?: boolean;
   reviewTestDrive?: boolean;
@@ -1670,9 +1671,11 @@ export function CrmNextDealStartView({
   initialVehicleReference?: string;
   initialVehicleFacts?: Record<string, string>;
   model: CrmNextCommandCenter;
+  backToCustomerId?: string;
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
+      {backToCustomerId && <Link className={styles.secondaryButton} href={customer360Href(backToCustomerId)}>Back to Customer 360</Link>}
       <CrmNextDealStartTool captureEnabled={captureEnabled} initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
@@ -2194,9 +2197,10 @@ function currentCustomerTool() {
   return CUSTOMER_TOOLS.some(([id]) => id === hash) ? hash : "overview";
 }
 
-export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false, dealsEnabled = false, wishlist = null, wishlistEditable = false, canLinkVehicle = false }: {
+export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false, dealsEnabled = false, wishlist = null, wishlistEditable = false, canLinkVehicle = false, duplicateReview = null }: {
   customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[];
   captureEnabled?: boolean; dealsEnabled?: boolean; wishlist?: CustomerWishlistValue | null; wishlistEditable?: boolean; canLinkVehicle?: boolean;
+  duplicateReview?: import("@/server/unified-crm/customer-duplicate-candidate-contract").UnifiedCrmCustomerDuplicateCandidate[] | null;
 }) {
   const section = useSyncExternalStore(subscribeCustomerTool, currentCustomerTool, () => "overview");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -2240,6 +2244,8 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
   const customerOwner = customer.glance.find(item => item.label === "Owner")?.value;
   const customerSince = new Date(customer.customerSince);
   const customerHref = `/crm-next/customers/${encodeURIComponent(customer.id)}`;
+  const financeHref = `/crm-next/deals/start?${new URLSearchParams({ customerId: customer.id, pathway: "finance", fromCustomer: "1" })}`;
+  const packetsHref = `/sales-documents?customerId=${encodeURIComponent(customer.id)}`;
   const serviceHref = `/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "WALK_IN", customerId: customer.id, returnTo: customerHref + "#vehicles" })}`;
   function openCheckIn() {
     const details = document.getElementById("customer-check-in") as HTMLDetailsElement | null;
@@ -2270,15 +2276,23 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
       {section === "overview" && <div className={customerTools.workLayout} data-show-quick={quickActionsOpen}>
       <section id="overview" className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-work-title">
         <h2 id="customer-work-title">Work this customer</h2>
-        {activeAttentionItem && <p><strong>{activeAttentionItem.nextAction}</strong> · {activeAttentionItem.owner} <Link href={attendHref}>Open follow-up</Link></p>}
-        <CustomerContactDetails surface="crm-next" customerId={customer.id} phone={customer.phone} email={customer.email} />
-        <div className={customerTools.actions}>
-          <button className={styles.primaryButton} type="button" onClick={openCheckIn}>Check in</button>
-          {!quickActionsOpen && <>
-            <Link href={appointmentHref}>Schedule appointment</Link>
-            <Link href={crmNextActionHref("new-task", customer.id)}>Create task</Link>
-            <Link href={crmNextActionHref("add-note", customer.id)}>Add note</Link>
-          </>}
+        {Boolean(duplicateReview?.length) && <p className={customerTools.reviewNotice}><strong>Possible duplicate record.</strong> <a href="#compliance-review" onClick={() => {
+          const review = document.querySelector<HTMLDetailsElement>("#compliance-review");
+          if (review) review.open = true;
+        }}>Review possible matches</a></p>}
+        <div className={customerTools.workSummary}>
+          <CustomerContactDetails surface="crm-next" customerId={customer.id} phone={customer.phone} email={customer.email} quickReference />
+          <div className={customerTools.workNext}>
+            {activeAttentionItem && <p><strong>{activeAttentionItem.nextAction}</strong> · {activeAttentionItem.owner} <Link href={attendHref}>Open follow-up</Link></p>}
+            <div className={customerTools.actions}>
+              <button className={styles.primaryButton} type="button" onClick={openCheckIn}>Check in</button>
+              {!quickActionsOpen && <>
+                <Link href={appointmentHref}>Schedule appointment</Link>
+                <Link href={crmNextActionHref("new-task", customer.id)}>Create task</Link>
+                <Link href={crmNextActionHref("add-note", customer.id)}>Add note</Link>
+              </>}
+            </div>
+          </div>
         </div>
         <details id="customer-check-in" className={customerTools.subsection}>
           <summary>Check-in options</summary>
@@ -2315,6 +2329,29 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
         </div>
       </section>
       </div>}
+      {section === "overview" && <section className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-more-tools-title">
+        <h2 id="customer-more-tools-title">More tools</h2>
+        {dealsEnabled && <details className={customerTools.subsection}>
+          <summary>Credit application &amp; pre-qualification</summary>
+          <p>Open the finance deal desk to record the credit path and lender status. No credit application or pre-qualification is submitted here.</p>
+          <Link className={styles.secondaryButton} href={financeHref}>Open finance deal desk</Link>
+        </details>}
+        <details className={`${customerTools.subsection} ${customerTools.reviewSection}`} id="compliance-review">
+          <summary>Compliance &amp; duplicates</summary>
+          <div className={customerTools.actions}>
+            {captureEnabled && <a href="#documents-held">Customer ID &amp; documents</a>}
+            {dealsEnabled && captureEnabled && <Link href={packetsHref}>Deal paperwork checklists</Link>}
+          </div>
+          <h3>Duplicate review</h3>
+          {duplicateReview === null ? <p>Duplicate review is unavailable for this record or your account.</p>
+            : duplicateReview.length === 0 ? <p>No possible duplicates found.</p>
+            : <><p>Compare the records before using or linking them. A match does not merge records.</p>
+              <ul className={customerTools.rows}>{duplicateReview.map(candidate => <li key={candidate.candidateCustomerId}>
+                <div><strong>{candidate.explanation.join(" · ")}</strong><small>{[candidate.maskedPhone, candidate.maskedEmail].filter(Boolean).join(" · ")}</small></div>
+                <Link href={customer360Href(candidate.candidateCustomerId)}>Open possible match</Link>
+              </li>)}</ul></>}
+        </details>
+      </section>}
       {section === "deals" && <section id="deals" className={`${styles.panel} ${customerTools.panel}`} aria-label="Deals and deposits">
         <h2>Deals &amp; deposits</h2>
         {dealsEnabled ? <CustomerDealTools key={customer.id} customerId={customer.id} /> : <p>Your account does not have Deals access.</p>}
@@ -2339,7 +2376,7 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
           <p>Captures stay on this customer and are available to authorized staff on linked deals.</p>
           <SavedCustomerFiles key={customer.id} customerId={customer.id} />
         </> : <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>}
-        {dealsEnabled && <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>}
+        {dealsEnabled && <Link href={packetsHref}>Saved deal packets</Link>}
       </section>}
       {section === "timeline" && <section id="timeline" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer activity">
         <h2>Recent activity</h2>
@@ -2365,7 +2402,7 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
             <Link href="/crm">Older customer tools</Link>
           </div>
         </section>
-        <CustomerOperatingLedger activeAttentionItem={activeAttentionItem} customer={customer} model={model} savedStage={savedCustomerStage} />
+        <CustomerOperatingLedger activeAttentionItem={activeAttentionItem} customer={customer} model={model} savedStage={savedCustomerStage} duplicateCount={duplicateReview?.length ?? 0} />
         <CustomerCollectionsPanel accounts={collections} className={styles.panel} />
         <CompactSourceStatus model={model} />
       </section>}
@@ -2377,12 +2414,14 @@ function CustomerOperatingLedger({
   activeAttentionItem,
   customer,
   model,
-  savedStage
+  savedStage,
+  duplicateCount
 }: {
   activeAttentionItem?: CrmNextAttentionItem;
   customer: CrmNextCustomer360;
   model: CrmNextCommandCenter;
   savedStage?: CustomerJourneyStage;
+  duplicateCount: number;
 }) {
   const customerTimelineEvents = verifiedTimelineEvents(model.timeline ?? [])
     .filter((event) => event.detail.toLowerCase().includes(customer.name.toLowerCase()) || event.label.toLowerCase().includes(customer.name.toLowerCase()))
@@ -2406,17 +2445,13 @@ function CustomerOperatingLedger({
     }] : [])
   ].slice(0, 4);
   const ledgerEvents = customerTimelineEvents.length ? customerTimelineEvents : fallbackEvents;
-  const duplicateCandidates = (model.customers ?? [])
-    .filter((record) => record.id !== customer.id)
-    .filter((record) => record.name.toLowerCase() === customer.name.toLowerCase() || record.phone === customer.phone || record.email === customer.email)
-    .slice(0, 3);
   const relationshipType = customerRelationshipType(customer, activeAttentionItem);
   const currentStatus = customerDisplayStatus(customer, savedStage);
   const nextOwner = activeAttentionItem?.owner ?? "Unassigned";
   const dueWindow = activeAttentionItem?.age ?? "No due date visible";
   const hasOwnerException = nextOwner === "Unassigned";
   const hasOverdueException = /overdue|missed|due/i.test(`${activeAttentionItem?.reason ?? ""} ${activeAttentionItem?.age ?? ""}`);
-  const hasDuplicateException = duplicateCandidates.length > 0;
+  const hasDuplicateException = duplicateCount > 0;
   const hasCloseoutException = savedStage && isTerminalJourneyStage(savedStage) ? false : /delivered|resolved|closed|no action/i.test(customer.nextAction);
   const managerExceptions = [
     hasOwnerException ? "No owner assigned" : "",
@@ -2477,12 +2512,7 @@ function CustomerOperatingLedger({
 
         <article>
           <h3>Duplicates & Relationships</h3>
-          {duplicateCandidates.length ? duplicateCandidates.map((record) => (
-            <Link href={customer360Href(record.id)} key={record.id}>
-              <strong>{record.name}</strong>
-              <small>{record.phone} · {record.email}</small>
-            </Link>
-          )) : <p>No matching name, phone, or email duplicate found in the visible list.</p>}
+          <a href="#overview">Open Work to review customer records</a>
         </article>
 
         <article>

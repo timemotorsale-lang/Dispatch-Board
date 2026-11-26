@@ -9,6 +9,8 @@ import { CrmNextCustomer360View, CrmNextCustomerRecordUnavailable, CrmNextUnavai
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCustomer360 } from "@/server/crm-next/read-model";
+import { getCustomerContactDetails } from "@/server/services/customer-contact-details-service";
+import { getUnifiedCrmCustomerDuplicateCandidates } from "@/server/services/unified-crm-customer-duplicate-candidate-service";
 
 type CrmNextCustomerPageProps = {
   params: Promise<{ customerId: string }>;
@@ -38,9 +40,18 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
       }
       return false;
     });
-  const [wishlist, canLinkVehicle] = await Promise.all([
+  const [wishlist, canLinkVehicle, duplicateReview] = await Promise.all([
     readCustomerWishlist(user, customer.id).catch(() => null),
-    customerVehicleToolsEnabled(user, customer.id).catch(() => false)
+    customerVehicleToolsEnabled(user, customer.id).catch(() => false),
+    // Check against the scoped customer record, not against masked list values.
+    getCustomerContactDetails(user, customer.id, { readMode: "REVIEW", shellMode: "REVIEW" })
+      .then(({ contacts }) => getUnifiedCrmCustomerDuplicateCandidates(user, customer.id, {
+        displayName: customer.name,
+        email: contacts.find(contact => contact.type === "EMAIL")?.value,
+        phoneNumber: contacts.find(contact => contact.type === "PHONE")?.value
+      }, { readMode: "REVIEW", shellMode: "REVIEW" }))
+      .then(result => result.candidates)
+      .catch(() => null)
   ]);
   return (
     <CrmNextCustomer360View
@@ -52,6 +63,7 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
       customer={customer}
       model={model}
       collections={collections}
+      duplicateReview={duplicateReview}
     />
   );
 }

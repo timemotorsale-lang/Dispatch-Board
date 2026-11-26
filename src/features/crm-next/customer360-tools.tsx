@@ -25,13 +25,14 @@ export function CustomerDealTools({ customerId }: { customerId: string }) {
     return () => controller.abort();
   }, [customerId, retry]);
   return <>
-    <p>Choose a saved deal to review or record a verified deposit in its Money tools. This page does not collect payments.</p>
+    <h3>Accounting &amp; deposits</h3>
+    <p>Open a saved deal’s Money record for recorded payments, refunds, and verified deposits. This page does not collect payments.</p>
     {error ? <p role="alert">{error} <button type="button" onClick={() => { setError(""); setRetry(value => value + 1); }}>Retry</button></p> :
       deals === null ? <p role="status">Loading saved deals…</p> : deals.length === 0 ? <p>No saved deals are available to you for this customer.</p> :
       <ul className={styles.rows}>{deals.map(deal => <li key={deal.id}>
         <div><strong>Deal #{deal.dealNumber}</strong><small>{[deal.vehicleReference, deal.status.replaceAll("_", " ").toLowerCase()].filter(Boolean).join(" · ")}</small></div>
         <Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(deal.id)}`}>Open deal</Link>
-        <button type="button" onClick={() => setSelected(deal)}>Money<span className="sr-only"> for deal {deal.dealNumber}</span></button>
+        <button type="button" onClick={() => setSelected(deal)}>Open Money<span className="sr-only"> for deal {deal.dealNumber}</span></button>
       </li>)}</ul>}
     <Link href={`/crm-next/deals/start?customerId=${encodeURIComponent(customerId)}`}>Open deal workspace</Link>
     {selected && <DealOperationsDrawer deal={{ ...selected, draftId: selected.id }} expectedCustomerId={customerId} initialTab="Money" onClose={() => setSelected(null)} onChanged={() => setRetry(value => value + 1)} />}

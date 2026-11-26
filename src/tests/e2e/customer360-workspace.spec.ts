@@ -12,15 +12,18 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   if (connection.hostname !== "127.0.0.1" || connection.port !== "55435" || connection.pathname !== "/camera_preview") throw new Error("Isolated database required.");
   await page.context().route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: {} }));
   const db = new PrismaClient();
-  const [customerId, dealId, vehicleId] = [randomUUID(), randomUUID(), randomUUID()];
+  const [customerId, dealId, vehicleId, possibleMatchId] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
   const suffix = customerId.slice(0, 8);
   const customerName = `Workspace Review ${suffix}`;
+  const customerPhone = "+16125550142";
+  const customerEmail = `workspace-${suffix}@example.test`;
   const vin = "1HGCM82633A" + String(parseInt(suffix, 16) % 1000000).padStart(6, "0");
   const organizationId = "org-time-motor-sales";
   const inventoryVin = "2HGCM82633A" + vin.slice(-6);
   try {
     const owner = await db.user.findUniqueOrThrow({ where: { email: "morgan.manager@local.test" }, select: { id: true } });
-    await db.customer.create({ data: { id: customerId, organizationId, ownerUserId: owner.id, customerNumber: `TOOLS-${suffix}`, displayName: customerName } });
+    await db.customer.create({ data: { id: customerId, organizationId, ownerUserId: owner.id, customerNumber: `TOOLS-${suffix}`, displayName: customerName, phoneNumber: customerPhone, email: customerEmail } });
+    await db.customer.create({ data: { id: possibleMatchId, organizationId, ownerUserId: owner.id, customerNumber: `MATCH-${suffix}`, displayName: customerName } });
     const vehicle = await db.vehicle.create({ data: { id: vehicleId, organizationId, vehicleNumber: `TOOLS-${suffix}`, vin, year: 2019, make: "Honda", model: "Accord" } });
     await db.enterpriseAggregateVersion.create({ data: { organizationId, domain: "VEHICLE_REGISTRY", subjectType: "VEHICLE", subjectId: vehicleId, version: vehicle.version } });
     const inventoryVehicle = await db.vehicle.create({ data: { organizationId, vehicleNumber: `STOCK-${suffix}`, vin: inventoryVin } });
@@ -47,6 +50,28 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   await page.goto(path);
   await ready(page.getByRole("heading", { name: customerName })).toBeVisible();
   await ready(page.getByRole("heading", { name: "Work this customer" })).toBeVisible();
+  const work = page.getByRole("region", { name: "Work this customer" });
+  await expect(work.getByText(customerEmail, { exact: true })).toHaveCount(0);
+  await expect(work.getByRole("link", { name: "Call", exact: true })).toHaveCount(0);
+  await work.getByRole("button", { name: "Show contact details" }).click();
+  await ready(work.getByText(customerEmail, { exact: true })).toBeVisible();
+  await expect(work.getByRole("link", { name: "Email", exact: true })).toHaveAttribute("href", `mailto:${encodeURIComponent(customerEmail)}`);
+  await expect(work.getByRole("link", { name: "Call", exact: true })).toHaveAttribute("href", `tel:${customerPhone}`);
+  await expect(work.getByRole("link", { name: "Text options" })).toHaveAttribute("href", `/crm-next/actions/send-text?customerId=${customerId}`);
+  await work.getByRole("button", { name: "Hide contact details" }).click();
+  await expect(work.getByText(customerEmail, { exact: true })).toHaveCount(0);
+  const tools = page.getByRole("region", { name: "More tools" });
+  const match = tools.locator(`a[href="/crm-next/customers/${possibleMatchId}"]`);
+  await expect(match).toBeHidden();
+  await work.getByRole("link", { name: "Review possible matches" }).click();
+  await ready(match).toBeVisible();
+  await expect(tools.getByRole("link", { name: "Deal paperwork checklists" })).toHaveAttribute("href", `/sales-documents?customerId=${customerId}`);
+  await tools.getByText("Credit application & pre-qualification", { exact: true }).click();
+  await tools.getByRole("link", { name: "Open finance deal desk" }).click();
+  await ready(page.getByRole("link", { name: "Back to Customer 360", exact: true })).toHaveAttribute("href", path);
+  await expect(page).toHaveURL(/pathway=finance/);
+  await page.getByRole("link", { name: "Back to Customer 360", exact: true }).click();
+  await ready(work.getByRole("heading", { name: "Work this customer" })).toBeVisible();
   const workspace = page.getByRole("region", { name: "Customer 360", exact: true });
   const sidebar = page.getByRole("complementary", { name: "Customer Console navigation" });
   const sidebarToggle = sidebar.getByRole("button", { name: "Collapse customer navigation" });
@@ -86,6 +111,7 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   await page.setViewportSize({ width: 390, height: 750 });
   await page.reload();
   await ready(sidebar.getByRole("button", { name: "Expand customer navigation" })).toBeVisible();
+  expect((await work.getByText("Contact", { exact: true }).boundingBox())!.y).toBeLessThan((await work.getByRole("button", { name: "Check in", exact: true }).boundingBox())!.y);
   await more.click();
   await ready(quick.getByRole("link", { name: "Documents & photos" })).toBeVisible();
   expect((await quick.boundingBox())!.y).toBeGreaterThan((await more.boundingBox())!.y);
@@ -127,7 +153,8 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   expect(await replay.json()).toMatchObject({ duplicate: true });
 
   await nav.getByRole("link", { name: "Deals & deposits" }).click();
-  await page.getByRole("button", { name: /Money for deal/ }).click({ timeout: 25000 });
+  await expect(page.getByRole("heading", { name: "Accounting & deposits" })).toBeVisible();
+  await page.getByRole("button", { name: /Open Money for deal/ }).click({ timeout: 25000 });
   await ready(page.getByRole("tab", { name: "Money", exact: true })).toHaveAttribute("aria-selected", "true");
   await ready(page.getByRole("heading", { name: "Recorded financial activity" })).toBeVisible();
   const wrongCustomer = await page.request.get(`/api/crm/v1/deal-drafts?view=operations&draftId=${dealId}&expectedCustomerId=${randomUUID()}`);
@@ -135,6 +162,7 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   const sales = await playwright.request.newContext({ baseURL });
   try {
     expect((await sales.post("/api/auth/login", { data: { email: "jordan.sales@local.test", password: "dispatch123!" } })).ok()).toBe(true);
+    expect([403, 404]).toContain((await sales.get(`/api/crm-next/customers/${customerId}/contact-details`)).status());
     expect([403, 404]).toContain((await sales.post(`/api/crm-next/customers/${customerId}/actions`, { data: { action: "save-wishlist", body: "Must not save", expectedWishlistNoteId: null, idempotencyKey: randomUUID() } })).status());
     expect([403, 404]).toContain((await sales.get(endpoint + "?" + new URLSearchParams({ vin }))).status());
   } finally { await sales.dispose(); }
