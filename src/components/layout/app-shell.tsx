@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { canUseStaffCalendar } from "@/server/policies/access";
 import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
@@ -26,7 +27,7 @@ import { TasksWorkspaceSidebar } from "./tasks-workspace-sidebar";
 import { OperatingRhythmReminder } from "./operating-rhythm-reminder";
 import { readManagerWorkspaceContext, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import taskPageStyles from "./tasks-page-shell.module.css";
-import { useWorkspaceNavigation, WorkspaceNavigationToggle } from "./workspace-navigation";
+import { FocusedWorkspaceNavigationContext, useWorkspaceNavigation, WorkspaceNavigationScrim, WorkspaceNavigationToggle } from "./workspace-navigation";
 
 type AppShellProps = {
   children: ReactNode;
@@ -71,11 +72,15 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
           ? "SERVICE"
           : null
     : null;
-  const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace || openRepairOrder ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
+  const fullSchedule = pathname === "/appointments" && canUseStaffCalendar(user) && searchParams.get("view") !== "calendar"
+    && (searchParams.get("view") === "board" || searchParams.get("workspace") === "board");
+  const routeConsole = salesConsole || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
+  const consoleNavigation = diagnosticVehicleWorkspace || openRepairOrder || fullSchedule ? null : routeConsole;
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const navigation = useWorkspaceNavigation({ routeKey: location });
-  const drawerOpen = hasSidebar && navigation.drawerOpen;
+  const focusedNavigation = !hasSidebar && !salesConsole;
+  const navigation = useWorkspaceNavigation({ routeKey: location, alwaysDrawer: focusedNavigation });
+  const drawerOpen = (hasSidebar || focusedNavigation) && navigation.drawerOpen;
   const sidebarControls = { id: navigation.id, desktopToggle: <WorkspaceNavigationToggle id={navigation.id}
     className="workspace-navigation-desktop" expanded={!navigation.collapsed} onClick={navigation.toggleDesktop}
     label={navigation.collapsed ? "Expand navigation" : "Collapse navigation"} /> };
@@ -142,9 +147,11 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
   }
 
   return (
+    <FocusedWorkspaceNavigationContext.Provider value={focusedNavigation ? { id: navigation.id, expanded: drawerOpen, onOpen: navigation.openDrawer } : null}>
     <div
       data-open-repair-order={openRepairOrder || undefined}
       data-workspace-nav={hasSidebar ? navigation.collapsed ? "collapsed" : "expanded" : undefined}
+      data-focused-navigation={focusedNavigation || undefined}
       className={[
         "app-frame",
         tasksConsoleHome ? taskPageStyles.shell : "",
@@ -160,14 +167,23 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
       {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={drawerOpen} onClose={navigation.closeDrawer} navigation={sidebarControls} user={user} /> : null}
       {tasksConsoleHome ? <TasksWorkspaceSidebar compact={false} isOpen={drawerOpen} onClose={navigation.closeDrawer} navigation={sidebarControls} user={user} /> : null}
       {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={drawerOpen} managerContext={managerContext} onClose={navigation.closeDrawer} navigation={sidebarControls} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}
-      {drawerOpen ? (
+      {hasSidebar && drawerOpen ? (
         <button className="sidebar-scrim" aria-label="Dismiss navigation" tabIndex={-1} onClick={navigation.closeDrawer} />
       ) : null}
+      {focusedNavigation && <>
+        {drawerOpen && <WorkspaceNavigationScrim onClick={navigation.closeDrawer} />}
+        <div id={navigation.id} className="focused-workspace-drawer" role="dialog" aria-modal="true"
+          aria-label="Workspace navigation" hidden={!drawerOpen}>
+          {drawerOpen && (routeConsole
+            ? <ConsoleSidebar console={routeConsole} isOpen managerContext={managerContext} onClose={navigation.closeDrawer} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} />
+            : <AppSidebar collectionsNavigation={collectionsNavigation} compact={false} isOpen onClose={navigation.closeDrawer} user={user} />)}
+        </div>
+      </>}
       <div className="app-workspace" inert={drawerOpen}>
         {salesConsole ? <MobileToolsNavigation standalone /> : null}
         {!openRepairOrder && <OperatingRhythmReminder />}
         {salesConsole ? null : (
-          <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={navigation.openDrawer} navigationId={navigation.id} navigationExpanded={drawerOpen} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+          <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={navigation.openDrawer} navigationId={navigation.id} navigationExpanded={drawerOpen} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar || focusedNavigation} user={user} />
         )}
         {openRepairOrder && <OperatingRhythmReminder />}
         {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace && !openRepairOrder ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
@@ -194,6 +210,7 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
         }} onSubmitCapture={preserveManagerContextOnForm}>{children}</main>
       </div>
     </div>
+    </FocusedWorkspaceNavigationContext.Provider>
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
 
 const preferenceKey = "dispatch-board.sidebar";
@@ -23,7 +23,7 @@ function readCollapsed() {
 
 export type WorkspaceSidebarControls = { id: string; desktopToggle: ReactNode };
 
-export function useWorkspaceNavigation({ breakpoint = 980, routeKey = "" } = {}) {
+export function useWorkspaceNavigation({ breakpoint = 980, routeKey = "", alwaysDrawer = false } = {}) {
   const id = useId();
   const opener = useRef<HTMLButtonElement | null>(null);
   const [openRoute, setOpenRoute] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function useWorkspaceNavigation({ breakpoint = 980, routeKey = "" } = {})
   }, [query]);
   const small = useSyncExternalStore(subscribeViewport, () => window.matchMedia(query).matches, () => false);
   const collapsed = useSyncExternalStore(subscribePreference, readCollapsed, () => false);
-  const drawerOpen = small && openRoute === routeKey;
+  const drawerOpen = (alwaysDrawer || small) && openRoute === routeKey;
 
   function toggleDesktop() {
     const next = !collapsed;
@@ -51,14 +51,16 @@ export function useWorkspaceNavigation({ breakpoint = 980, routeKey = "" } = {})
 
   const closeDrawer = useCallback(() => {
     setOpenRoute(null);
-    requestAnimationFrame(() => opener.current?.focus());
+    const previousOpener = opener.current;
+    opener.current = null;
+    if (previousOpener) requestAnimationFrame(() => previousOpener.focus({ preventScroll: true }));
   }, []);
 
   useEffect(() => {
     if (!drawerOpen) return;
     const drawer = document.getElementById(id);
     if (!drawer) return;
-    drawer.querySelector<HTMLElement>("[data-navigation-close]")?.focus();
+    drawer.querySelector<HTMLElement>("[data-navigation-close]")?.focus({ preventScroll: true });
     function manageFocus(event: KeyboardEvent) {
       if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
@@ -78,6 +80,16 @@ export function useWorkspaceNavigation({ breakpoint = 980, routeKey = "" } = {})
   }, [closeDrawer, drawerOpen, id]);
 
   return { id, collapsed, drawerOpen, toggleDesktop, openDrawer, closeDrawer };
+}
+
+type FocusedNavigationControls = { id: string; expanded: boolean; onOpen(event: MouseEvent<HTMLButtonElement>): void };
+export const FocusedWorkspaceNavigationContext = createContext<FocusedNavigationControls | null>(null);
+
+/** Place the app's navigation trigger in a focused workspace's own toolbar. */
+export function FocusedWorkspaceNavigationButton() {
+  const navigation = useContext(FocusedWorkspaceNavigationContext);
+  if (!navigation) return null;
+  return <WorkspaceNavigationToggle id={navigation.id} expanded={navigation.expanded} label="Open navigation" onClick={navigation.onOpen} />;
 }
 
 export function WorkspaceNavigationToggle({ id, expanded, label, onClick, className }: {

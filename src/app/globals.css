@@ -33240,6 +33240,30 @@ html[data-app-theme="dark"] .app-content :where(
 .workspace-navigation-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .workspace-navigation-overlay { position: fixed; inset: 0; z-index: 1090; border: 0; padding: 0; background: rgb(3 11 22 / 55%); }
 .app-topbar .workspace-navigation-toggle.topbar-menu { display: none; }
+.app-frame[data-focused-navigation] > .app-workspace > .app-topbar .workspace-navigation-toggle.topbar-menu { display: inline-grid; }
+/* A nested CRM workspace already provides its own navigation, including on phones. */
+.app-frame[data-focused-navigation]:has(.crm-next-shell) > .app-workspace > .app-topbar .workspace-navigation-toggle.topbar-menu { display: none; }
+.focused-workspace-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1100;
+  width: min(86vw, 318px);
+  height: 100dvh;
+}
+.focused-workspace-drawer[hidden] { display: none; }
+.focused-workspace-drawer > .app-sidebar {
+  display: flex;
+  position: static;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  transform: none;
+  box-shadow: 18px 0 40px rgb(4 12 24 / 22%);
+  overscroll-behavior: contain;
+}
+.focused-workspace-drawer .sidebar-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.appointment-schedule-heading { display: flex; align-items: center; gap: .65rem; }
+.appointment-schedule-heading > div { min-width: 0; }
 .app-sidebar > .workspace-navigation-desktop { margin-block-end: 6px; }
 @media (min-width: 981px) {
   .app-frame[data-workspace-nav="collapsed"]:has(> .app-sidebar) { grid-template-columns: 60px minmax(0, 1fr); }
