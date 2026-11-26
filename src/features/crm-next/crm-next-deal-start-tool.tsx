@@ -2,6 +2,8 @@
 
 import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { dealCaptureHref } from "@/features/mobile-capture/capture-navigation";
+import { DealCustomerFiles } from "./deal-customer-files";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { openPrintablePdfDocument } from "@/lib/printable-pdf";
@@ -4634,7 +4636,7 @@ function OutsideFinanceExecutionDesk({
   );
 }
 
-export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
+export function CrmNextDealStartTool(props: { captureEnabled?: boolean; initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
   const params = useSearchParams();
   const router = useRouter();
   const requested = props.initialWorkflowId ?? params?.get("pathway");
@@ -4645,6 +4647,7 @@ export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomer
 }
 
 function DealStartDesk({
+  captureEnabled,
   reviewTestDrive: initialReviewTestDrive = false,
   initialCustomerId,
   initialCustomerList,
@@ -4652,6 +4655,7 @@ function DealStartDesk({
   initialVehicleReference,
   model
 }: {
+  captureEnabled?: boolean;
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
   initialCustomerList?: DealCustomerList;
@@ -4665,7 +4669,7 @@ function DealStartDesk({
   const pathwayChangePanel = useRef<HTMLDetailsElement>(null);
   const workspaceParams = useSearchParams();
   const requestedSection = workspaceParams?.get("section");
-  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>(requestedSection === "terms" ? "terms" : "overview");
+  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>(requestedSection === "terms" || requestedSection === "documents" ? requestedSection : "overview");
   const [handoffConfirmation, setHandoffConfirmation] = useState<{ draftId?: string; pathway: string; message: string } | null>(null);
   const handoffLanding = useRef<HTMLDivElement>(null);
   const [documentEditor, setDocumentEditor] = useState(false);
@@ -5092,11 +5096,17 @@ function DealStartDesk({
           setHandoffConfirmation({ draftId: savedDeal?.draftId(), pathway: workflowId, message });
           navigateWorkspace("documents");
         }} />}
-      <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
+      <DealWorkspaceOverview captureHref={captureEnabled && saveState.record?.customerId && saveState.record.customerId === (identity.customerId || form.customerId)
+        ? dealCaptureHref(saveState.record.id, saveState.record.customerId) : undefined} savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
       {testDriveWorkflow ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} identityPicker={customerVehiclePicker} showIdentityPicker={workspaceSection === "identity"} /></DealDraftScope> : customerVehiclePicker}
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
+      {workspaceSection === "documents" && <DealCustomerFiles
+        dealId={saveState.record?.id}
+        savedCustomerId={saveState.record?.customerId}
+        selectedCustomerId={identity.customerId || form.customerId}
+      />}
       {repairWorkflow && workspaceSection === "documents" && <>
         {repairOrderId && savedDeal?.draftId() && <VerifiedRepairDealOrderLinks repairOrderId={repairOrderId} draftId={savedDeal.draftId()} customerId={identity.customerId} vehicleId={identity.vehicleId} />}
         <DealRepairHistory customerId={identity.customerId || undefined} requireCustomer />

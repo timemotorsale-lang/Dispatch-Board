@@ -3,7 +3,7 @@ import { calculateLeaseToOwn, leaseAgreementCalculationError, leaseCalculatorInp
 import type { SavedDealStatus } from "./saved-deal-status";
 
 export type SavedDealReviewRecord = {
-  id: string; dealNumber?: number; revision: number; updatedAt: string; customerName: string; vehicleReference: string;
+  id: string; dealNumber?: number; revision: number; updatedAt: string; customerId?: string | null; customerName: string; vehicleReference: string;
   pathway: string; status?: SavedDealStatus; snapshot: Record<string, unknown>;
   rentalActionOnly?: boolean;
 };

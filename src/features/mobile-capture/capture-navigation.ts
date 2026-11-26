@@ -21,6 +21,23 @@ export function captureIntakeHref(intake: "vehicle" | "customer", returnTo: stri
   return `/capture/${intake}?${new URLSearchParams({ returnTo: captureReturnHref(returnTo) })}`;
 }
 
+export function customerCaptureHref(customerId: string, tool: CaptureToolKey | null = null) {
+  const returnTo = `/crm-next/customers/${encodeURIComponent(customerId)}#documents-held`;
+  const params = new URLSearchParams({ returnTo, destination: "CUSTOMER", ownerId: customerId, requireDestination: "1" });
+  if (tool) params.set("tool", tool);
+  if (tool === "id-front" || tool === "id-barcode") params.set("kind", "ID");
+  return `/capture?${params}`;
+}
+
+export function dealCaptureHref(dealId: string, customerId: string) {
+  const returnTo = `/crm-next/deals/start?${new URLSearchParams({ draftId: dealId, section: "documents" })}`;
+  return `/capture?${new URLSearchParams({ returnTo, destination: "CUSTOMER", ownerId: customerId, dealId, requireDestination: "1" })}`;
+}
+
+export function vehicleCaptureHref(vehicleId: string, returnTo: string) {
+  return `/capture?${new URLSearchParams({ returnTo: captureReturnHref(returnTo), destination: "VEHICLE", ownerId: vehicleId, requireDestination: "1" })}`;
+}
+
 export function captureToolHref(tool: CaptureToolKey | null, returnTo: string) {
   const params = new URLSearchParams({ returnTo: captureReturnHref(returnTo) });
   const selected = tool ? captureToolFromQuery(tool) : null;

@@ -51,6 +51,9 @@ import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
+import { SavedCustomerFiles } from "./deal-customer-files";
+import { CaptureShortcut } from "@/features/mobile-capture/capture-shortcut";
+import { customerCaptureHref } from "@/features/mobile-capture/capture-navigation";
 import { CustomerCollectionsPanel } from "@/features/collections/ui/customer-collections-panel";
 import type { CustomerCollectionsAccount } from "@/features/collections/server/customer-card";
 import styles from "./crm-next-shell.module.css";
@@ -1627,6 +1630,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextDealStartView({
+  captureEnabled,
   reviewTestDrive,
   initialCustomerId,
   initialCustomerList,
@@ -1635,6 +1639,7 @@ export function CrmNextDealStartView({
   initialVehicleFacts,
   model
 }: {
+  captureEnabled?: boolean;
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
   initialCustomerList?: DealCustomerList;
@@ -1645,7 +1650,7 @@ export function CrmNextDealStartView({
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
-      <CrmNextDealStartTool initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
+      <CrmNextDealStartTool captureEnabled={captureEnabled} initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }
@@ -2142,7 +2147,17 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
   );
 }
 
-export function CrmNextCustomer360View({ customer, model, collections = [] }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[] }) {
+export function CrmNextCustomerRecordUnavailable({ userName }: { userName: string }) {
+  return <CrmNextFrame active="customer" userName={userName}>
+    <section className={styles.panel} aria-labelledby="unavailable-customer-title">
+      <h1 id="unavailable-customer-title">Customer record unavailable</h1>
+      <p>This link does not open a customer record you can access. Find the customer before capturing files.</p>
+      <Link className={styles.primaryButton} href={CRM_NEXT_CUSTOMERS_HREF}>Find a customer</Link>
+    </section>
+  </CrmNextFrame>;
+}
+
+export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[]; captureEnabled?: boolean }) {
   const attention = model.attention ?? [];
   const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
@@ -2184,7 +2199,6 @@ export function CrmNextCustomer360View({ customer, model, collections = [] }: { 
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
     { label: "Appointments", value: customer.glance.find((item) => item.label === "Appointments")?.value ?? "0", detail: "Upcoming", tone: "blue" },
     { label: "Tasks", value: attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
-    { label: "Documents", value: "0", detail: "Missing", tone: "amber" },
     { label: "SLA Risk", value: customer.riskLevel, detail: "Current", tone: customer.riskLevel === "High" ? "red" : customer.riskLevel === "Medium" ? "amber" : "green" }
   ];
 
@@ -2199,6 +2213,7 @@ export function CrmNextCustomer360View({ customer, model, collections = [] }: { 
               <span className={styles.profileAvatar}>{initials(customer.name)}</span>
               <div>
                 <h1 className={styles.customerName}>{customer.name}</h1>
+                {captureEnabled && <CaptureShortcut className={styles.secondaryButton} href={customerCaptureHref(customer.id)} />}
                 <span className={styles.customerBadge}>Preferred Customer</span>
                 <CustomerContactDetails surface="crm-next" autoReveal customerId={customer.id} phone={customer.phone} email={customer.email} />
                 <p>{customer.address}</p>
@@ -2224,6 +2239,10 @@ export function CrmNextCustomer360View({ customer, model, collections = [] }: { 
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
             </div>
+            {captureEnabled && <nav className={styles.customerHeroActions} aria-label="Customer capture">
+              <Link className={styles.primaryButton} href={customerCaptureHref(customer.id, "id-front")}>Scan ID front / back</Link>
+              <Link className={styles.secondaryButton} href="#documents-held">Customer files</Link>
+            </nav>}
             <section className={styles.customerCheckInPanel} aria-label="Customer check-in">
               <div>
                 <span className={styles.eyebrow}>Check-In</span>
@@ -2321,8 +2340,10 @@ export function CrmNextCustomer360View({ customer, model, collections = [] }: { 
               <article id="documents-held" className={styles.compactSectionCard}>
                 <strong>Documents</strong>
                 <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>
-                <span>Use the approved document workspace for sending or uploads.</span>
-                <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>
+                {captureEnabled ? <>
+                  <span>Captures stay on this customer and are available to authorized staff on linked deals.</span>
+                  <SavedCustomerFiles key={customer.id} customerId={customer.id} />
+                </> : <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>}
               </article>
               <article id="communications-held" className={styles.compactSectionCard}>
                 <strong>Communications</strong>
@@ -2362,7 +2383,8 @@ export function CrmNextCustomer360View({ customer, model, collections = [] }: { 
               <Link href={crmNextActionHref("add-note", customer.id)}><MessageSquare size={22} />Add Note</Link>
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
               <Link href={appointmentHref}><CalendarDays size={22} />Schedule Appt</Link>
-              <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
+              {captureEnabled ? <CaptureShortcut href={customerCaptureHref(customer.id)} /> :
+                <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>}
               <Link href={customerSalesWorkbenchHref}><Target size={22} />Sales Workbench</Link>
             </div>
           </article>
@@ -2923,7 +2945,7 @@ export function CrmNextWorkCustomerView({
             <div className={styles.workActions}>
               <button className={styles.secondaryButton} onClick={focusCheckInPathSelector} type="button">Check-In</button>
               {salesPath ? <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link> : null}
-              <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
+              <Link className={styles.secondaryButton} href={item.customerHref}>{item.customerHref === CRM_NEXT_CUSTOMERS_HREF ? "Find a customer" : "Customer 360"}</Link>
             </div>
           </div>
         </header>

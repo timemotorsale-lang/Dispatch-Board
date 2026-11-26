@@ -1,5 +1,7 @@
+import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
+import { CaptureArchiveError, resolveCaptureTarget } from "@/server/document-library/capture-archive";
 import { getCustomerCollectionsCard } from "@/features/collections/server/customer-card";
-import { CrmNextCustomer360View, CrmNextUnavailable } from "@/features/crm-next/crm-next-shell";
+import { CrmNextCustomer360View, CrmNextCustomerRecordUnavailable, CrmNextUnavailable } from "@/features/crm-next/crm-next-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCustomer360 } from "@/server/crm-next/read-model";
@@ -22,8 +24,19 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
     // Read-only; empty unless Collections is on for this person and the customer has an account.
     getCustomerCollectionsCard(user, customerId).catch(() => [])
   ]);
+  if (!model.operationalRead.sources.some(source => source.id === "customer-360" && source.state === "LIVE_READ")) {
+    return <CrmNextCustomerRecordUnavailable userName={model.userName} />;
+  }
+  const captureEnabled = canOpenDocumentLibrary(user) && await resolveCaptureTarget(user, { type: "CUSTOMER", id: customer.id })
+    .then(Boolean).catch(error => {
+      if (!(error instanceof CaptureArchiveError && error.status === 403)) {
+        console.error("Customer capture access lookup failed", error instanceof Error ? error.name : "Unknown");
+      }
+      return false;
+    });
   return (
     <CrmNextCustomer360View
+      captureEnabled={captureEnabled}
       customer={customer}
       model={model}
       collections={collections}

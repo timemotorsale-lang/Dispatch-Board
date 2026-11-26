@@ -2908,7 +2908,7 @@ function unavailableAttentionItem(itemId: string): CrmNextAttentionItem {
     level: "Low",
     nextAction: "Open Customer 360 from a verified customer record.",
     workHref: "/crm-next/needs-attention",
-    customerHref: `/crm-next/customers/${encodeURIComponent(customerId)}`
+    customerHref: CRM_NEXT_CUSTOMERS_HREF
   };
 }
 

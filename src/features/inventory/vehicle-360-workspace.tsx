@@ -22,6 +22,7 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
+import { CaptureShortcut } from "@/features/mobile-capture/capture-shortcut";
 import { VehicleWorkToolkit } from "./vehicle-work-actions";
 import type { VehicleWorkActions } from "@/lib/repair-resume";
 import { repairResumeHref } from "@/lib/repair-resume";
@@ -152,7 +153,7 @@ function SafetyIntelligence({ intelligence, loading, error, onRefresh, vehicle }
   </div>;
 }
 
-export function Vehicle360Workspace({ initial, work }: { initial: Vehicle360View; work?: VehicleWorkActions }) {
+export function Vehicle360Workspace({ captureHref, initial, work }: { captureHref?: string; initial: Vehicle360View; work?: VehicleWorkActions }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
@@ -238,7 +239,10 @@ export function Vehicle360Workspace({ initial, work }: { initial: Vehicle360View
           <p>{[vehicle.vehicleNumber, vehicle.stockNumber && `Stock ${vehicle.stockNumber}`, typeof mileage === "number" && `${mileage.toLocaleString()} mi`].filter(Boolean).join(" · ")}</p>
           {returnTo && <Link href={returnTo}>Back to previous work</Link>}
         </div>
-        <VehicleWorkToolkit work={work} vehicleId={vehicle.id} returnTo={vehicle360Return} returnLabel="Back to Vehicle 360" showDetails={false} />
+        <div className={styles.quickTools}>
+          {captureHref && <CaptureShortcut href={captureHref} />}
+          <VehicleWorkToolkit work={work} vehicleId={vehicle.id} returnTo={vehicle360Return} returnLabel="Back to Vehicle 360" showDetails={false} />
+        </div>
       </div>
       <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "photos" ? "360 Photos" : section === "identity" ? "Details" : section === "work" ? "Service history" : section === "safety" ? "Safety" : section === "evidence" ? "Documents" : "Overview"}</button>)}</nav>
     </header>
@@ -246,6 +250,7 @@ export function Vehicle360Workspace({ initial, work }: { initial: Vehicle360View
     {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? styles.warning : styles.success}><ShieldCheck /><p>{notice}</p></div> : null}
 
     {active === "identity" && decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
+    {active === "evidence" && captureHref && <Link className={styles.secondaryButton} href={`/capture/archive?ownerType=VEHICLE&ownerId=${encodeURIComponent(vehicle.id)}`}>Captured files</Link>}
     {active === "evidence" && view.tabs.documents.allowed ? <Link className={styles.secondaryButton} href={`/sales-documents?q=${encodeURIComponent(vehicle.vin || vehicle.stockNumber || identityName)}`}><FileText />Saved sales packets</Link> : null}
     {active === "overview" ? <section className={styles.panel}>
       <div className={styles.quickTools}>

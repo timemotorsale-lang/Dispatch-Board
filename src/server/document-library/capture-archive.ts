@@ -5,6 +5,8 @@ import { Prisma, type CaptureArchiveItem } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { dealCustomer, dealOrganization, searchDealCustomers } from "@/server/deal-continuity/identities";
+import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { isManager } from "@/server/policies/access";
 import { getVehicleRegistryDetail, listVehicleRegistry } from "@/server/vehicle-registry/service";
 import {
@@ -24,6 +26,30 @@ export function captureActor(actor: AuthenticatedUser | null) {
   if (!actor?.isActive) throw new CaptureArchiveError("Sign in before using the capture archive.", 401);
   if (!canOpenDocumentLibrary(actor)) throw new CaptureArchiveError("Document workflow access is required.", 403);
   return actor;
+}
+
+class VehicleCaptureAccessError extends CaptureArchiveError {}
+
+export async function canCaptureForVehicle(actor: AuthenticatedUser, id: string) {
+  if (!canOpenDocumentLibrary(actor)) return false;
+  try {
+    return Boolean(await resolveCaptureTarget(actor, { type: "VEHICLE", id }));
+  } catch (error) {
+    if (!(error instanceof CaptureArchiveError && error.status === 403)) {
+      console.error("Vehicle capture access lookup failed", error instanceof Error ? error.name : "Unknown");
+    }
+    return false;
+  }
+}
+
+export async function captureDealCustomerId(actor: AuthenticatedUser, id: string, tx?: Prisma.TransactionClient) {
+  const { readDealDeskDraft } = await import("@/server/sales-documents/deal-drafts");
+  const { SalesDocumentsError } = await import("@/server/sales-documents/domain");
+  const deal = await readDealDeskDraft(actor, id, false, tx).catch(error => {
+    if (error instanceof SalesDocumentsError) throw new CaptureArchiveError("This saved deal is unavailable.", error.status);
+    throw error;
+  });
+  return "customerId" in deal ? deal.customerId : null;
 }
 
 export function canViewCapturedId(actor: AuthenticatedUser | null) {
@@ -51,6 +77,18 @@ function isAvailableVehicle(status: string) {
   return ["ACTIVE", "SOLD", "OUT_OF_SERVICE"].includes(status);
 }
 
+async function requireVehicleCaptureAccess(actor: AuthenticatedUser, organizationId: string) {
+  const repository = createEnterpriseCommandRepository();
+  const grants = await repository.listCapabilityGrants(actor.id, organizationId);
+  const now = new Date();
+  for (const capability of ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_EVIDENCE_VIEW"] as const) {
+    if (!evaluateVehicleCapability({ actor, capability, grants, locationId: null, now }).allowed) {
+      throw new VehicleCaptureAccessError("Vehicle documents are outside your access.", 403);
+    }
+  }
+  return { organizationId, now: () => now, foundationRepository: { ...repository, listCapabilityGrants: async () => grants } };
+}
+
 export async function resolveCaptureTarget(actor: AuthenticatedUser, input: unknown): Promise<ArchiveTarget | null> {
   if (input == null) return null;
   const target = record(input);
@@ -64,7 +102,8 @@ export async function resolveCaptureTarget(actor: AuthenticatedUser, input: unkn
       return { id, type, label: `${found.name} · ${found.customerNumber}` };
     }
     if (type === "VEHICLE") {
-      const found = await getVehicleRegistryDetail(actor, id, { organizationId });
+      const scope = await requireVehicleCaptureAccess(actor, organizationId);
+      const found = await getVehicleRegistryDetail(actor, id, scope);
       if (isAvailableVehicle(found.status) && !found.mergedIntoVehicleId) return { id, type, label: vehicleLabel(found) };
     }
     if (type === "QUICK_UPDATE") {
@@ -72,7 +111,7 @@ export async function resolveCaptureTarget(actor: AuthenticatedUser, input: unkn
       if (found && (found.workbook.userId === actor.id || isManager(actor))) return { id, type, label: `Quick Update ${id}` };
     }
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientInitializationError) throw error;
+    if (error instanceof VehicleCaptureAccessError || error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientInitializationError) throw error;
     throw new CaptureArchiveError("That record is unavailable or outside your access. Select another record or send to the archive.", 403);
   }
   throw new CaptureArchiveError("That record is unavailable or outside your access. Select another record or send to the archive.", 403);
@@ -89,7 +128,8 @@ export async function searchCaptureTargets(actor: AuthenticatedUser, params: URL
       const results = await searchDealCustomers(actor, new URLSearchParams({ q }));
       return results.items.slice(0, 12).map(item => ({ id: item.id, type, label: `${item.name} · ${item.customerNumber}` }));
     }
-    const results = await listVehicleRegistry(actor, { query: q, pageSize: 20 }, { organizationId: dealOrganization() });
+    const scope = await requireVehicleCaptureAccess(actor, dealOrganization());
+    const results = await listVehicleRegistry(actor, { query: q, pageSize: 20 }, scope);
     return results.items.filter(item => isAvailableVehicle(item.status)).slice(0, 12).map(item => ({ id: item.id, type, label: vehicleLabel(item) }));
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientInitializationError) throw error;
@@ -138,12 +178,28 @@ export async function archiveCaptureBatch(actor: AuthenticatedUser, form: FormDa
   }
   const organizationId = dealOrganization();
   const proposedTarget = raw.destination == null ? null : record(raw.destination);
+  if ("requiredCustomerId" in raw && (!str(raw.requiredCustomerId, 120) || proposedTarget?.type !== "CUSTOMER" || proposedTarget.id !== raw.requiredCustomerId)) {
+    throw new CaptureArchiveError("This batch must be filed to the customer it was opened from.", 400);
+  }
+  if ("requiredVehicleId" in raw && (!str(raw.requiredVehicleId, 120) || proposedTarget?.type !== "VEHICLE" || proposedTarget.id !== raw.requiredVehicleId)) {
+    throw new CaptureArchiveError("This batch must be filed to the vehicle it was opened from.");
+  }
+  const dealId = "requiredDealId" in raw ? str(raw.requiredDealId, 100) : "";
+  if ("requiredDealId" in raw) {
+    if (!dealId || dealId !== raw.requiredDealId || proposedTarget?.type !== "CUSTOMER" || !raw.requiredCustomerId) {
+      throw new CaptureArchiveError("Open Capture from a saved deal with a linked customer.");
+    }
+    if (await captureDealCustomerId(actor, dealId) !== raw.requiredCustomerId) {
+      throw new CaptureArchiveError("The deal's customer changed. Reopen Capture from the deal.", 409);
+    }
+  }
   const batchId = digest(JSON.stringify([organizationId, actor.id, key]));
   const candidates = await Promise.all((files as File[]).map(async (file, position) => {
     const error = captureFileError(file);
     if (error) throw new CaptureArchiveError(error);
     const descriptor = record(descriptors[position]);
     const kind = archiveKind(descriptor.kind);
+    if ("requiredVehicleId" in raw && kind === "ID") throw new CaptureArchiveError("Save IDs from the customer record, not the vehicle record.");
     if ((kind === "PHOTO" || kind === "BUSINESS_CARD") && !file.type.startsWith("image/")) throw new CaptureArchiveError("Photos and business cards must be image files.");
     const bytes = Buffer.from(await file.arrayBuffer());
     if (!matchesSignature(bytes, file.type)) throw new CaptureArchiveError("A file does not match its selected format.");
@@ -166,9 +222,11 @@ export async function archiveCaptureBatch(actor: AuthenticatedUser, form: FormDa
     // A later filing may have changed access, so retries do not disclose raw content or the new destination.
     return { batchId, items: saved.items.map(item => ({ id: item.id, fileName: item.fileName, kind: item.kind, contentType: item.contentType })) };
   }
+  // Recheck access on a scoped retry too. A lost customer link must not become an unfiled batch.
+  const requiredTarget = ("requiredCustomerId" in raw || "requiredVehicleId" in raw) ? await resolveCaptureTarget(actor, proposedTarget) : null;
   const existing = await replay();
   if (existing) return existing;
-  const target = await resolveCaptureTarget(actor, proposedTarget);
+  const target = requiredTarget ?? await resolveCaptureTarget(actor, proposedTarget);
   const storage = resolveDocumentStorageRuntimeFromEnv();
   if (!storage.adapter || !storage.localPrivateRoot) throw new CaptureArchiveError("Private capture storage is unavailable. Keep the batch open and retry.", 503);
   const cards: (Awaited<ReturnType<typeof readCapturedBusinessCard>> | null)[] = [];
@@ -203,7 +261,19 @@ export async function archiveCaptureBatch(actor: AuthenticatedUser, form: FormDa
       });
     }
     committing = true;
-    await prisma.captureArchiveBatch.create({ data: { id: batchId, createdByUserId: actor.id, organizationId, requestHash, items: { create: items } } });
+    const data = { id: batchId, createdByUserId: actor.id, organizationId, requestHash, items: { create: items } };
+    if (dealId) {
+      await prisma.$transaction(async tx => {
+        // Recheck the saved link and owner under the same row lock as the archive insert.
+        await tx.$queryRaw`SELECT id FROM "DealDeskDraft" WHERE id = ${dealId} FOR UPDATE`;
+        if (await captureDealCustomerId(actor, dealId, tx) !== raw.requiredCustomerId) {
+          throw new CaptureArchiveError("The deal's customer changed. Reopen Capture from the deal.", 409);
+        }
+        await tx.captureArchiveBatch.create({ data });
+      });
+    } else {
+      await prisma.captureArchiveBatch.create({ data });
+    }
   } catch (error) {
     // Each attempt owns its paths. On an ambiguous database commit, check the authoritative references before removing any bytes.
     const saved = committing ? await prisma.captureArchiveBatch.findUnique({
@@ -244,16 +314,18 @@ export async function listCaptureArchive(actor: AuthenticatedUser, params: URLSe
   };
   const items = await prisma.captureArchiveItem.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 40 });
   // Hide linked items that the viewer can no longer open even in a master view.
-  const checks = new Map<string, Promise<boolean>>();
+  const checks = new Map<string, Promise<"allowed" | "unavailable" | "denied">>();
   const visible = await Promise.all(items.map(async item => {
     const linked = targetOf(item);
     if (target || !linked) return row(actor, item);
     const key = `${linked.type}:${linked.id}`;
-    if (!checks.has(key)) checks.set(key, resolveCaptureTarget(actor, linked).then(() => true).catch(error => {
-      if (error instanceof CaptureArchiveError) return false;
+    if (!checks.has(key)) checks.set(key, resolveCaptureTarget(actor, linked).then(() => "allowed" as const).catch(error => {
+      if (error instanceof VehicleCaptureAccessError) return "denied";
+      if (error instanceof CaptureArchiveError) return "unavailable";
       throw error;
     }));
-    return await checks.get(key) ? row(actor, item) : isManager(actor) ? row(actor, item, false) : null;
+    const access = await checks.get(key);
+    return access === "allowed" ? row(actor, item) : access === "unavailable" && isManager(actor) ? row(actor, item, false) : null;
   }));
   const last = items.at(-1);
   return { items: visible.filter(item => item !== null), destination: target, next: items.length === 40 && last ? `${last.createdAt.toISOString()},${last.id}` : null, canPrintId: canViewCapturedId(actor) };
@@ -266,7 +338,7 @@ async function accessibleItem(actor: AuthenticatedUser, id: string, recover = fa
   if (!canEdit(actor, item) && (!target || !canViewCapturedId(actor))) throw new CaptureArchiveError("Capture unavailable.", 404);
   if (target) {
     try { await resolveCaptureTarget(actor, target); }
-    catch (error) { if (!recover || !isManager(actor) || !(error instanceof CaptureArchiveError)) throw error; }
+    catch (error) { if (!recover || !isManager(actor) || error instanceof VehicleCaptureAccessError || !(error instanceof CaptureArchiveError)) throw error; }
   }
   return item;
 }

@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/server/auth/current-user";
 import { captureByteLimit } from "@/features/mobile-capture/capture-archive-contract";
-import { archiveCaptureBatch, captureActor, CaptureArchiveError, fileCapture, listCaptureArchive, searchCaptureTargets } from "@/server/document-library/capture-archive";
+import { archiveCaptureBatch, captureActor, captureDealCustomerId, CaptureArchiveError, fileCapture, listCaptureArchive, searchCaptureTargets } from "@/server/document-library/capture-archive";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
@@ -26,6 +26,21 @@ export async function GET(request: Request) {
   try {
     const actor = captureActor(await getCurrentUser());
     const params = new URL(request.url).searchParams;
+    if (params.has("dealId")) {
+      const id = params.get("dealId")?.trim();
+      if (!id || id.length > 100 || ["ownerId", "ownerType"].some(key => params.has(key))) {
+        throw new CaptureArchiveError("Choose a saved deal to view customer files.");
+      }
+      const customerId = await captureDealCustomerId(actor, id);
+      if (params.has("lookup")) {
+        if (params.get("lookup") !== "1" || !customerId || params.get("type") !== "CUSTOMER" || params.get("id") !== customerId) {
+          throw new CaptureArchiveError("The saved deal does not match this customer. Reopen Capture from the deal.", 409);
+        }
+        return Response.json({ items: await searchCaptureTargets(actor, params) }, { headers });
+      }
+      if (!customerId) return Response.json({ items: [], destination: null }, { headers });
+      return Response.json(await listCaptureArchive(actor, new URLSearchParams({ ownerType: "CUSTOMER", ownerId: customerId })), { headers });
+    }
     return Response.json(params.get("lookup") === "1" ? { items: await searchCaptureTargets(actor, params) } : await listCaptureArchive(actor, params), { headers });
   } catch (error) { return fail(error); }
 }
