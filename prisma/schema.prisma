@@ -3265,6 +3265,7 @@ model Customer {
   interactions                    CustomerInteraction[]
   notes                           CustomerNote[]
   vehicleRelationships            CustomerVehicle[]
+  vehicleWishes                   CustomerVehicleWish[]
   registryVehicleRelationships    VehicleRelationship[]
   documentRequirements            CustomerDocumentRequirement[]
   tasks                           Task[]
@@ -3282,6 +3283,24 @@ model Customer {
   @@index([organizationId, displayName])
   @@index([organizationId, duplicateKey])
   @@index([mergedIntoCustomerId])
+}
+
+model CustomerVehicleWish {
+  id                  String    @id
+  customerId          String
+  year                Int?
+  make                String?
+  model               String?
+  color               String?
+  maxPriceCents        Int?
+  monthlyPaymentCents Int?
+  version             Int       @default(1)
+  archivedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  customer            Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, archivedAt, createdAt])
 }
 
 model CustomerContactPoint {

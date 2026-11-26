@@ -53,6 +53,7 @@ import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
+import { CustomerVehicleWishes } from "./customer-vehicle-wishes";
 import { CustomerDealTools, CustomerVehicleLink, CustomerWishlist, type CustomerWishlistValue } from "./customer360-tools";
 import customerTools from "./customer360-workspace.module.css";
 import { SavedCustomerFiles } from "./deal-customer-files";
@@ -2369,7 +2370,11 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
       </section>}
       <section id="wishlist" hidden={section !== "wishlist"} className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer wishlist">
         <h2>Customer wishlist</h2>
-        <CustomerWishlist key={customer.id} customerId={customer.id} initial={wishlist} editable={wishlistEditable} />
+        <CustomerVehicleWishes key={customer.id} customerId={customer.id} active={section === "wishlist"} editable={wishlistEditable} />
+        <div className={customerTools.wishNotes}>
+          <h3>Wishlist notes</h3>
+          <CustomerWishlist key={customer.id} customerId={customer.id} initial={wishlist} editable={wishlistEditable} />
+        </div>
       </section>
       {section === "documents-held" && <section id="documents-held" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer documents">
         <h2>Documents &amp; photos</h2>

@@ -48,3 +48,10 @@
 @media (min-width: 1101px) {
   .workLayout[data-show-quick="true"] { grid-template-columns: minmax(0, 1fr) minmax(235px, 320px); }
 }
+
+.wishSection, .wishNotes { display: grid; gap: .6rem; min-inline-size: 0; }
+.wishNotes { border-block-start: 1px solid var(--border, #aab9cd); padding-block-start: .75rem; }
+.wishHeader { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .45rem 1rem; align-items: start; }
+.wishFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: .55rem .75rem; }
+.wishFields label { align-content: end; font-size: .875rem; font-weight: 600; min-inline-size: 0; }
+.wishFields input { box-sizing: border-box; width: 100%; min-height: 44px; padding: .45rem .55rem; border: 1px solid var(--border, #aab9cd); border-radius: .45rem; background: transparent; color: inherit; font: inherit; font-weight: 400; }
