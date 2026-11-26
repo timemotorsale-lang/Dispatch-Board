@@ -27,3 +27,15 @@
 .form textarea { width: 100%; max-width: 42rem; font: inherit; padding: .55rem; }
 .preserve { white-space: pre-wrap; overflow-wrap: anywhere; }
 .dashboard { display: grid; gap: .8rem; min-inline-size: 0; }
+
+.workLayout { display: grid; min-inline-size: 0; gap: .85rem; align-items: start; }
+.quickToggle[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
+.quickPanel h2 { font-size: 1.125rem; }
+.quickPanel .quickTiles a { min-height: 54px; line-height: 1.2; gap: .3rem; padding: .45rem .35rem; overflow-wrap: anywhere; }
+.quickPanel .quickTiles svg { color: currentColor; }
+.quickTiles a:hover { border-color: #6a83c6; text-decoration: underline; }
+.quickTiles a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+@media (min-width: 1101px) {
+  .workLayout[data-show-quick="true"] { grid-template-columns: minmax(0, 1fr) minmax(235px, 320px); }
+}

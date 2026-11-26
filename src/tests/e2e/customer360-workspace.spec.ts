@@ -47,6 +47,33 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   await page.goto(path);
   await ready(page.getByRole("heading", { name: customerName })).toBeVisible();
   await ready(page.getByRole("heading", { name: "Work this customer" })).toBeVisible();
+  const workspace = page.getByRole("region", { name: "Customer 360", exact: true });
+  const sidebar = page.getByRole("complementary", { name: "Customer Console navigation" });
+  const sidebarToggle = sidebar.getByRole("button", { name: "Collapse customer navigation" });
+  await ready(sidebar.getByRole("link", { name: "Needs Attention", exact: true })).toBeVisible();
+  const expandedWidth = (await workspace.boundingBox())!.width;
+  await sidebarToggle.focus();
+  await sidebarToggle.press("Enter");
+  const expand = sidebar.getByRole("button", { name: "Expand customer navigation" });
+  await ready(expand).toBeFocused();
+  await expect(expand).toHaveAttribute("aria-expanded", "false");
+  await expect(sidebar.getByRole("link", { name: "Needs Attention", exact: true })).toBeHidden();
+  expect((await workspace.boundingBox())!.width).toBeGreaterThan(expandedWidth + 100);
+  await expand.click();
+  await ready(sidebar.getByRole("link", { name: "Needs Attention", exact: true })).toBeVisible();
+
+  const more = page.getByRole("button", { name: "More customer actions" });
+  const quick = page.getByRole("region", { name: "Quick Actions" });
+  await expect(quick).toBeHidden();
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await ready(quick.getByRole("link", { name: "Log call", exact: true })).toHaveAttribute("href", `/crm-next/actions/log-call?customerId=${customerId}`);
+  await expect(quick.getByRole("link", { name: "Create task", exact: true })).toBeVisible();
+  const workBox = await page.getByRole("region", { name: "Work this customer" }).boundingBox();
+  const quickBox = await quick.boundingBox();
+  expect(quickBox!.x).toBeGreaterThan(workBox!.x + workBox!.width - 1);
+  await more.click();
+  await expect(quick).toBeHidden();
   await expect(page.getByText("Source status:", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Capture", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Check in", exact: true }).click();
@@ -57,6 +84,13 @@ test("Customer 360 keeps daily work up front and reopens saved customer activity
   await page.getByRole("link", { name: "Back to work" }).click();
 
   await page.setViewportSize({ width: 390, height: 750 });
+  await page.reload();
+  await ready(sidebar.getByRole("button", { name: "Expand customer navigation" })).toBeVisible();
+  await more.click();
+  await ready(quick.getByRole("link", { name: "Documents & photos" })).toBeVisible();
+  expect((await quick.boundingBox())!.y).toBeGreaterThan((await more.boundingBox())!.y);
+  await quick.getByRole("link", { name: "Documents & photos" }).click();
+  await ready(page.getByRole("heading", { name: "Documents & photos" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Customer tools" });
   await nav.getByRole("link", { name: "Wishlist" }).click();
   await page.getByRole("button", { name: "Add wishlist" }).click({ timeout: 25000 });

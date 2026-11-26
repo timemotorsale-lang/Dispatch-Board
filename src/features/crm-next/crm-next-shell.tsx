@@ -5,7 +5,7 @@ import type { DealCustomerList } from "@/lib/deal-continuity";
 import Link from "next/link";
 import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -19,6 +19,7 @@ import {
   FileText,
   LayoutDashboard,
   Mail,
+  Menu,
   MessageSquare,
   Phone,
   Search,
@@ -601,7 +602,19 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
+const CRM_COMPACT_NAV = "(max-width: 1100px)";
+function subscribeCompactNavigation(listener: () => void) {
+  const query = window.matchMedia(CRM_COMPACT_NAV);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
 export function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "customers" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "forms" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
+  const collapsible = active === "customer";
+  const navId = useId();
+  const compact = useSyncExternalStore(subscribeCompactNavigation, () => window.matchMedia(CRM_COMPACT_NAV).matches, () => false);
+  const [navigationOpen, setNavigationOpen] = useState<boolean | null>(null);
+  const expanded = !collapsible || (navigationOpen ?? !compact);
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
@@ -619,8 +632,15 @@ export function CrmNextFrame({ active, children, userName }: { active: "command"
 
   return (
     <section className={`${styles.shell} crm-next-shell`}>
-      <div className={styles.frame}>
+      <div className={styles.frame} data-customer-nav={collapsible ? (expanded ? "expanded" : "collapsed") : undefined}>
         <aside className={styles.sidebar} aria-label="Customer Console navigation">
+          {collapsible && <button
+            className={styles.sidebarToggle} type="button" aria-controls={navId} aria-expanded={expanded}
+            aria-label={expanded ? "Collapse customer navigation" : "Expand customer navigation"}
+            onClick={() => setNavigationOpen(!expanded)}>
+            <Menu size={19} aria-hidden="true" />
+          </button>}
+          <div className={styles.sidebarItems} id={navId} hidden={!expanded}>
           <div className={styles.brand}>Time Motor Sales</div>
           <Link className={styles.consoleReturn} href={CRM_CUSTOMER_LANDING_HREF}>
             <ArrowLeft size={16} /> Customers console
@@ -652,6 +672,7 @@ export function CrmNextFrame({ active, children, userName }: { active: "command"
           <div className={styles.operator}>
             <strong>{userName}</strong>
             <small>Team workspace</small>
+          </div>
           </div>
         </aside>
         <main className={styles.content}>{children}</main>
@@ -2178,6 +2199,8 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
   captureEnabled?: boolean; dealsEnabled?: boolean; wishlist?: CustomerWishlistValue | null; wishlistEditable?: boolean; canLinkVehicle?: boolean;
 }) {
   const section = useSyncExternalStore(subscribeCustomerTool, currentCustomerTool, () => "overview");
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const quickActionsId = useId();
   const attention = model.attention ?? [];
   const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
@@ -2244,15 +2267,18 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
       <nav className={customerTools.tabs} aria-label="Customer tools">
         {CUSTOMER_TOOLS.map(([id, label]) => (id !== "deals" || dealsEnabled) && <a key={id} href={`#${id}`} aria-current={section === id ? "page" : undefined}>{label}</a>)}
       </nav>
-      {section === "overview" && <section id="overview" className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-work-title">
+      {section === "overview" && <div className={customerTools.workLayout} data-show-quick={quickActionsOpen}>
+      <section id="overview" className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-work-title">
         <h2 id="customer-work-title">Work this customer</h2>
         {activeAttentionItem && <p><strong>{activeAttentionItem.nextAction}</strong> · {activeAttentionItem.owner} <Link href={attendHref}>Open follow-up</Link></p>}
         <CustomerContactDetails surface="crm-next" customerId={customer.id} phone={customer.phone} email={customer.email} />
         <div className={customerTools.actions}>
           <button className={styles.primaryButton} type="button" onClick={openCheckIn}>Check in</button>
-          <Link href={appointmentHref}>Schedule appointment</Link>
-          <Link href={crmNextActionHref("new-task", customer.id)}>Create task</Link>
-          <Link href={crmNextActionHref("add-note", customer.id)}>Add note</Link>
+          {!quickActionsOpen && <>
+            <Link href={appointmentHref}>Schedule appointment</Link>
+            <Link href={crmNextActionHref("new-task", customer.id)}>Create task</Link>
+            <Link href={crmNextActionHref("add-note", customer.id)}>Add note</Link>
+          </>}
         </div>
         <details id="customer-check-in" className={customerTools.subsection}>
           <summary>Check-in options</summary>
@@ -2264,18 +2290,31 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
           </div>
           <p>{selectedCategoryConfig.summary}</p>
         </details>
-        <details className={customerTools.subsection}>
-          <summary>More customer actions</summary>
-          <div className={customerTools.actions}>
-            <Link href={crmNextActionHref("log-call", customer.id)}>Log call</Link>
-            <Link href={crmNextActionHref("send-text", customer.id)}>Send text</Link>
-            <Link href={crmNextActionHref("send-email", customer.id)}>Send email</Link>
-            <Link href={crmNextActionHref("new-case", customer.id)}>New case</Link>
-            <Link href="/crm-next/ownership-support#cases">Support queue</Link>
-            {dealsEnabled && <Link href={customerSalesWorkbenchHref}>Sales Workbench</Link>}
-          </div>
-        </details>
-      </section>}
+        <div className={customerTools.subsection}>
+          <button className={`${styles.secondaryButton} ${customerTools.quickToggle}`} type="button"
+            aria-expanded={quickActionsOpen} aria-controls={quickActionsId}
+            onClick={() => setQuickActionsOpen(value => !value)}>
+            <LayoutDashboard size={17} aria-hidden="true" /> More customer actions
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+      <section id={quickActionsId} hidden={!quickActionsOpen} className={`${styles.panel} ${customerTools.panel} ${customerTools.quickPanel}`} aria-label="Quick Actions">
+        <h2>Quick Actions</h2>
+        <div className={`${styles.quickActionTiles} ${customerTools.quickTiles}`}>
+          <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={19} aria-hidden="true" />Log call</Link>
+          <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={19} aria-hidden="true" />Send email</Link>
+          <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={19} aria-hidden="true" />Create task</Link>
+          <Link href={crmNextActionHref("add-note", customer.id)}><MessageSquare size={19} aria-hidden="true" />Add note</Link>
+          <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={19} aria-hidden="true" />New case</Link>
+          <Link href={appointmentHref}><CalendarDays size={19} aria-hidden="true" />Schedule appointment</Link>
+          <Link href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={19} aria-hidden="true" />Send text</Link>
+          <a href="#documents-held"><FileSearch size={19} aria-hidden="true" />Documents &amp; photos</a>
+          {dealsEnabled && <Link href={customerSalesWorkbenchHref}><Target size={19} aria-hidden="true" />Sales Workbench</Link>}
+          <Link href="/crm-next/ownership-support#cases"><FileText size={19} aria-hidden="true" />Support queue</Link>
+        </div>
+      </section>
+      </div>}
       {section === "deals" && <section id="deals" className={`${styles.panel} ${customerTools.panel}`} aria-label="Deals and deposits">
         <h2>Deals &amp; deposits</h2>
         {dealsEnabled ? <CustomerDealTools key={customer.id} customerId={customer.id} /> : <p>Your account does not have Deals access.</p>}
