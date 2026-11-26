@@ -5161,6 +5161,7 @@ model RepairOrder {
   ownerUser                    User                                @relation("RepairOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   stateEvents                  RepairOrderStateEvent[]
   partDemands                  RepairPartDemand[]
+  partsQuotes                  RepairPartQuote[]
   readinessEvaluations         RepairReadinessEvaluation[]
   inspectionVersions           VehicleInspectionVersion[]
   diagnosisVersions            RepairDiagnosisVersion[]
@@ -7126,6 +7127,26 @@ model PartStockLedgerEntry {
   @@index([organizationId, partId, occurredAt])
   @@index([stockLocationId, occurredAt])
   @@index([correlationId])
+}
+
+model RepairPartQuote {
+  id               String      @id
+  repairOrderId    String
+  part             String
+  partNumber       String?
+  supplier         String
+  supplierPhone    String?
+  supplierContact  String?
+  supplierLink     String?
+  quantity         Int
+  unitPriceCents   Int
+  reference        String?
+  createdByUserId  String
+  createdAt        DateTime    @default(now())
+  checkoutProgress Json?
+  repairOrder      RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+
+  @@index([repairOrderId, createdAt])
 }
 
 model RepairPartDemand {

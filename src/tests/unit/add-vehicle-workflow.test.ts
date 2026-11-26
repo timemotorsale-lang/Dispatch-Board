@@ -89,6 +89,14 @@ describe("Add Vehicle workflow", () => {
     expect(html).not.toContain("Customer-reported concern");
   });
 
+  it("prefills the search VIN and keeps service-only entry on the customer repair path", () => {
+    const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { initialVin: "JHMZC5F3XJC010501", options: { locations: [] }, returnTo: "/vehicles/registry?query=JHMZC5F3XJC010501", serviceOnly: true }));
+    expect(html).toContain('value="JHMZC5F3XJC010501"');
+    expect(html).toContain("Add Vehicle &amp; Create Service Intake");
+    expect(html).not.toContain("Prepare for Sale");
+    expect(html).toContain("href=\"/vehicles/registry?query=JHMZC5F3XJC010501\"");
+  });
+
   it("requires and normalizes an acquisition source for dealership inventory", () => {
     const inventory = { ...base, acquisitionSource: "AUCTION", reasonCode: "REFERENCE_ONLY" as const, relationship: "DEALERSHIP_INVENTORY" as const };
     expect(() => normalizeAddVehicleWorkflowInput({ ...inventory, acquisitionSource: "" })).toThrow("Acquisition source is required");

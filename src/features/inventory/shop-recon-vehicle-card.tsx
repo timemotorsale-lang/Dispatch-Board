@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Activity, AlertTriangle, ArrowLeft, BookOpenCheck, Building2, Camera, CarFront, Check, CheckCircle2, Circle, ClipboardCheck, Clock3, FileText, FlaskConical, History, LockKeyhole, MapPin, Package, Paperclip, PlayCircle, RotateCcw, Save, Search, ShieldCheck, UserRound, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, BookOpenCheck, Camera, Check, CheckCircle2, Circle, ClipboardCheck, Clock3, FileText, FlaskConical, History, LockKeyhole, MapPin, Package, Paperclip, RotateCcw, Save, Search, ShieldCheck, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { SHOP_RECON_STAGES, type ShopReconStageCode } from "@/server/shop-recon/foundation";
@@ -58,7 +58,7 @@ export type ShopReconLifecycleWorkspaceModel = {
   history: Array<{ sequence: number; eventType: string; fromStage: ShopReconStageCode | null; toStage: ShopReconStageCode | null; actorName: string; reason: string; occurredAt: string; scopeVersion: number }>;
   overrides: Array<{ id: string; kind: string; authorizedByName: string; reason: string; expiresAt: string | null; createdAt: string }>;
   scopeChanges: Array<{ id: string; version: number; status: string; finding: string; submittedByName: string; submittedAt: string }>;
-  permissions: { currentUserName: string; canSave: boolean; canPublishEvidence: boolean; canComplete: boolean; canOverride: boolean; overrideAuthority: string };
+  permissions: { currentUserName: string; canSave: boolean; canPublishEvidence: boolean; canComplete: boolean; canOverride: boolean; canViewParts?: boolean; overrideAuthority: string };
 };
 
 const words = (value: string | null) => value ? value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase()) : "Not applicable";
@@ -70,7 +70,7 @@ function stageFromQuery(value: string | undefined, fallback: ShopReconStageCode)
   const order = Number(value);
   return SHOP_RECON_STAGES.find(stage => stage.order === order)?.code ?? fallback;
 }
-type WorkspaceView = "work" | "activity" | "evidence" | "completion";
+type WorkspaceView = "work" | "activity" | "evidence" | "completion" | "details" | "title";
 type OperationalActivity = { id: string; title: string; result: string; evidence: string; actor: string; occurredAt: string };
 function operationalActivity(value: unknown): OperationalActivity[] { return Array.isArray(value) ? value.filter((entry): entry is OperationalActivity => Boolean(entry && typeof entry === "object" && "id" in entry && "title" in entry)) : []; }
 function fieldHasValue(value: unknown) { return value !== undefined && value !== null && value !== "" && !(typeof value === "number" && Number.isNaN(value)); }
@@ -102,7 +102,6 @@ function stageLoopGuidance(stage: ShopReconStageCode, item: ShopReconVehicleCard
 export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, returnTo = "/vehicles/shop-recon", titlePreparationWorkspace = null, focused = false, inventoryHref, inventoryUnavailableReason }: { initialStage?: string; item: ShopReconVehicleCardModel; lifecycleWorkspace: ShopReconLifecycleWorkspaceModel; returnTo?: string; titlePreparationWorkspace?: TitlePreparationWorkspace; focused?: boolean; inventoryHref?: string; inventoryUnavailableReason?: string }) {
   const lifecycle = lifecycleWorkspace.lifecycle;
   const [selectedStage, setSelectedStage] = useState<ShopReconStageCode>(() => stageFromQuery(initialStage, lifecycle.stage));
-  const [stageExpanded, setStageExpanded] = useState(!focused || Boolean(initialStage));
   const [checklist, setChecklist] = useState<Record<string, boolean>>(lifecycleWorkspace.currentDraft?.checklist ?? {});
   const [formData, setFormData] = useState<Record<string, unknown>>(lifecycleWorkspace.currentDraft?.formData ?? {});
   const [evidenceText, setEvidenceText] = useState((lifecycleWorkspace.currentDraft?.evidence ?? []).join("\n"));
@@ -119,13 +118,14 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
   const laneClass = item.workLane === "INVENTORY_RECON" ? "inventory" : "customer";
   const closed = item.stage === "CLOSED" || lifecycle.operatingState === "CLOSED";
   const isCurrent = selectedStage === lifecycle.stage && !closed;
-  const overallLifecycle = item.workLane === "INVENTORY_RECON" ? words(item.inventoryLifecycleStage ?? "RECONDITIONING") : "Customer Repair";
   const currentIndex = SHOP_RECON_STAGES.findIndex(stage => stage.code === lifecycle.stage), selectedIndex = SHOP_RECON_STAGES.findIndex(stage => stage.code === selectedStage), nextStage = SHOP_RECON_STAGES[currentIndex + 1]?.code ?? (currentIndex === 15 ? "VEHICLE_HANDOVER_SHOP_EXIT" : null), requiresPublishedEvidence = currentIndex < 16;
   const stageReturnTo = getShopReconStageHref(item.id, selectedDefinition.code, returnTo, focused);
   const stageReturnLabel = `Return to Shop & Recon · Stage ${selectedDefinition.order}: ${selectedDefinition.label}`;
   const sourceContext = new URLSearchParams({ repairOrderId: item.id, returnLabel: stageReturnLabel, returnTo: stageReturnTo, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}) });
-  const assignmentHref = `/vehicles/repair-workbench?${sourceContext.toString()}#assignment`;
-  const dispatchHref = `/vehicles/shop-dispatch?${sourceContext.toString()}`;
+  const resumeHref = getShopReconStageHref(item.id, lifecycle.stage, returnTo, focused);
+  const partsHref = `/vehicles/service-close-parts?${new URLSearchParams({ repairOrderId: item.id, view: "recon-task", returnTo: getShopReconStageHref(item.id, undefined, returnTo, focused), returnLabel: "Return to current Shop & Recon task" })}`;
+  const custodyStage = selectedStage === "VEHICLE_INTAKE_CUSTODY";
+  const showTitle = !closed && item.workLane === "INVENTORY_RECON" && titlePreparationWorkspace?.eligible;
   const evidence = useMemo(() => evidenceText.split("\n").map(value => value.trim()).filter(Boolean), [evidenceText]);
   const stageEvidenceRequiredCount = currentIndex === 15 ? 1 : workspace.evidence.length;
   const stageEvidenceComplete = currentIndex === 15 ? evidenceText.trim().length >= 8 : evidence.length >= workspace.evidence.length;
@@ -149,7 +149,7 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
   const vehicleIntakeChecklist: Record<string, boolean> = selectedStage === "VEHICLE_INTAKE_CUSTODY" ? {
     item_1: fieldHasValue(formData.observedIdentifier) && formData.matchStatus === "Match confirmed",
     item_2: fieldHasValue(formData.arrivalCondition) && fieldHasValue(formData.intakeNotes),
-    item_3: Number(formData.keyCount) > 0 && fieldHasValue(formData.keyTag),
+    item_3: Number.isInteger(Number(formData.keyCount)) && Number(formData.keyCount) >= 1 && Number(formData.keyCount) <= 20 && fieldHasValue(formData.keyTag),
     item_4: fieldHasValue(formData.photoEvidence),
     item_5: fieldHasValue(formData.custodyLocation),
     item_6: fieldHasValue(formData.movementRestriction),
@@ -288,11 +288,6 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
     setFeedback({ tone: "error", text: message });
     requestAnimationFrame(() => document.getElementById("stage-completion")?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
-  function finalizeShopExitFromSummary() {
-    if (!isCurrent || currentIndex !== 15) return;
-    if (!lifecycleWorkspace.permissions.canComplete && !overrideId) return openCompletionGate("The named completion authority or an approved exception is required before finalizing this repair order.");
-    void finalizeShopExit();
-  }
   function changed() { setDirty(true); setFeedback(null); }
   function appendOperationalActivity(entry: Omit<OperationalActivity, "id" | "actor" | "occurredAt">) {
     setFormData(current => ({ ...current, __activity: [...operationalActivity(current.__activity), { ...entry, id: crypto.randomUUID(), actor: lifecycleWorkspace.permissions.currentUserName, occurredAt: new Date().toISOString() }] }));
@@ -349,6 +344,15 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
     const completeLocked = currentIndex === 15
       ? !nextStage || !stageEvidenceComplete || (!lifecycleWorkspace.permissions.canComplete && !overrideId)
       : dirty || !lifecycleWorkspace.currentDraft || !nextStage || (requiresPublishedEvidence && !lifecycleWorkspace.currentEvidence) || (!lifecycleWorkspace.permissions.canComplete && !overrideId);
+    if (isCurrent && custodyStage) return <section className="srv-live-actions">
+      <h2>Complete custody</h2>
+      {!activeProgress.ready || !stageEvidenceComplete ? <><p>Finish the required checks in the custody form first.</p>
+        <p>{[...workspace.checklist.filter((_, index) => !activeChecklist[`item_${index + 1}`]), ...(!stageEvidenceComplete && activeChecklist.item_4 ? ["Evidence references"] : [])].join(" · ")}</p></>
+        : lifecycleWorkspace.currentEvidence ? <button disabled={busy || !lifecycleWorkspace.permissions.canComplete} onClick={() => nextStage && void moveStage(nextStage)} type="button"><CheckCircle2 />Complete custody &amp; open safety triage</button>
+        : <button disabled={busy || dirty || !lifecycleWorkspace.permissions.canPublishEvidence} onClick={() => void publishEvidence()} type="button"><ShieldCheck />Publish custody record</button>}
+      {!lifecycleWorkspace.permissions.canComplete && <p>Completion requires {workspace.authority}.</p>}
+      {operationalWorkspace?.tools?.[0] && <Link href={resolveStageToolHref(operationalWorkspace.tools[0], item, resumeHref)}>Back to custody form</Link>}
+    </section>;
     if (isCurrent) return <section className="srv-live-actions">
       <h2>{currentIndex === 15 ? "Finalize Repair Order" : "Save Work, Publish Evidence, and Complete"}</h2>
       {sourceWorkspace ? <Link className="srv-source-workspace" href={sourceWorkspace.href}><Wrench />{sourceWorkspace.label}</Link> : null}
@@ -367,158 +371,90 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
     return <section className="srv-live-actions"><h2>Future-stage preview</h2><p>This stage becomes operational after the current stage and all required gates are complete.</p></section>;
   })();
 
-  const StageDetails = focused ? "details" : "div";
-  return <section className={`srv-card lane-${laneClass}${focused ? ` ${styles.focused}` : ""}`} aria-label={`Unified vehicle card for ${item.vehicle}`} onClickCapture={event => {
+  return <section className={`srv-card lane-${laneClass} ${styles.focused} ${styles.taskCard}`} aria-label={`Unified vehicle card for ${item.vehicle}`} onClickCapture={event => {
     const link = (event.target as HTMLElement).closest("a");
-    if (focused && dirty && link && !link.hash.startsWith("#stage-") && !window.confirm("Leave this stage without saving the entered changes?")) {
+    if (dirty && link && !link.hash.startsWith("#stage-") && !window.confirm("Leave this stage without saving the entered changes?")) {
       event.preventDefault();
       event.stopPropagation();
     }
   }}>
-    {focused ? <header className={styles.header}>
-      <Link href={returnTo}>← Return to Repair Workbench</Link>
+    <header className={styles.header}>
+      <Link href={returnTo}>{returnTo === "/vehicles/shop-recon" ? "Back to Shop & Recon list" : "Back to source workspace"}</Link>
       <div className={styles.headerRow}>
         <div><h1>Shop &amp; Recon</h1><strong>{item.vehicle} · {item.repairOrderNumber}</strong></div>
-        <VehicleWorkflowSwitch active="shop" inventoryHref={inventoryHref} inventoryUnavailableReason={inventoryUnavailableReason} />
+        {focused && <VehicleWorkflowSwitch active="shop" inventoryHref={inventoryHref} inventoryUnavailableReason={inventoryUnavailableReason} />}
       </div>
-      <p>{closed ? "Repair order closed" : lifecycle.nextAction}</p>
-      {!closed && lifecycle.blockerCodes.length > 0 && <p role="status">{lifecycle.blockerCodes.map(String).join(" · ")}</p>}
-    </header> : <>
-    <header className="srv-card-header">
-      <Link href={returnTo}><ArrowLeft /> Shop &amp; Recon</Link>
-      <div className="srv-card-identity">
-        <span><CarFront /></span>
-        <div>
-          <small><LaneIcon lane={item.workLane} /> {item.workLaneLabel}{item.pilot ? <b className="srv-pilot-badge">Operational Pilot</b> : null}</small>
-          <h1>{item.vehicle}</h1>
-          <p>{item.vin ?? "VIN unavailable"} · {item.repairOrderNumber} · {item.subject}</p>
-        </div>
-      </div>
-      <div className="srv-card-now">
-        <small>Do This Now · Stage {currentIndex + 1} of 16</small>
-        <strong>{lifecycle.nextAction}</strong>
-        <span>{SHOP_RECON_STAGES[currentIndex].label} · {lifecycle.zoneCode}</span>
-      </div>
-      <div className="srv-card-status">
-        <small><i /> Viewing Stage {selectedDefinition.order} of 16</small>
-        <strong>{selectedDefinition.label}</strong>
-        <span>{isCurrent ? "Current operational stage" : "Review selection only"}</span>
-      </div>
+      <p>{item.vin && <span>{item.vin} · </span>}{item.workLaneLabel}</p>
     </header>
 
-    <section className="srv-context-strip" aria-label="Vehicle lifecycle context">
-      <p><span>Overall lifecycle</span><strong>{overallLifecycle}</strong></p>
-      <p><span>Shop stage</span><strong>{currentIndex + 1}. {SHOP_RECON_STAGES[currentIndex].label}</strong></p>
-      <p><span>Operating state</span><strong>{words(lifecycle.operatingState)}</strong></p>
-      <p><span>Physical zone</span><strong>{lifecycle.zoneCode}</strong></p>
-      <p><span>Owner</span><strong>{item.owner}</strong></p>
-      <p><span>{item.commitmentLabel}</span><strong>{date(lifecycle.targetAt)}</strong></p>
-    </section>
-
-    <section className="srv-quick-dispatch" aria-label="Assign and dispatch this vehicle">
-      <div>
-        <span><Wrench /></span>
-        <p><small>Quick execution</small><strong>Assign &amp; Dispatch</strong><em>{item.technician ? `Assigned to ${item.technician}` : "Technician not assigned"} · Uses {item.repairOrderNumber}</em></p>
-      </div>
-      <p>Continue the existing repair order—no duplicate intake or vehicle record.</p>
-      <nav aria-label="Vehicle assignment shortcuts">
-        <Link className="secondary" href={assignmentHref}><UserRound />{item.technician ? "Change technician" : "Assign technician"}</Link>
-        <Link href={dispatchHref}><Wrench />Open Shop Dispatch</Link>
-      </nav>
-    </section>
-
-    <div className="srv-design-notice"><ShieldCheck /><span><strong>Governed operational workspace</strong> Any authorized user with access may save an attributable draft. Saving never completes a stage or moves the vehicle. Movement requires all gates and the named stage authority.</span></div>
-
-    {item.workLane === "INVENTORY_RECON" ? <ShopReconParallelTitlePreparation currentStageLabel={SHOP_RECON_STAGES[currentIndex].label} initial={titlePreparationWorkspace} repairOrderId={item.id} /> : null}
-
-    <section className="srv-stage-control" aria-label="Shop stage selector">
-      <div><span><i /> Current Shop Stage</span><strong>{currentIndex + 1}. {SHOP_RECON_STAGES[currentIndex].label}</strong><small>Select a stage below to review it. Selecting alone never moves the operational vehicle.</small></div>
-      <b>{item.priorityBand} · {item.priorityScore}<small>{words(item.stageTargetBand)} · {item.stageElapsedMinutes} staffed min</small></b>
-      {isCurrent && currentIndex === 15 ? <button className="srv-stage-finalize" disabled={busy || !activeProgress.ready} onClick={finalizeShopExitFromSummary} type="button"><CheckCircle2 />{activeProgress.ready ? "Finalize RO" : "Complete handoff checklist"}</button> : null}
-    </section>
-    </>}
-
-    <nav className="srv-stage-nav" aria-label="Sixteen Shop and Recon stages">
-      {SHOP_RECON_STAGES.map(stage => {
-        const state = stage.order < currentIndex + 1 ? "complete" : stage.order === currentIndex + 1 ? "current" : "upcoming";
-        const stageWorkspace = getShopReconStageWorkspace(stage.code), selectedProgress = stage.code === selectedStage ? activeProgress : null;
-        const readiness = lifecycle.blockerCodes.length && stage.code === lifecycle.stage ? "blocked" : state === "complete" ? "ready" : selectedProgress?.ready ? "ready" : selectedProgress && selectedProgress.complete > 0 ? "partial" : "missing";
-        const expanded = stageExpanded && selectedStage === stage.code;
-        return <button aria-current={(stageExpanded ? selectedStage : lifecycle.stage) === stage.code ? "step" : undefined}
-          aria-expanded={focused ? expanded : undefined} aria-controls={focused ? "shop-recon-stage-panel" : undefined}
-          className={`${state} ${readiness} ${expanded ? "selected" : ""}`} key={stage.code} disabled={focused && busy}
-          onClick={() => {
-            if (focused && expanded) { setStageExpanded(false); return; }
-            setStageExpanded(true); setSelectedStage(stage.code); setWorkspaceView("work"); setWorkGuidance(null);
-          }} type="button">
-          <i>{selectedStage === stage.code ? <em /> : state === "complete" ? <Check /> : stage.order}</i>
-          <span>{stage.label}<small>{stage.code === selectedStage ? `${selectedProgress?.complete ?? 0}/${stageWorkspace.checklist.length} ${readiness}` : state === "current" ? readiness === "blocked" ? "Blocked" : "Current work" : state === "complete" ? "Prior stage" : "Upcoming"}</small></span>
-        </button>;
-      })}
+    <nav aria-label="Repair order tools" className={styles.toolBar}>
+      <button aria-pressed={workspaceView === "work" && isCurrent} onClick={() => { setSelectedStage(lifecycle.stage); setWorkspaceView("work"); setWorkGuidance(null); }} type="button">Current task</button>
+      {!closed && lifecycleWorkspace.permissions.canViewParts && <Link href={partsHref}><Package size={16} />Parts</Link>}
+      {showTitle && <button aria-pressed={workspaceView === "title"} onClick={() => setWorkspaceView("title")} type="button">Title follow-up</button>}
+      <button aria-pressed={workspaceView === "evidence"} onClick={() => { setSelectedStage(lifecycle.stage); setWorkspaceView("evidence"); }} type="button"><Paperclip size={16} />Evidence</button>
+      <button aria-pressed={workspaceView === "activity"} onClick={() => setWorkspaceView("activity")} type="button"><Activity size={16} />History</button>
+      <button aria-pressed={workspaceView === "details"} onClick={() => setWorkspaceView("details")} type="button">Details</button>
     </nav>
 
-    <div id={focused ? "shop-recon-stage-panel" : undefined} hidden={!stageExpanded}>
+    <div id="shop-recon-stage-panel">
     <main className="srv-workspace">
       <section className="srv-workspace-main">
         <header>
           <span>Stage {selectedDefinition.order}</span>
-          <div><small>{isCurrent ? "Current operational workspace" : "Read-only stage review"}</small><h2>{stageTitle}</h2><p>{stagePurpose}</p></div>
-          <b>{isCurrent ? "CURRENT" : selectedDefinition.order < currentIndex + 1 ? "HISTORY" : "UPCOMING"}</b>
+          <div><h2>{stageTitle}</h2><p>{closed ? "Repair order closed." : isCurrent ? (lifecycle.blockerCodes.length ? lifecycle.nextAction : stagePurpose) : `Still to finish: ${SHOP_RECON_STAGES[currentIndex].label}`}</p></div>
+          {!closed && <b>{isCurrent ? "Current task" : "Review only"}</b>}
         </header>
 
-        {operationalWorkspace ? <section className="srv-operational-shell">
-          <nav aria-label="Stage operational workspace sections" className="srv-operational-tabs">
-            <button className={workspaceView === "work" ? "active" : ""} onClick={() => setWorkspaceView("work")} type="button"><PlayCircle />Work to Perform <b>{workspace.checklist.filter((_, index) => activeChecklist[`item_${index + 1}`]).length}/{workspace.checklist.length}</b></button>
-            <button className={workspaceView === "activity" ? "active" : ""} onClick={() => setWorkspaceView("activity")} type="button"><Activity />Stage Activity <b>{activityEntries.length + lifecycleWorkspace.history.length}</b></button>
-            <button className={workspaceView === "evidence" ? "active" : ""} onClick={() => setWorkspaceView("evidence")} type="button"><Paperclip />Documents &amp; Evidence <b>{evidence.length}/{workspace.evidence.length}</b></button>
-            <button className={workspaceView === "completion" ? "active" : ""} onClick={() => setWorkspaceView("completion")} type="button"><BookOpenCheck />Stage Completion</button>
-          </nav>
-
-          {workspaceView === "work" ? <div className="srv-operational-work">
-            <header><div><small>Perform the work here</small><h3>{selectedStage === "JOB_SCOPE_DEFINITION" ? "Follow the Job Scope Checklist" : operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{selectedStage !== "JOB_SCOPE_DEFINITION" && operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={resolveStageToolHref(tool, item, stageReturnTo, selectedDefinition)} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions"><span>{isCurrent ? `Working as ${lifecycleWorkspace.permissions.currentUserName}` : `Preview only · Stage ${currentIndex + 1} is active`}</span>{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
+        {!closed && !isCurrent && <p className={styles.resume}><button type="button" onClick={() => { setSelectedStage(lifecycle.stage); setWorkspaceView("work"); }}>Resume {SHOP_RECON_STAGES[currentIndex].label}</button></p>}
+        {feedback && <p className={`srv-action-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p>}
+        {workspaceView === "title" || showTitle ? <div hidden={workspaceView !== "title"}>{showTitle && <ShopReconParallelTitlePreparation currentStageLabel={SHOP_RECON_STAGES[currentIndex].label} initial={titlePreparationWorkspace} repairOrderId={item.id} />}</div> : null}
+        {workspaceView === "work" && isCurrent && <div className={styles.taskActions}>
+          {custodyStage && operationalWorkspace?.tools?.[0] && <Link className={activeProgress.ready ? undefined : styles.primary} href={resolveStageToolHref(operationalWorkspace.tools[0], item, resumeHref)}>{lifecycleWorkspace.permissions.canSave ? "Open custody form" : "View custody form"}</Link>}
+          {!custodyStage && lifecycleWorkspace.permissions.canSave && currentIndex !== 15 && <button className={styles.primary} disabled={busy} onClick={() => void saveDraft()} type="button">Save stage work</button>}
+          {(currentIndex === 15 || lifecycleWorkspace.currentDraft || !custodyStage) && <button className={custodyStage && activeProgress.ready || currentIndex === 15 ? styles.primary : undefined} disabled={busy} onClick={() => setWorkspaceView("completion")} type="button">{currentIndex === 15 ? "Finalize repair order" : "Review & complete"}</button>}
+          {lifecycleWorkspace.currentDraft && <small>{dirty ? "Unsaved changes" : "Draft saved"}</small>}
+          {custodyStage && lifecycle.blockerCodes.length > 0 && <p role="status">{lifecycle.blockerCodes.map(String).join(" · ")}</p>}
+        </div>}
+        {isCurrent && lifecycle.stage === "REPAIR_EXECUTION" && workspaceView === "work" && lifecycleWorkspace.permissions.canSave && <details className={styles.exception}><summary>Report changed scope</summary><label>New finding<textarea disabled={busy} onChange={event => setScopeFinding(event.target.value)} value={scopeFinding} /></label><button disabled={busy || scopeFinding.trim().length === 0} onClick={submitScopeChange} type="button">Stop affected work &amp; start scope review</button></details>}
+        {workspaceView === "work" && custodyStage && isCurrent && lifecycleWorkspace.currentDraft && <p className={styles.resume}>{activeProgress.complete} of {activeProgress.total} custody checks recorded.</p>}
+        {(workspaceView !== "title" && workspaceView !== "details") && (operationalWorkspace ? <section className="srv-operational-shell">
+          {workspaceView === "work" && isCurrent && !custodyStage ? <div className="srv-operational-work">
+            <header><div><h3>{selectedStage === "JOB_SCOPE_DEFINITION" ? "Follow the Job Scope Checklist" : operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{selectedStage !== "JOB_SCOPE_DEFINITION" && operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={resolveStageToolHref(tool, item, stageReturnTo, selectedDefinition)} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions">{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
             {workGuidance ? <p className="srv-work-guidance"><AlertTriangle /><span>{workGuidance}</span></p> : null}
-            <section className={`srv-source-sync ${activeProgress.ready ? "ready" : lifecycle.blockerCodes.length && isCurrent ? "blocked" : "missing"}`} aria-label="Source tool checklist synchronization"><ShieldCheck /><div><strong>Source tool sync</strong><span>{syncedCount ? `${syncedCount} checklist line${syncedCount === 1 ? "" : "s"} cleared from saved tool facts or published evidence.` : "Open the stage tool, save the work, then this card will use those facts to clear checklist lines."}</span></div><b>{activeProgress.complete}/{activeProgress.total} ready</b></section>
+            {syncedCount > 0 && <p className={styles.resume}>{syncedCount} checks filled from saved records · {activeProgress.complete}/{activeProgress.total} recorded</p>}
             {loopGuidance.length ? <section className="srv-loop-guidance" aria-label="Operational blocker and loop guidance">{loopGuidance.map(item => <p key={item}><AlertTriangle />{item}</p>)}</section> : null}
-            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? <VehicleIntakeCommandWorkspace checklist={activeChecklist} item={item} returnTo={stageReturnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={stageReturnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? <InspectionVerificationCommandWorkspace checklist={activeChecklist} item={item} returnTo={stageReturnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DIAGNOSIS" ? <DiagnosisCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "FINDINGS_REPAIR_PLAN" ? <FindingsRepairPlanCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "AUTHORIZATION" ? <AuthorizationCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "PARTS_RESOURCE_READINESS" ? <PartsResourceReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DISPATCH_WORK_STAGING" ? <DispatchWorkStagingCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "REPAIR_EXECUTION" ? <RepairExecutionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} onReturnToPartsReadiness={returnToPartsReadiness} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "TECHNICIAN_COMPLETION" ? <TechnicianCompletionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "QUALITY_CONTROL_ROAD_TEST" ? <QualityControlCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "RELEASE_HANDOVER_READINESS" ? <ReleaseReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_HANDOVER_SHOP_EXIT" ? <ShopExitCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
+            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={stageReturnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? <InspectionVerificationCommandWorkspace checklist={activeChecklist} item={item} returnTo={stageReturnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DIAGNOSIS" ? <DiagnosisCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "FINDINGS_REPAIR_PLAN" ? <FindingsRepairPlanCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "AUTHORIZATION" ? <AuthorizationCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "PARTS_RESOURCE_READINESS" ? <PartsResourceReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DISPATCH_WORK_STAGING" ? <DispatchWorkStagingCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "REPAIR_EXECUTION" ? <RepairExecutionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} onReturnToPartsReadiness={returnToPartsReadiness} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "TECHNICIAN_COMPLETION" ? <TechnicianCompletionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "QUALITY_CONTROL_ROAD_TEST" ? <QualityControlCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "RELEASE_HANDOVER_READINESS" ? <ReleaseReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_HANDOVER_SHOP_EXIT" ? <ShopExitCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={stageReturnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
               <section className="srv-operation-list">{operationalWorkspace.actions.map((action, index) => { const labelFor = (key: string) => operationalWorkspace.summaryFields?.find(item => item.key === key)?.label ?? workspace.fields.find(item => item.key === key)?.label ?? key, completed = checklist[`item_${index + 1}`] === true, missing = action.requiredFields.filter(field => !fieldHasValue(formData[field])), ready = missing.length === 0; return <article className={completed ? "complete" : ""} key={action.key}><header><i>{completed ? <Check /> : index + 1}</i><div><strong>{action.title}</strong><small>{action.owner}</small></div><b>{completed ? "Recorded" : ready ? "Ready" : "Needs facts"}</b></header><p>{action.instruction}</p><dl><div><dt>Required record</dt><dd>{action.requiredFields.map(labelFor).join(" · ")}</dd></div><div><dt>Evidence created</dt><dd>{action.evidence}</dd></div></dl>{!completed && !ready && isCurrent ? <small className="srv-operation-help">Click below to enter: {missing.map(labelFor).join(" and ")}</small> : null}<button disabled={busy} onClick={() => recordOperationalAction(index)} type="button">{!isCurrent ? <><RotateCcw />Return to active Stage {currentIndex + 1}</> : completed ? <><RotateCcw />Reopen operation</> : ready ? <><CheckCircle2 />Record operation</> : <><FileText />Enter required facts</>}</button></article>; })}</section>
               {usesExternalIntake ? <IntakeSummaryPanel formData={formData} item={item} returnTo={stageReturnTo} summaryFields={operationalWorkspace.summaryFields ?? []} summaryInstruction={operationalWorkspace.summaryInstruction} summaryTitle={operationalWorkspace.summaryTitle} tools={operationalWorkspace.tools ?? []} /> : <section className="srv-stage-record"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>Enter the facts used by the operations. Changing a recorded fact reopens its operation for confirmation.</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Saved v${lifecycleWorkspace.currentDraft.revision}` : "Unsaved work"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={updateOperationalField} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section>}
             </div>}
           </div> : null}
 
-          {workspaceView === "activity" ? <section className="srv-operational-activity"><header><Activity /><div><h3>Attributable Stage Activity</h3><p>Every recorded operation, correction, save, publication, and movement remains associated with its user and time.</p></div></header><div>{activityEntries.map(entry => <article key={entry.id}><i><Check /></i><div><strong>{entry.title}</strong><p>{entry.result}</p><small>{entry.actor} · {date(entry.occurredAt)} · {entry.evidence}</small></div></article>)}{lifecycleWorkspace.history.map(event => <article key={`history-${event.sequence}`}><i><History /></i><div><strong>{words(event.eventType)}</strong><p>{event.reason}</p><small>{event.actorName} · {date(event.occurredAt)}</small></div></article>)}{!activityEntries.length && !lifecycleWorkspace.history.length ? <p className="srv-operational-empty">No stage operations have been recorded. Begin in Work to Perform.</p> : null}</div></section> : null}
+          {workspaceView === "activity" ? <section className="srv-operational-activity"><header><Activity /><div><h3>Attributable Stage Activity</h3><p>Every recorded operation, correction, save, publication, and movement remains associated with its user and time.</p></div></header><div>{activityEntries.map(entry => <article key={entry.id}><i><Check /></i><div><strong>{entry.title}</strong><p>{entry.result}</p><small>{entry.actor} · {date(entry.occurredAt)} · {entry.evidence}</small></div></article>)}{lifecycleWorkspace.history.map(event => <article key={`history-${event.sequence}`}><i><History /></i><div><strong>{words(event.eventType)}</strong><p>{event.reason}</p><small>{event.actorName} · {date(event.occurredAt)}</small></div></article>)}{!activityEntries.length && !lifecycleWorkspace.history.length ? <p className="srv-operational-empty">No stage operations have been recorded. </p> : null}</div></section> : null}
 
-          {workspaceView === "evidence" ? <section className="srv-evidence srv-operational-evidence"><header><Camera /><div><h3>Documents &amp; Evidence</h3><p>Attach or reference the actual photos, scans, measurements, records, and documents produced while performing this stage.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One photo, document, measurement, or source record per line" value={evidenceText} /></label> : null}</section> : null}
+          {workspaceView === "evidence" ? <section className="srv-evidence srv-operational-evidence"><header><Camera /><div><h3>Documents &amp; Evidence</h3><p>Attach or reference the actual photos, scans, measurements, records, and documents produced while performing this stage.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent && !custodyStage && lifecycleWorkspace.permissions.canSave ? <><label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One photo, document, measurement, or source record per line" value={evidenceText} /></label><div className={styles.taskActions}><button className={styles.primary} disabled={busy || !dirty} onClick={() => void saveDraft()} type="button">Save evidence references</button></div></> : null}</section> : null}
 
-          {workspaceView === "completion" ? <section className="srv-completion-workspace" id="stage-completion"><header><BookOpenCheck /><div><h3>Stage Completion Gate</h3><p>Review recorded work separately from the decision to publish evidence and move the vehicle.</p></div></header><div className="srv-completion-summary"><p><span>Operations recorded</span><strong>{activeProgress.complete} / {activeProgress.total}</strong></p><p><span>Evidence supplied</span><strong>{stageEvidenceComplete ? stageEvidenceRequiredCount : 0} / {stageEvidenceRequiredCount}</strong></p><p><span>Completion authority</span><strong>{workspace.authority}</strong></p><p><span>Current status</span><strong>{dirty ? "Unsaved changes" : lifecycleWorkspace.currentEvidence ? `Published by ${lifecycleWorkspace.currentEvidence.publishedByName}` : lifecycleWorkspace.currentDraft ? `Saved by ${lifecycleWorkspace.currentDraft.savedByName}` : "Work not saved"}</strong></p></div>{lifecycleWorkspace.currentDraft ? <p className="srv-saved-work-note"><Save />Saved work: revision {lifecycleWorkspace.currentDraft.revision} · {date(lifecycleWorkspace.currentDraft.savedAt)} · {lifecycleWorkspace.currentDraft.reason}</p> : null}{completionControls}{feedback ? <p className={`srv-action-feedback ${feedback.tone}`}>{feedback.text}</p> : null}</section> : null}
-        </section> : <><div className="srv-work-grid"><section className="srv-checklist"><header><ClipboardCheck /><div><h3>Stage Checklist</h3><p>Required before the card can advance.</p></div><span>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</span></header>{workspace.checklist.map((label, index) => { const key = `item_${index + 1}`, checked = checklist[key] === true; return <label key={label}><input checked={checked} disabled={!isCurrent || busy} onChange={event => { setChecklist(value => ({ ...value, [key]: event.target.checked })); changed(); }} type="checkbox" /><i>{checked ? <Check /> : <Circle />}</i><span><strong>{label}</strong><small>Required gate {index + 1}</small></span></label>; })}</section><section className="srv-form-preview"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>{isCurrent ? "Work saves as an attributable draft." : "Read-only stage review."}</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Draft v${lifecycleWorkspace.currentDraft.revision}` : "New draft"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={(key, value) => { setFormData(current => ({ ...current, [key]: value })); changed(); }} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section></div><section className="srv-evidence"><header><Camera /><div><h3>Required Evidence</h3><p>Enter one attachment, photo, measurement, or source reference per line. The saved revision remains in history.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One evidence reference per line" value={evidenceText} /></label> : null}</section></>}
+          {workspaceView === "completion" ? <section className="srv-completion-workspace" id="stage-completion"><header><BookOpenCheck /><div><h3>Stage Completion Gate</h3><p>Review recorded work separately from the decision to publish evidence and move the vehicle.</p></div></header><div className="srv-completion-summary"><p><span>Operations recorded</span><strong>{activeProgress.complete} / {activeProgress.total}</strong></p><p><span>Evidence supplied</span><strong>{stageEvidenceComplete ? stageEvidenceRequiredCount : 0} / {stageEvidenceRequiredCount}</strong></p><p><span>Completion authority</span><strong>{workspace.authority}</strong></p><p><span>Current status</span><strong>{dirty ? "Unsaved changes" : lifecycleWorkspace.currentEvidence ? `Published by ${lifecycleWorkspace.currentEvidence.publishedByName}` : lifecycleWorkspace.currentDraft ? `Saved by ${lifecycleWorkspace.currentDraft.savedByName}` : "Work not saved"}</strong></p></div>{lifecycleWorkspace.currentDraft ? <p className="srv-saved-work-note"><Save />Saved work: revision {lifecycleWorkspace.currentDraft.revision} · {date(lifecycleWorkspace.currentDraft.savedAt)} · {lifecycleWorkspace.currentDraft.reason}</p> : null}{completionControls}</section> : null}
+        </section> : workspaceView === "work" && isCurrent ? <><div className="srv-work-grid"><section className="srv-checklist"><header><ClipboardCheck /><div><h3>Stage Checklist</h3><p>Required before the card can advance.</p></div><span>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</span></header>{workspace.checklist.map((label, index) => { const key = `item_${index + 1}`, checked = checklist[key] === true; return <label key={label}><input checked={checked} disabled={!isCurrent || busy} onChange={event => { setChecklist(value => ({ ...value, [key]: event.target.checked })); changed(); }} type="checkbox" /><i>{checked ? <Check /> : <Circle />}</i><span><strong>{label}</strong><small>Required gate {index + 1}</small></span></label>; })}</section><section className="srv-form-preview"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>{isCurrent ? "Work saves as an attributable draft." : "Read-only stage review."}</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Draft v${lifecycleWorkspace.currentDraft.revision}` : "New draft"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={(key, value) => { setFormData(current => ({ ...current, [key]: value })); changed(); }} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section></div><section className="srv-evidence"><header><Camera /><div><h3>Required Evidence</h3><p>Enter one attachment, photo, measurement, or source reference per line. The saved revision remains in history.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One evidence reference per line" value={evidenceText} /></label> : null}</section>{completionControls}</> : workspaceView === "completion" && isCurrent ? completionControls : null)}
       </section>
 
-      <aside className={focused ? undefined : "srv-workspace-rail"}>
-        <StageDetails className={focused ? styles.stageDetails : styles.legacyRail}>
-          {focused && <summary>Stage details, history and exceptions</summary>}
-          <div className={focused ? "srv-workspace-rail" : styles.legacyRail}>
-        {focused && !closed && titlePreparationWorkspace && <ShopReconParallelTitlePreparation currentStageLabel={SHOP_RECON_STAGES[currentIndex].label} initial={titlePreparationWorkspace} repairOrderId={item.id} />}
+      {workspaceView === "details" && <section className={styles.details} aria-label="Repair order details">
+        <details><summary>Stage list and exceptions</summary>
+          <p>Current task: {SHOP_RECON_STAGES[currentIndex].label}. Reviewing another stage does not move the vehicle.</p>
+          <label>Review a stage <select onChange={event => { setSelectedStage(event.target.value as ShopReconStageCode); setWorkGuidance(null); }} value={selectedStage}>{SHOP_RECON_STAGES.map(stage => <option key={stage.code} value={stage.code}>{stage.order}. {stage.label}{stage.code === lifecycle.stage ? " (current)" : ""}</option>)}</select></label>
+          {!isCurrent && <details><summary>{selectedDefinition.label} requirements</summary><ul>{workspace.checklist.map(check => <li key={check}>{check}</li>)}</ul></details>}
+          {!isCurrent && selectedIndex < currentIndex && !closed && lifecycleWorkspace.permissions.canOverride && completionControls}
+        </details>
         {item.pilot ? <section className="srv-pilot-panel"><h2><FlaskConical /> {item.pilot.label}</h2><p>{item.pilot.objective}</p><strong>Journey validation</strong><div>{pilotProgress.map(group => <p className={group.status.toLowerCase()} key={group.id}>{group.status === "COMPLETE" ? <CheckCircle2 /> : group.status === "IN_PROGRESS" ? <Clock3 /> : <Circle />}<span>{group.label}<small>Stages {group.fromStage}–{group.toStage} · {words(group.status)}</small></span></p>)}</div><details><summary>Exception drills</summary>{item.pilot.exceptionDrills.map(drill => <p key={drill.id}><AlertTriangle /><span><strong>{drill.label}</strong><small>Stage {SHOP_RECON_STAGES.find(stage => stage.code === drill.stage)?.order}: {drill.expectedControl}</small></span></p>)}</details><footer>Expected exit: <strong>{item.pilot.expectedHandoff}</strong></footer></section> : null}
         <section className="srv-current-context"><h2>Current Vehicle Context</h2><Fact icon={MapPin} label="Location" value={item.location} /><Fact icon={UserRound} label="Accountable owner" value={item.owner} /><Fact icon={Wrench} label="Technician / bay" value={[item.technician, item.bay].filter(Boolean).join(" · ") || "Not assigned"} /><Fact icon={Clock3} label={item.commitmentLabel} value={date(lifecycle.targetAt)} /></section>
         <SourceReturnPathPanel item={item} />
         <section><h2>Decision Authority</h2><p className="srv-authority"><LockKeyhole />{workspace.authority}</p><small>{item.authorizationPath}</small></section>
-        <section><h2>Constraint &amp; Priority</h2>{lifecycle.blockerCodes.length ? <p className="srv-blocker"><AlertTriangle />{lifecycle.blockerCodes.map(String).join(", ")}</p> : <p className="srv-clear"><CheckCircle2 />No controlling blocker recorded.</p>}<dl><div><dt>Priority</dt><dd>{item.priorityBand} · {item.priorityScore}</dd></div><div><dt>Timing</dt><dd>{words(item.stageTargetBand)}</dd></div><div><dt>Parts</dt><dd>{item.waitingParts ? "Constrained" : "No constraint"}</dd></div></dl></section>
-        <section><h2>Completion Path</h2><p>{item.completionHandoff}</p><small>The same card and history continue through handoff.</small></section>
-        {isCurrent && lifecycle.stage === "REPAIR_EXECUTION" ? <section className="srv-policy-action"><h2>Changed Scope</h2><p>Use this when a new finding exceeds the approved work. A draft save alone does not authorize additional repair.</p><textarea disabled={busy} onChange={event => setScopeFinding(event.target.value)} placeholder="Describe the new finding and affected work" value={scopeFinding} /><button disabled={busy || scopeFinding.trim().length === 0} onClick={submitScopeChange} type="button"><RotateCcw />Stop affected work &amp; start scope review</button></section> : null}
-        {isCurrent && lifecycleWorkspace.permissions.canOverride ? <details className="srv-policy-action"><summary>General Manager exception</summary><p>Permitted only for WIP, timing, queue, noncritical documentation, temporary resources, controlled backward movement, or reopening.</p><select disabled={busy} onChange={event => setOverrideKind(event.target.value)} value={overrideKind}><option value="WIP_LIMIT">WIP limit</option><option value="TARGET_TIME">Target time</option><option value="QUEUE_ORDER">Queue order</option><option value="NONCRITICAL_DOCUMENTATION">Noncritical documentation</option><option value="TEMPORARY_RESOURCE">Temporary resource</option><option value="CONTROLLED_BACKWARD_MOVEMENT">Controlled backward movement</option><option value="REOPEN_STAGE">Reopen stage</option></select><textarea disabled={busy} onChange={event => setOverrideReason(event.target.value)} placeholder="Explain the exception, boundary, and follow-up" value={overrideReason} /><button disabled={busy || overrideReason.trim().length === 0} onClick={grantOverride} type="button"><ShieldCheck />Record GM exception</button><small>Identity, custody, safety, customer authorization, inventory spending authority, technician qualification, legal records, failed QC, failed road test, and release acceptance cannot be overridden.</small></details> : null}
-        {operationalWorkspace ? null : completionControls}
-        {!operationalWorkspace && feedback ? <p className={`srv-action-feedback ${feedback.tone}`}>{feedback.text}</p> : null}
-        <section><h2><History /> Recent Stage History</h2>{lifecycleWorkspace.history.length ? lifecycleWorkspace.history.slice(0, 5).map(event => <p className="srv-history-event" key={event.sequence}><strong>{words(event.eventType)}</strong><span>{event.actorName} · {date(event.occurredAt)}</span><small>{event.reason}</small></p>) : <small>No governed stage events yet. The first save initializes the operational lifecycle.</small>}</section>
-        <section><h2>Policy Guardrails</h2><small>Scope change stops affected work and loops through findings, plan, authorization, and readiness. Failed QC or road test forces rework and a fresh QC; it cannot be overridden.</small></section>
-          </div>
-        </StageDetails>
-      </aside>
+        {isCurrent && lifecycleWorkspace.permissions.canOverride ? <details className="srv-policy-action"><summary>General Manager exception</summary><p>Permitted only for WIP, timing, queue, noncritical documentation, temporary resources, controlled backward movement, or reopening.</p><select disabled={busy} onChange={event => setOverrideKind(event.target.value)} value={overrideKind}><option value="WIP_LIMIT">WIP limit</option><option value="TARGET_TIME">Target time</option><option value="QUEUE_ORDER">Queue order</option><option value="NONCRITICAL_DOCUMENTATION">Noncritical documentation</option><option value="TEMPORARY_RESOURCE">Temporary resource</option><option value="CONTROLLED_BACKWARD_MOVEMENT">Controlled backward movement</option><option value="REOPEN_STAGE">Reopen stage</option></select><textarea disabled={busy} onChange={event => setOverrideReason(event.target.value)} placeholder="Explain the exception, boundary, and follow-up" value={overrideReason} /><button disabled={busy || overrideReason.trim().length < 10} onClick={grantOverride} type="button"><ShieldCheck />Record GM exception</button><small>Identity, custody, safety, customer authorization, inventory spending authority, technician qualification, legal records, failed QC, failed road test, and release acceptance cannot be overridden.</small></details> : null}
+      </section>}
     </main>
     </div>
   </section>;
 }
 
-function LaneIcon({ lane }: { lane: ShopReconVehicleCardModel["workLane"] }) { return lane === "INVENTORY_RECON" ? <Building2 /> : <UserRound />; }
 function Fact({ icon: Icon, label, value }: { icon: typeof MapPin; label: string; value: string }) { return <p className="srv-fact"><Icon /><span>{label}<strong>{value}</strong></span></p>; }
 function resolveStageToolHref(tool: ShopReconOperationalTool, item: ShopReconVehicleCardModel, returnTo: string, stage?: (typeof SHOP_RECON_STAGES)[number]) {
   const stageFromReturn = (() => {
@@ -677,24 +613,6 @@ function WorkOrderCommandWorkspace({ busy, checklist, isCurrent, item, onChange,
     <header><ClipboardCheck /><div><small>Official Stage 3 Tool</small><h3>Labor Guide</h3><p>Use Labor Guide to create the actual work order. Then confirm each checklist line below before Stage 3 can advance.</p></div><span>{completed}/7 checked</span></header>
     <section className="srv-scope-tool-tray single" aria-label="Labor Guide tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
     <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 3">{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
-  </section>;
-}
-
-function VehicleIntakeCommandWorkspace({ checklist, item, returnTo, tools }: { checklist: Record<string, boolean>; item: ShopReconVehicleCardModel; returnTo: string; tools: readonly ShopReconOperationalTool[] }) {
-  const gates = [
-    ["Vehicle identity matched", checklist.item_1, "Observed VIN, stock, or RO matches the controlled record."],
-    ["Arrival condition recorded", checklist.item_2, "Arrival condition and visible damage notes are recorded."],
-    ["Keys counted and tagged", checklist.item_3, "Key count and key tag/locker are controlled."],
-    ["Photos/evidence captured", checklist.item_4, "Intake photo or evidence reference is attached."],
-    ["Physical location assigned", checklist.item_5, "Current zone or lot position is recorded."],
-    ["Movement restriction noted", checklist.item_6, "Movement boundary is recorded before safety triage."],
-    ["Custody accepted", checklist.item_7, "Brock or Eli accepted accountable Shop custody."],
-  ] as const;
-  const completed = gates.filter(([, checked]) => checked).length;
-  return <section className="srv-scope-command lifecycle-style" aria-label="Vehicle Intake & Custody Checklist">
-    <header><ClipboardCheck /><div><small>Official Stage 4 Tool</small><h3>Vehicle Intake &amp; Custody</h3><p>The physical check-in form is the source of truth. Complete it there; the checklist underneath clears from the saved form answers.</p></div><span>{completed}/7 checked</span></header>
-    <section className="srv-scope-tool-tray single" aria-label="Vehicle Intake & Custody tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
-    <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 4">{gates.map(([label, checked, note], index) => <article className={checked ? "checked" : ""} key={label}><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Locked"}</b></article>)}</section>
   </section>;
 }
 

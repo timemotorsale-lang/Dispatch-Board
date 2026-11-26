@@ -86,6 +86,16 @@ section.workspace { max-width: none; margin: 0; }
 .workflowSwitch [aria-disabled] { opacity: .6; }
 .workflowSwitch [aria-current] { color: #fff; background: #3d53be; }
 .workflowCards { min-width: 0; }
+.shopOnlyCard { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--line, #ccd7e4); border-radius: 8px; background: var(--surface, #fff); }
+.shopOnlyCard > small { padding: 0 8px 4px; }
+.attachmentPanel { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--line, #ccd7e4); border-radius: 8px; background: var(--surface, #fff); }
+.attachmentPanel :is(header, form) { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.attachmentPanel header { justify-content: space-between; }
+.attachmentPanel :is(h2, p, ul) { margin-block: 0; }
+.attachmentPanel form > small { flex-basis: 100%; }
+.attachmentPanel label { display: grid; gap: .35rem; max-width: 100%; }
+.attachmentPanel input { max-width: 100%; min-height: 2.25rem; }
+.attachmentPanel li { overflow-wrap: anywhere; }
 .workflowCards details {
   border: 1px solid var(--line, #ccd7e4);
   border-radius: 8px;
@@ -263,3 +273,4 @@ button.pathToggle:hover, button.pathToggle[aria-expanded="true"] { background: #
 
 .workPartMatch { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: baseline; margin: 6px 0; }
 .workPartMatch select { max-width: 100%; }
+.rapidStatus { margin: 8px 0; padding: 8px 12px; border-inline-start: 3px solid var(--accent, #4654a8); }

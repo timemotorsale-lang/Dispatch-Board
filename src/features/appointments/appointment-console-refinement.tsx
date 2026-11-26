@@ -295,9 +295,10 @@ function hasCalendarAppointmentContent(appointment: LiveAppointment) {
   return hasIdentity || !isDefaultDraftPurpose;
 }
 
-function boardFocusHref(appointment: LiveAppointment, anchor = "") {
+function boardFocusHref(appointment: LiveAppointment, anchor = "", returnTo?: string) {
   const query = new URLSearchParams({ view: "board", appointment: appointment.appointmentNumber });
   if (appointment.startsAt) query.set("localDate", isoDateKey(appointment.startsAt));
+  if (returnTo) query.set("returnTo", returnTo);
   return `/appointments?${query}${anchor}`;
 }
 
@@ -885,6 +886,7 @@ function LegacyAppointmentConsoleNewAppointment() {
 void LegacyAppointmentConsoleNewAppointment;
 
 type AppointmentNewInitialContext = {
+  inventoryRecon?: { vehicle: AppointmentIdentityVehicle; locationId: string; inventoryUnitId: string };
   calendarQuery?: string;
   advancedCalendarSearch?: boolean;
   viewerName?: string;
@@ -911,6 +913,7 @@ function validTimeInput(value?: string) {
 }
 
 export function AppointmentConsoleNewAppointment({ initialContext, initialFullCalendar = false }: { initialContext?: AppointmentNewInitialContext; initialFullCalendar?: boolean }) {
+  const inventoryRecon = initialContext?.inventoryRecon;
   const [selectedPurposeCode, setSelectedPurposeCode] = useState(initialContext?.purposeCode ?? defaultAppointmentPurpose.value);
   const selectedPurpose = appointmentPurposes.find(purpose => purpose.value === selectedPurposeCode) ?? defaultAppointmentPurpose;
   const selectedPurposeGroup = appointmentPurposeGroup(selectedPurpose.category, selectedPurpose.value);
@@ -922,11 +925,16 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     startTime: validTimeInput(initialContext?.startTime),
     durationMinutes: Number.isInteger(initialDuration) && initialDuration >= 1 && initialDuration <= 1440
       ? initialDuration : selectedPurpose.duration,
-    transportation: "Customer Drive",
+    transportation: inventoryRecon ? "Not specified" : "Customer Drive",
     reason: initialContext?.reason ?? ""
   });
   const [calendarView, setCalendarView] = useState<CalendarView>(initialFullCalendar ? "week" : "day");
   const [calendarInsightCard, setCalendarInsightCard] = useState<CalendarInsightCard>(null);
+  useEffect(() => {
+    if (!inventoryRecon) return;
+    const frame = requestAnimationFrame(() => setCalendarInsightCard("draft"));
+    return () => cancelAnimationFrame(frame);
+  }, [inventoryRecon]);
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(initialFullCalendar);
   const [calendarRailOpen, setCalendarRailOpen] = useState(false);
@@ -961,7 +969,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [identityResults, setIdentityResults] = useState<AppointmentIdentitySearchResponse>({ customers: [], vehicles: [] });
   const [identityStatus, setIdentityStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const [selectedCustomer, setSelectedCustomer] = useState<AppointmentIdentityCustomer | null>(null);
-  const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(inventoryRecon?.vehicle ?? null);
   const [hiddenCalendars, setHiddenCalendars] = useState<string[]>([]);
   const [personalDraft, setPersonalDraft] = useState<ComponentProps<typeof PersonalCalendarEditor>["draft"] | null>(null);
   const [taskDraft, setTaskDraft] = useState<{ date: string; time?: string } | null>(null);
@@ -1186,14 +1194,14 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
   function startNewAppointmentDraft(startTime = form.startTime) {
     if (submitInProgress.current) return;
-    const defaultPurpose = defaultAppointmentPurpose;
+    const defaultPurpose = (inventoryRecon && appointmentPurposes.find(purpose => purpose.value === "SERVICE_REPAIR")) || defaultAppointmentPurpose;
     setEditingAppointment(null);
     setExpandedAppointment(null);
     setSavedCreation(null);
     createAttempt.current = null;
     setSelectedPurposeCode(defaultPurpose.value);
     setSelectedCustomer(null);
-    setSelectedVehicle(null);
+    setSelectedVehicle(inventoryRecon?.vehicle ?? null);
     setCustomerQuery(initialContext?.customerReference ?? "");
     setVehicleQuery(initialContext?.vehicleReference ?? "");
     setForm({
@@ -1202,7 +1210,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       localDate: form.localDate,
       startTime,
       durationMinutes: defaultPurpose.duration,
-      transportation: "Customer Drive",
+      transportation: inventoryRecon ? "Not specified" : "Customer Drive",
       reason: initialContext?.reason ?? ""
     });
     if (!fullPageCalendarOpen) setCalendarView("day");
@@ -1492,14 +1500,14 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
         body: JSON.stringify({
           commandType: "CREATE_DRAFT",
           organizationId: defaultOrganizationId,
-          locationId: defaultLocationId,
+          locationId: inventoryRecon?.locationId ?? defaultLocationId,
           idempotencyKey,
           correlationId: idempotencyKey,
           payload: {
             appointmentNumber,
             title: appointmentPayload.title,
             sourceType: initialContext?.sourceTaskId ? "TASK" : "MANUAL",
-            sourceReference: initialContext?.sourceTaskId || form.reason.trim(),
+            sourceReference: inventoryRecon?.inventoryUnitId || initialContext?.sourceTaskId || form.reason.trim(),
             startsAt: startsAtIso,
             endsAt: endsAtIso,
             schedulingTimezone: appointmentPayload.schedulingTimezone,
@@ -1512,7 +1520,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                   taskTitle: sourceTaskLabel,
                   reasonNotes: form.reason.trim()
                 }
-              : null,
+              : inventoryRecon ? { inventoryUnitId: inventoryRecon.inventoryUnitId, reasonNotes: form.reason.trim() } : null,
             taskLinks: initialContext?.sourceTaskId
               ? [
                   {
@@ -1657,42 +1665,42 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                   <div className="calendar-enterprise-draft-form">
                     <p>{savedCreation.title} · {formatTime(savedCreation.startsAt)} – {formatTime(savedCreation.endsAt)}</p>
                     <footer>
-                      <Link href={boardFocusHref(savedCreation)}>Review and schedule draft</Link>
+                      <Link href={boardFocusHref(savedCreation, "", inventoryRecon ? returnHref : undefined)}>Review and schedule draft</Link>
                       {repairQueueReturn && <Link href={repairQueueReturn}>Link to repair priority</Link>}
                       <button onClick={resetAppointmentDraft} type="button">New appointment</button>
                     </footer>
                   </div>
                 ) : (
                   <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category, selectedPurpose.value)}>
-                    {fullPageCalendarOpen && <p>Company calendar · Visible to staff. {!editingAppointment && <button type="button" onClick={() => { setCalendarInsightCard(null); setPersonalDraft({ kind: "event", date: form.localDate, time: form.startTime, duration: form.durationMinutes }); }}>Create a private event instead</button>}</p>}
-                    {fullPageCalendarOpen && !editingAppointment && <button type="button" onClick={() => {
+                    {fullPageCalendarOpen && !inventoryRecon && <p>Company calendar · Visible to staff. {!editingAppointment && <button type="button" onClick={() => { setCalendarInsightCard(null); setPersonalDraft({ kind: "event", date: form.localDate, time: form.startTime, duration: form.durationMinutes }); }}>Create a private event instead</button>}</p>}
+                    {fullPageCalendarOpen && !inventoryRecon && !editingAppointment && <button type="button" onClick={() => {
                       setCalendarInsightCard(null);
                       setTaskDraft({ date: form.localDate, time: form.startTime });
                     }}>Add a task instead</button>}
-                    <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
+                    {inventoryRecon && !editingAppointment ? <p>Inventory recon · Confirm the booking with the outside provider and enter its name and work needed below. Scheduling here records it on the staff calendar only.</p> : <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>}
                     {customerQuery.trim().length >= 2 && !selectedCustomer ? (
                       <div className="appointment-identity-results" aria-label="Matching customers">
                         {effectiveIdentityResults.customers.map((customer) => <button key={customer.id} onClick={() => chooseCustomer(customer)} type="button"><span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber}</small></span></button>)}
                         {!effectiveIdentityResults.customers.length ? <p>{effectiveIdentityStatus === "loading" ? "Searching customers..." : "No match. The typed name is draft context, not a linked customer."}</p> : null}
                       </div>
                     ) : null}
-                    <label><span>Vehicle</span><input onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} /></label>
+                    <label><span>Vehicle</span><input readOnly={Boolean(inventoryRecon && !editingAppointment)} onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} /></label>
                     {vehicleQuery.trim().length >= 2 && !selectedVehicle ? (
                       <div className="appointment-identity-results" aria-label="Matching vehicles">
                         {effectiveIdentityResults.vehicles.map((vehicle) => <button key={vehicle.id} onClick={() => chooseVehicle(vehicle)} type="button"><span><strong>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}</strong><small>{vehicle.vin ?? vehicle.vehicleNumber}</small></span></button>)}
                         {!effectiveIdentityResults.vehicles.length ? <p>{effectiveIdentityStatus === "loading" ? "Searching vehicles..." : "No match. Select an existing vehicle to link its record."}</p> : null}
                       </div>
                     ) : null}
-                    <AppointmentPurposeFields purpose={selectedPurpose} onChange={changePurpose} />
+                    {inventoryRecon && !editingAppointment ? <p>Purpose · {selectedPurpose.label}</p> : <AppointmentPurposeFields purpose={selectedPurpose} onChange={changePurpose} />}
                     <div className="calendar-enterprise-draft-row">
                       <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
                       <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
                       <AppointmentDurationField value={form.durationMinutes} onChange={minutes => updateField("durationMinutes", minutes)} disabled={isSaving} />
                     </div>
                     <div className="calendar-enterprise-draft-row">
-                      <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                      <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{(inventoryRecon && !editingAppointment ? ["Not specified", "Tow-in", "Pickup / Delivery"] : ["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"]).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
                     </div>
-                    <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
+                    <label><span>{inventoryRecon && !editingAppointment ? "Provider & work needed" : "Reason"}</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder={inventoryRecon && !editingAppointment ? "Example: Honda dealer — recalibrate front camera" : "Document why this appointment exists."} value={form.reason} /></label>
                     {duplicateWarning}
                     <footer>
                       <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>

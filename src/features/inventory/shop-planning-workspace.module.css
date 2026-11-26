@@ -347,3 +347,5 @@
 .focused .clearanceHeader { grid-template-columns: minmax(0, 1fr) auto; padding: 10px; }
 .focused .clearanceRow { padding: 9px; }
 .focused .clearanceReview { gap: 10px; }
+
+.estimateTotals { display: flex; flex-wrap: wrap; gap: .4rem 1rem; padding: .65rem .85rem; border: 1px solid var(--border, #d4dfeb); border-radius: 8px; }

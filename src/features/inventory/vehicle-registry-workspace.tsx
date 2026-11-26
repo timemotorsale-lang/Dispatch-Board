@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { VehicleWorkToolkit } from "./vehicle-work-actions";
 import type { VehicleWorkActions } from "@/lib/repair-resume";
+import type { getVehicleRegistryToolAccess } from "@/server/vehicle-registry/service";
 import styles from "./vehicle-registry-workspace.module.css";
 
 type VehicleListItem = {
@@ -201,17 +202,13 @@ export function parseQuickVehicleIdentity(value: string): Partial<typeof emptyVe
   return result;
 }
 
-function stockNumberForDisplay(vehicle: Pick<VehicleListItem, "stockNumber" | "vin">) {
-  return vehicle.stockNumber ?? (deriveStockNumberFromVin(vehicle.vin) || "—");
-}
-
 function editableIdentity(vehicle: Detail | null) {
   return vehicle
     ? {
         vehicleNumber: vehicle.vehicleNumber,
         vin: vehicle.vinRaw ?? vehicle.vin ?? "",
         nonVinReason: vehicle.nonVinReason ?? "",
-        stockNumber: vehicle.stockNumber ?? deriveStockNumberFromVin(vehicle.vin),
+        stockNumber: vehicle.stockNumber ?? "",
         year: vehicle.year ? String(vehicle.year) : "",
         make: vehicle.make ?? "",
         model: vehicle.model ?? "",
@@ -225,10 +222,6 @@ function vehicleTitle(vehicle: Pick<VehicleListItem, "make" | "model" | "vehicle
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
 }
 
-function vehicleDetailsHref(vehicleId: string) {
-  return `/vehicles/${encodeURIComponent(vehicleId)}/details`;
-}
-
 function isMutationDisabled(message: string) {
   return message.includes("not enabled") || message.includes("MASTER_DISABLED");
 }
@@ -236,19 +229,30 @@ function isMutationDisabled(message: string) {
 export function VehicleRegistryWorkspace({
   initial,
   initialQuery = "",
-  initialSelected = null
+  initialPage = 1,
+  initialSelected = null,
+  initialNotice = "",
+  access
 }: {
-  initial: RegistryList;
+  initial: RegistryList | null;
   initialQuery?: string;
+  initialPage?: number;
   initialSelected?: Detail | null;
+  initialNotice?: string;
+  access?: Awaited<ReturnType<typeof getVehicleRegistryToolAccess>>;
 }) {
   const [list, setList] = useState(initial);
   const [query, setQuery] = useState(initialQuery);
+  const [activeQuery, setActiveQuery] = useState(initialQuery);
+  const [searching, setSearching] = useState(false);
+  const [failedPage, setFailedPage] = useState(initial ? null : initialPage);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Detail | null>(initialSelected);
   const [quickCreateText, setQuickCreateText] = useState("");
   const [vehicle, setVehicle] = useState(emptyVehicle);
   const [correction, setCorrection] = useState(editableIdentity(initialSelected));
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(initialNotice);
+  const [observationFollowUpId, setObservationFollowUpId] = useState<string | null>(null);
   const [registryLocked, setRegistryLocked] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -283,33 +287,55 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function refresh(search = query) {
-    setBusy(true);
+  async function refresh(search = activeQuery, page = list?.page ?? 1) {
+    const term = search.trim();
+    setSearching(true);
+    setActiveQuery(term);
+    setFailedPage(null);
     try {
-      const body = await request(`/api/vehicles?includeWork=1&query=${encodeURIComponent(search)}`) as RegistryList;
+      const body = await request(`/api/vehicles?${new URLSearchParams({ includeWork: "1", query: term, page: String(page) })}`) as RegistryList;
+      if (!Array.isArray(body.items) || typeof body.total !== "number") throw new Error("Invalid search response.");
       setList(body);
       if (!body.items.some((item) => item.id === selected?.id)) {
         setSelected(null);
       }
-    } catch (error) {
-      handleError(error, "Unable to search vehicles.");
+    } catch {
+      setList(null);
+      setFailedPage(page);
     } finally {
-      setBusy(false);
+      setSearching(false);
     }
+  }
+
+  function clearSearch() {
+    setQuery("");
+    inputRef.current?.focus();
+    void refresh("", 1);
   }
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
+    if (busy || searching || registryLocked || !access?.createIdentity) return;
+    const { initialCustodyPosition: enteredPosition, initialOdometerMiles: enteredMileage, ...identity } = vehicle;
+    const initialCustodyPosition = access.correctIdentity ? enteredPosition.trim() : "";
+    const initialOdometerMiles = access.correctIdentity ? enteredMileage.trim() : "";
+    if (initialOdometerMiles && (!/^\d+$/.test(initialOdometerMiles) || Number(initialOdometerMiles) > 2_147_483_647)) {
+      setNotice("Enter mileage as a non-negative whole number before saving.");
+      return;
+    }
     setBusy(true);
     setNotice("");
+    setObservationFollowUpId(null);
+    let createdId: string | undefined;
     try {
-      const { initialCustodyPosition, initialOdometerMiles, ...identity } = vehicle;
       const body = await request("/api/vehicles", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...identity,
+          stockNumber: identity.stockNumber.trim() || undefined,
           year: vehicle.year || null,
+          rejectDuplicateIdentity: true,
           idempotencyKey: crypto.randomUUID(),
           reason: "Create canonical vehicle registry identity.",
           workflowContext: {
@@ -319,7 +345,7 @@ export function VehicleRegistryWorkspace({
           }
         })
       });
-      const createdId = body.result?.id as string | undefined;
+      createdId = body.result?.id as string | undefined;
       if (createdId && initialOdometerMiles) {
         const detail = await request(`/api/vehicles/${createdId}`) as Detail;
         await request(`/api/vehicles/${createdId}/commands`, {
@@ -355,12 +381,19 @@ export function VehicleRegistryWorkspace({
           })
         });
       }
-      setNotice(body.result?.duplicateReviewId ? "Vehicle candidate created and routed to duplicate review." : "Canonical vehicle created with available intake observations.");
       setVehicle(emptyVehicle);
       await refresh();
       if (createdId) await load(createdId);
+      setNotice("Vehicle identity created.");
     } catch (error) {
-      handleError(error, "Unable to create vehicle.");
+      if (createdId) {
+        setVehicle(emptyVehicle);
+        setObservationFollowUpId(createdId);
+        setNotice("Vehicle identity saved. Check which mileage or location updates are still missing in Vehicle 360.");
+        await refresh();
+      } else {
+        handleError(error, "Unable to create vehicle.");
+      }
     } finally {
       setBusy(false);
     }
@@ -372,32 +405,16 @@ export function VehicleRegistryWorkspace({
       setNotice("Enter a quick vehicle description first, then fill the form.");
       return;
     }
-    setVehicle((current) => ({ ...current, ...parsed }));
+    setVehicle((current) => ({ ...current, ...parsed, stockNumber: current.stockNumber }));
     setNotice("Quick intake filled the fields it could read. Review, add VIN/stock/plate if available, then validate and create.");
   }
 
   function updateCreateField(key: keyof typeof emptyVehicle, value: string) {
-    setVehicle((current) => {
-      if (key !== "vin") return { ...current, [key]: value };
-      const derivedStockNumber = deriveStockNumberFromVin(value);
-      return {
-        ...current,
-        vin: value,
-        stockNumber: current.stockNumber || !derivedStockNumber ? current.stockNumber : derivedStockNumber
-      };
-    });
+    setVehicle((current) => ({ ...current, [key]: value }));
   }
 
   function updateCorrectionField(key: keyof typeof emptyIdentity, value: string) {
-    setCorrection((current) => {
-      if (key !== "vin") return { ...current, [key]: value };
-      const derivedStockNumber = deriveStockNumberFromVin(value);
-      return {
-        ...current,
-        vin: value,
-        stockNumber: current.stockNumber || !derivedStockNumber ? current.stockNumber : derivedStockNumber
-      };
-    });
+    setCorrection((current) => ({ ...current, [key]: value }));
   }
 
   async function correctIdentity() {
@@ -452,61 +469,88 @@ export function VehicleRegistryWorkspace({
 
   const duplicateCases = selected ? [...selected.duplicateCasesAsPrimary, ...selected.duplicateCasesAsCandidate].filter((item) => item.status === "OPEN") : [];
   const mutationNotice = registryLocked || isMutationDisabled(notice);
-  const activeQuery = query.trim();
+  const returnParams = new URLSearchParams({ ...(activeQuery && { query: activeQuery }), ...(list && list.page > 1 && { page: String(list.page) }) });
+  const searchHref = returnParams.size ? `/vehicles/registry?${returnParams}` : "/vehicles/registry";
+  const vin = activeQuery.toUpperCase();
+  const serviceOnly = !access?.add && Boolean(access?.serviceLocations.length);
+  const addHref = `/vehicles/workflows/add-vehicle?${new URLSearchParams({ returnTo: searchHref, ...(/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) && { vin }), ...(serviceOnly && { intent: "service" }) })}`;
+  const hasTools = access && (access.createIdentity && !registryLocked || access.importCsv || access.importDocuments || access.export);
 
   return (
     <section className={`page-stack ${styles.workspace}`}>
-      <header className="page-copy">
+      <header className={styles.heading}>
         <h1>Find Work / Vehicle</h1>
+        <Link href="/vehicles/inventory">Inventory Lifecycle</Link>
       </header>
 
       {notice ? (
-        <div className={mutationNotice ? "notice notice-warning" : notice.includes("failed") || notice.includes("required") ? "notice notice-danger" : "notice notice-success"}>
+        <div role="status" className={mutationNotice ? "notice notice-warning" : "notice notice-info"}>
           <p>{notice}</p>
+          {observationFollowUpId && <Link className={styles.secondary} href={`/vehicles/360/${encodeURIComponent(observationFollowUpId)}`}>Review saved vehicle</Link>}
           {mutationNotice && selected ? (
             <div className="form-actions">
-              <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
-              <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
+              <Link className={styles.secondary} href={`/vehicles/360/${encodeURIComponent(selected.id)}`}>Open Vehicle 360</Link>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      <section className="panel-card">
-        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(query); }}>
-          <label className="form-field">
-            <span>Search VIN, partial VIN, stock, plate, vehicle, customer, or external ID</span>
-            <input onChange={(event) => setQuery(event.target.value)} value={query} />
-          </label>
-          <button className="button button-primary" disabled={busy} type="submit">Search</button>
+      <section className={styles.searchPanel}>
+        <form role="search" aria-label="Vehicle search" onSubmit={(event) => { event.preventDefault(); if (!busy && !searching) void refresh(query, 1); }}>
+          <label htmlFor="vehicle-registry-query">Search vehicles</label>
+          <div className={styles.searchRow}>
+            <div className={styles.searchField}>
+              <input autoComplete="off" id="vehicle-registry-query" onChange={(event) => setQuery(event.target.value)} placeholder="VIN, stock, plate, vehicle or customer" ref={inputRef} value={query} />
+              {(query || activeQuery) && <button disabled={busy || searching} onClick={clearSearch} type="button">Clear</button>}
+            </div>
+            <button className={styles.primary} disabled={busy || searching} type="submit">Search</button>
+          </div>
         </form>
-        <p>
-          {activeQuery ? `${list.total} vehicle match${list.total === 1 ? "" : "es"} for "${activeQuery}"` : `${list.total} canonical vehicles`} · page {list.page} of {list.totalPages}
+        <p className={styles.count} role="status">
+          {searching ? "Searching…" : list ? activeQuery ? `${list.total} vehicle match${list.total === 1 ? "" : "es"} for "${activeQuery}"` : `${list.total} vehicle${list.total === 1 ? "" : "s"}` : null}
         </p>
       </section>
 
       <div className={styles.layout}>
-        <section className={styles.registry}>
-          <div className="page-copy"><h2>Registry</h2></div>
-          <div className={styles.table}>
-            {list.items.length ? <table><thead><tr><th>Vehicle</th><th>Work &amp; tools</th></tr></thead><tbody>{list.items.map(item => (
-              <tr key={item.id} aria-selected={selected?.id === item.id}>
-                <td>
+        <section aria-label="Vehicle search results" aria-busy={searching} className={styles.registry}>
+          {failedPage !== null ? <div className={styles.empty}>
+            <div role="alert"><h2>Couldn’t search vehicles</h2><p>Results are unavailable. Try the search again.</p></div>
+            <button className={styles.primary} onClick={() => { setQuery(activeQuery); void refresh(activeQuery, failedPage); }} type="button">Retry search</button>
+          </div> : !searching && list ? list.items.length ? <>
+            <ul className={styles.results} role="list">{list.items.map(item => (
+              <li className={styles.result} key={item.id}>
+                <div className={styles.identity}>
                   <strong>{vehicleTitle(item)}</strong>
-                  <small>{[item.vehicleNumber, stockNumberForDisplay(item), item.licensePlate].filter(Boolean).join(" · ")}</small>
-                  {item.vin && <small>{item.vin}</small>}
-                  {item.custodyLabel && <small>{item.custodyLabel}</small>}
-                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <small>Duplicate review required</small>}
-                  <button className={styles.previewLink} disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Registry record for ${vehicleTitle(item)}`}>Registry record</button>
-                </td>
-                <td><VehicleWorkToolkit work={item.work} vehicleId={item.id} returnTo={activeQuery ? `/vehicles/registry?${new URLSearchParams({ query: activeQuery })}` : "/vehicles/registry"} returnLabel="Back to vehicle search" /></td>
-              </tr>
-            ))}</tbody></table> : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
-          </div>
+                  <span>{[item.vehicleNumber, (item.stockNumber || deriveStockNumberFromVin(item.vin)) && `Stock ${item.stockNumber || deriveStockNumberFromVin(item.vin)}`, item.licensePlate && `Plate ${item.licensePlate}`].filter(Boolean).join(" · ")}</span>
+                  {item.vin && <span>VIN {item.vin}</span>}
+                  {item.custodyLabel && <span>{item.custodyLabel}</span>}
+                  {item.status !== "ACTIVE" && <span className={styles.badge}>{item.status.toLowerCase().replaceAll("_", " ")}</span>}
+                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <span className={styles.badge}>Duplicate review</span>}
+                </div>
+                <div className={styles.resultActions}>
+                  <VehicleWorkToolkit preferSale work={item.work} vehicleId={item.id} returnTo={searchHref} returnLabel="Back to vehicle search" />
+                  <button aria-label={`Registry record for ${vehicleTitle(item)}`} aria-expanded={selected?.id === item.id} className={styles.previewLink} disabled={busy} onClick={() => selected?.id === item.id ? setSelected(null) : void load(item.id)} type="button">Registry record</button>
+                </div>
+              </li>
+            ))}</ul>
+            {list.totalPages > 1 && <nav aria-label="Vehicle result pages" className={styles.actions}>
+              <button className={styles.secondary} disabled={busy || list.page <= 1} onClick={() => void refresh(activeQuery, list.page - 1)} type="button">Previous</button>
+              <span>Page {list.page} of {list.totalPages}</span>
+              <button className={styles.secondary} disabled={busy || list.page >= list.totalPages} onClick={() => void refresh(activeQuery, list.page + 1)} type="button">Next</button>
+            </nav>}
+          </> : <div className={styles.empty}>
+            <h2>{list.total ? "No vehicles on this page" : activeQuery ? "No matching vehicle found" : "No vehicles found"}</h2>
+            <p>{list.total ? "Return to the first page to see available vehicles." : activeQuery ? "Try a shorter VIN, stock number, plate, or vehicle name." : "Search by VIN, stock number, plate, or vehicle name."}</p>
+            <div className={styles.actions}>
+              {list.total ? <button className={styles.primary} onClick={() => void refresh(activeQuery, 1)} type="button">First page</button> : <>
+                {activeQuery && <button className={styles.secondary} onClick={clearSearch} type="button">Clear search</button>}
+                {query.trim() === activeQuery && (access?.add || serviceOnly) && <Link className={styles.primary} href={addHref}>{serviceOnly ? "Check & add for service" : "Check & add vehicle"}</Link>}
+              </>}
+            </div>
+          </div> : null}
         </section>
 
-        {selected ? <section className={styles.preview}>
-          {selected ? (
+        {selected && !searching ? <section aria-label="Registry record" className={styles.preview}>
             <div className="page-stack">
               <div className="page-copy">
                 <span className="eyebrow">Version {selected.version}</span>
@@ -516,19 +560,13 @@ export function VehicleRegistryWorkspace({
               <dl className="etw-facts compact">
                 {selected.custodyLabel && <div><dt>Temporary use</dt><dd>{selected.custodyLabel}</dd></div>}
                 <div><dt>VIN</dt><dd>{selected.vin ?? selected.vinRaw ?? selected.nonVinReason ?? "Not recorded"}</dd></div>
-                <div><dt>Stock</dt><dd>{selected.stockNumber ?? (deriveStockNumberFromVin(selected.vin) ? `${deriveStockNumberFromVin(selected.vin)} · derived from VIN` : "Not recorded")}</dd></div>
+                <div><dt>Stock</dt><dd>{selected.stockNumber ?? "Not recorded"}</dd></div>
                 <div><dt>Plate</dt><dd>{selected.licensePlate ?? "Not recorded"}</dd></div>
                 <div><dt>Current custody</dt><dd>{selected.custodyEvents[0]?.location?.name ?? selected.custodyEvents[0]?.positionLabel ?? "No custody event"}</dd></div>
                 <div><dt>Latest odometer</dt><dd>{selected.odometerObservations[0] ? `${selected.odometerObservations[0].reading.toLocaleString()} ${selected.odometerObservations[0].unit}` : "No observation"}</dd></div>
               </dl>
               <div className="form-actions">
-                <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
-                <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
-                {registryLocked ? null : (
-                  <>
-                    <button className="button button-secondary" disabled={busy} onClick={correctIdentity} type="button">Revalidate identity</button>
-                  </>
-                )}
+                <Link className={styles.secondary} href={`/vehicles/360/${encodeURIComponent(selected.id)}`}>Open Vehicle 360</Link>
               </div>
               <div>
                 <h3>Relationships and external identities</h3>
@@ -541,27 +579,30 @@ export function VehicleRegistryWorkspace({
                   {duplicateCases.map((item) => (
                     <div className="form-actions" key={item.id}>
                       <span>{"candidateVehicle" in item ? item.candidateVehicle.vehicleNumber : item.primaryVehicle.vehicleNumber}</span>
-                      <button disabled={busy || registryLocked} onClick={() => command("RESOLVE_DUPLICATE", { caseId: item.id, resolution: "CONFIRMED_DISTINCT" })} type="button">Confirm distinct</button>
-                      <button disabled={busy || registryLocked} onClick={() => command("RESOLVE_DUPLICATE", { caseId: item.id, resolution: "MERGED" })} type="button">Merge with lineage</button>
+                      {access?.resolveDuplicates && !registryLocked && <>
+                        <button className={styles.secondary} disabled={busy} onClick={() => command("RESOLVE_DUPLICATE", { caseId: item.id, resolution: "CONFIRMED_DISTINCT" })} type="button">Confirm distinct</button>
+                        <button className={styles.secondary} disabled={busy} onClick={() => command("RESOLVE_DUPLICATE", { caseId: item.id, resolution: "MERGED" })} type="button">Merge with lineage</button>
+                      </>}
                     </div>
                   ))}
                 </div>
               ) : null}
             </div>
-          ) : (
-          <div className="page-copy">
-            <h2>Open the vehicle workspace faster</h2>
-            <p>Search by VIN, stock number, plate, customer, or external ID. If there is one match, it opens here automatically and gives staff a direct Vehicle Workbench button.</p>
-          </div>
-          )}
         </section> : null}
       </div>
 
-      <div className="settings-overview-grid">
-        <form className="panel-card page-stack" onSubmit={submitCreate}>
+      {(hasTools || (selected && access?.correctIdentity && !registryLocked)) && <details className={styles.tools}>
+        <summary>More tools</summary>
+        <div className={styles.actions}>
+          {access?.importCsv && <Link href="/vehicles/import-export?mode=import">Import vehicles</Link>}
+          {access?.importDocuments && <Link href="/vehicles/import-export?mode=import&kind=documents">Import purchase documents</Link>}
+          {access?.export && <Link href="/vehicles/import-export">Export inventory</Link>}
+        </div>
+        {access?.createIdentity && !registryLocked && <details className={styles.tools}>
+          <summary>Create vehicle identity</summary>
+          <form className="page-stack" onSubmit={submitCreate}>
           <div className="page-copy">
-            <h2>Create canonical identity</h2>
-            <p>{registryLocked ? "Registry updates are locked in this rollout. Use search and open the vehicle workspace instead." : "Enter the identity, mileage, and current lot/bay in one pass so staff do not have to hunt for a second form."}</p>
+            <p>{access.correctIdentity ? "Record vehicle identity, mileage and current location." : "Record vehicle identity."}</p>
           </div>
           <div className="inventory-quick-create">
             <label className="form-field">
@@ -579,42 +620,26 @@ export function VehicleRegistryWorkspace({
               <small>Review before saving. VIN, stock number, and plate still need to be entered when available.</small>
             </div>
           </div>
-          {createFieldOrder.map((key) => (
+          {createFieldOrder.filter(key => access.correctIdentity || (key !== "initialOdometerMiles" && key !== "initialCustodyPosition")).map((key) => (
             <label className="form-field" key={key}>
               <span>{identityFieldLabels[key]}</span>
               <input
                 disabled={registryLocked}
                 inputMode={key === "initialOdometerMiles" || key === "year" ? "numeric" : undefined}
                 onChange={(event) => updateCreateField(key, event.target.value)}
-                placeholder={key === "initialCustodyPosition" ? "Lot, lane, or bay" : key === "stockNumber" ? "Auto-fills from last 6 VIN digits" : undefined}
+                placeholder={key === "initialCustodyPosition" ? "Lot, lane, or bay" : key === "stockNumber" ? "Optional" : undefined}
                 value={vehicle[key]}
               />
             </label>
           ))}
-          <button className="button button-primary" disabled={busy || registryLocked} type="submit">Validate and create</button>
-        </form>
-
-        <Link className="button button-secondary" href="/vehicles/import-export">Import / Export</Link>
-      </div>
-
-      {selected && registryLocked ? (
-        <section className="panel-card page-stack">
+          <button className={styles.primary} disabled={busy || searching} type="submit">Validate and create</button>
+          </form>
+        </details>}
+        {selected && access?.correctIdentity && !registryLocked && (
+        <details className={styles.tools}>
+          <summary>Correct vehicle identity</summary>
           <div className="page-copy">
-            <h2>Vehicle is available in view-only mode</h2>
-            <p>Registry correction, mileage, and custody commands are locked for this rollout, so this page keeps the vehicle readable and sends staff directly to the workspaces that are available.</p>
-          </div>
-          <div className="form-actions">
-            <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
-            <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
-            <Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link>
-          </div>
-          <p className="notice notice-info">Mileage is now collected in Create canonical identity when registry writes are enabled.</p>
-        </section>
-      ) : selected ? (
-        <section className="panel-card page-stack">
-          <div className="page-copy">
-            <h2>Advanced identity correction</h2>
-            <p>Use this only when the canonical identity itself is wrong. Mileage and first location are captured during Create canonical identity, and ongoing observations live in Vehicle 360.</p>
+            <p>Correct the saved identity for {vehicleTitle(selected)}. Use Vehicle 360 for mileage and custody updates.</p>
           </div>
           <div className="settings-overview-grid">
             {Object.entries(correction).map(([key, value]) => {
@@ -628,12 +653,12 @@ export function VehicleRegistryWorkspace({
             })}
           </div>
           <div className="form-actions">
-            <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Validate and save correction</button>
-            <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open observations in Vehicle 360</Link>
-            <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
+            <button className={styles.primary} disabled={busy || searching} onClick={correctIdentity} type="button">Validate and save correction</button>
+            <Link className={styles.secondary} href={`/vehicles/360/${encodeURIComponent(selected.id)}`}>Open observations in Vehicle 360</Link>
           </div>
-        </section>
-      ) : null}
+        </details>
+      )}
+      </details>}
     </section>
   );
 }

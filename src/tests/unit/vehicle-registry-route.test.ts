@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ getCurrentUser: vi.fn(), createRegistryVehicle
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("@/server/vehicle-registry/service", () => ({ createRegistryVehicle: mocks.createRegistryVehicle, listVehicleRegistry: mocks.listVehicleRegistry }));
 import { GET, POST } from "@/app/api/vehicles/route";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 
 const actor = { id: "manager", isActive: true, roles: ["General Manager"] };
 describe("vehicle registry route", () => {
@@ -27,5 +28,12 @@ describe("vehicle registry route", () => {
   it("maps capability failures to forbidden", async () => {
     mocks.listVehicleRegistry.mockRejectedValue(new Error("Vehicle capability required: VEHICLE_OPERATIONS_VIEW (CAPABILITY_REQUIRED)."));
     const response = await GET(new Request("http://localhost/api/vehicles")); expect(response.status).toBe(403);
+  });
+  it("uses strict duplicate protection when the secondary identity form requests it", async () => {
+    const payload = { vehicleNumber: "TMS-1", rejectDuplicateIdentity: true };
+    mocks.createRegistryVehicle.mockRejectedValueOnce(new EnterpriseCommandConflictError("This vehicle already exists.", "VERSION_CONFLICT"));
+    const response = await POST(new Request("http://localhost/api/vehicles", { method: "POST", body: JSON.stringify(payload) }));
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(actor, payload, {}, { rejectDuplicateIdentity: true, omitConflictingDerivedStock: true });
+    expect(response.status).toBe(409);
   });
 });

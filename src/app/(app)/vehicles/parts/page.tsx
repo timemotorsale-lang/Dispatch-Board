@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { PartsLedgerReadinessWorkspace } from "@/features/inventory/parts-ledger-readiness-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -11,6 +12,16 @@ export default async function PartsLedgerPage({ searchParams }: {
   const user = await requireCurrentUser();
   const { repairOrderId, returnTo } = await searchParams ?? {};
   const returnHref = safeLaborGuideReturnTo(returnTo);
+
+  // Old Repair Workbench quote links used the stock ledger route. Keep all
+  // other ledger links (including repair-stage stock/readiness links) intact.
+  if (repairOrderId && returnHref) {
+    const source = new URL(returnHref, "https://workspace.invalid");
+    if (source.pathname === "/vehicles/repair-workbench" && source.searchParams.get("tool") === "partsOperations" &&
+        source.searchParams.get("repairOrderId") === repairOrderId) {
+      redirect(`/vehicles/parts/workbook?${new URLSearchParams({ repairOrderId, returnTo: returnHref })}`);
+    }
+  }
 
   let initial: Awaited<ReturnType<typeof getPartsWorkspace>> | null = null;
   let loadError: string | null = null;

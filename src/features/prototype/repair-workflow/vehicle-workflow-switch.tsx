@@ -11,6 +11,14 @@ export function VehicleWorkflowSwitch({ inventoryHref, shopHref, active, overvie
   const unavailable = inventoryUnavailableReason && <span className={styles.unavailableLifecycle} aria-disabled="true">
     <strong>Inventory Lifecycle</strong><small>{inventoryUnavailableReason}</small>
   </span>;
+  if (overviewStages && !inventoryHref && inventoryUnavailableReason && shopHref) {
+    return <nav className={styles.workflowCards} aria-label="Vehicle workflows">
+      <div className={styles.shopOnlyCard}>
+        <Link href={shopHref}>Open Shop &amp; Recon</Link>
+        <small>{overviewStages.shop} · {inventoryUnavailableReason}</small>
+      </div>
+    </nav>;
+  }
   if (overviewStages) {
     return <nav className={styles.workflowCards} aria-label="Vehicle workflows">
       <details>

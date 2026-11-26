@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { repairEvidenceNeedsPhoto, repairProcedureEvidenceRequirements } from "@/lib/repair-procedure-evidence";
 import { repairProcedurePhotoSubject, repairProcedurePhotoSubjectType } from "@/server/shop-execution/procedure-photo";
+import { repairOrderAttachmentSubject, repairOrderAttachmentTypes, repairOrderAttachmentMaxBytes } from "@/lib/repair-order-attachments";
 import { isManager } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
@@ -43,24 +44,85 @@ async function auth(actor: AuthenticatedUser | null, capability: VehicleCapabili
   return { grants, user };
 }
 
-function command(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string }) {
-  return normalizeEnterpriseCommand({ ...input, domain: "VEHICLE_EVIDENCE", locationId: null, subjectType: "VEHICLE_EVIDENCE" });
+function command(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; organizationId: string; locationId?: string; payload: Record<string, unknown>; reason: string; subjectId: string }) {
+  return normalizeEnterpriseCommand({ ...input, domain: "VEHICLE_EVIDENCE", locationId: input.locationId ?? null, subjectType: "VEHICLE_EVIDENCE" });
 }
 
 export async function uploadVehicleEvidence(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
   const context = deps(input);
   const { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true);
-  if (String(record(value).subjectType ?? "").trim().toUpperCase() === repairProcedurePhotoSubjectType) {
+  const subjectType = String(record(value).subjectType ?? "").trim().toUpperCase();
+  if (subjectType === repairOrderAttachmentSubject) throw new Error("Attach documents and photos from the repair workbench.");
+  if (subjectType === repairProcedurePhotoSubjectType) {
     throw new Error("Attach procedure photos from the technician work order.");
   }
   return saveEvidenceUpload(context, user, value);
 }
 
-function saveEvidenceUpload(context: ReturnType<typeof deps>, user: AuthenticatedUser, value: unknown) {
+type RepairOrderEvidenceContext = { id: string; organizationId: string; locationId: string; vehicleId: string };
+
+async function repairOrderEvidenceAccess(actor: AuthenticatedUser | null, order: RepairOrderEvidenceContext, context: ReturnType<typeof deps>) {
+  const user = assertAuthenticatedUser(actor);
+  const grants = await context.foundationRepository.listCapabilityGrants(user.id, order.organizationId);
+  const now = context.now();
+  const locationId = order.locationId;
+  const allowed = (capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, grants, locationId, now }).allowed;
+  return { user, grants, now, canView: allowed("REPAIR_ORDER_VIEW") && allowed("VEHICLE_EVIDENCE_VIEW"), canManage: allowed("VEHICLE_EVIDENCE_MANAGE") };
+}
+
+export async function getRepairOrderAttachments(actor: AuthenticatedUser, order: RepairOrderEvidenceContext, includeItems: boolean) {
+  const context = deps({ organizationId: order.organizationId });
+  const access = await repairOrderEvidenceAccess(actor, order, context);
+  if (!access.canView || !includeItems) return { canView: access.canView, canUpload: false, canGovern: false, items: [] };
+  const flags = access.canManage ? await context.foundationRepository.listFeatureFlags(order.organizationId) : [];
+  const canUpload = access.canManage && evaluateVehicleOperationsFeature(flags, "VEHICLE_360", actor.id, order.locationId).executable;
+  const items = await context.repository.listRepairOrderAttachments(order);
+  return {
+    canView: true,
+    canUpload,
+    canGovern: canUpload && isManager(actor),
+    items: items.map(item => ({
+      id: item.id, fileName: item.fileName, status: item.status, version: item.version, legalHold: item.legalHold,
+      retentionUntil: item.retentionUntil.toISOString(),
+      canDelete: !item.legalHold && item.retentionUntil <= access.now,
+      downloadUrl: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" ? `/api/vehicle-evidence/${encodeURIComponent(item.id)}/content` : null
+    }))
+  };
+}
+
+export async function uploadRepairOrderAttachment(actor: AuthenticatedUser | null, repairOrderId: string, form: FormData, input: Dependencies = {}) {
+  const context = deps(input);
+  const user = assertAuthenticatedUser(actor);
+  const order = await context.repository.findRepairOrderEvidenceContext(context.organizationId, repairOrderId);
+  if (!order) throw new Error("Repair order was not found.");
+  const access = await repairOrderEvidenceAccess(user, order, context);
+  if (!access.canView || !access.canManage) throw new Error("Vehicle capability required: repair order evidence upload.");
+  const flags = await context.foundationRepository.listFeatureFlags(context.organizationId);
+  if (!evaluateVehicleOperationsFeature(flags, "VEHICLE_360", user.id, order.locationId).executable) throw new Error("Uploads are not enabled at this repair order’s location.");
+  const file = form.get("file");
+  if (!(file instanceof File) || !file.size) throw new Error("Choose a document or photo to attach.");
+  if (file.size > repairOrderAttachmentMaxBytes) throw new Error("Attachments cannot exceed 9 MB.");
+  if (!repairOrderAttachmentTypes.some(type => type === file.type)) throw new Error("Choose a PDF, JPEG, PNG, or WebP file.");
+  const retryKey = required(form.get("idempotencyKey"), "Upload retry key", 100);
+  const requestedRetention = form.get("retentionUntil");
+  const defaultRetention = new Date(context.now());
+  defaultRetention.setUTCFullYear(defaultRetention.getUTCFullYear() + 3);
+  defaultRetention.setUTCHours(23, 59, 59, 999);
+  return saveEvidenceUpload(context, user, {
+    vehicleId: order.vehicleId, subjectType: repairOrderAttachmentSubject, subjectId: order.id,
+    fileName: file.name, contentType: file.type, contentBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    category: file.type.startsWith("image/") ? "PHOTO" : "REPAIR", accessLevel: "INTERNAL", relationship: "SUPPORTS",
+    retentionUntil: requestedRetention ?? defaultRetention.toISOString(), idempotencyKey: `repair-attachment:${order.id}:${retryKey}`,
+    reason: "Attach a document or photo to the repair order."
+  }, order.locationId, requestedRetention === null);
+}
+
+function saveEvidenceUpload(context: ReturnType<typeof deps>, user: AuthenticatedUser, value: unknown, locationId?: string, defaultRetention = false) {
   const data = normalizeEvidenceUpload(value, context.now()), id = stableEvidenceId(context.organizationId, data.idempotencyKey);
   const subjectId = data.subjectId ?? data.vehicleId;
-  const payload = { accessLevel: data.accessLevel, byteSize: data.content.length, category: data.category, checksumSha256: data.checksumSha256, contentType: data.contentType, fileName: data.fileName, malwareStatus: data.scan.malwareStatus, relationship: data.relationship, retentionUntil: data.retentionUntil.toISOString(), subjectId, subjectType: data.subjectType, vehicleId: data.vehicleId };
-  return context.repository.createEvidence(command({ actorUserId: user.id, commandType: "UPLOAD_VEHICLE_EVIDENCE", expectedVersion: 0, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload, reason: data.reason, subjectId: id }), { ...payload, actorUserId: user.id, content: data.content, malwareScanner: data.scan.malwareScanner, reasonCode: data.scan.reasonCode, retentionUntil: data.retentionUntil });
+  // The default is set at the first save, so crossing midnight during a retry must not change the request hash.
+  const payload = { accessLevel: data.accessLevel, byteSize: data.content.length, category: data.category, checksumSha256: data.checksumSha256, contentType: data.contentType, fileName: data.fileName, malwareStatus: data.scan.malwareStatus, relationship: data.relationship, retentionUntil: defaultRetention ? null : data.retentionUntil.toISOString(), subjectId, subjectType: data.subjectType, vehicleId: data.vehicleId };
+  return context.repository.createEvidence(command({ actorUserId: user.id, commandType: "UPLOAD_VEHICLE_EVIDENCE", expectedVersion: 0, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, locationId, payload, reason: data.reason, subjectId: id }), { ...payload, actorUserId: user.id, content: data.content, malwareScanner: data.scan.malwareScanner, reasonCode: data.scan.reasonCode, retentionUntil: data.retentionUntil });
 }
 
 export async function uploadRepairProcedurePhoto(actor: AuthenticatedUser | null, jobId: string, form: FormData) {
@@ -123,24 +185,58 @@ export async function changeVehicleSalesMedia(actor: AuthenticatedUser | null, v
   return context.repository.changeSalesMedia(normalizeEnterpriseCommand({ actorUserId: user.id, commandType: "UPDATE_SALES_MEDIA", expectedVersion, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: id, locationId: null, payload: { order: raw.order, removeIds, addIds }, reason: required(raw.reason, "Business reason", 500) }), { order: raw.order, removeIds, addIds });
 }
 
+async function authorizeEvidenceGovernance(actor: AuthenticatedUser | null, evidenceId: string, context: ReturnType<typeof deps>) {
+  const user = assertAuthenticatedUser(actor);
+  const evidence = await context.repository.getEvidence(context.organizationId, evidenceId);
+  const link = evidence?.links?.find(item => item.subjectType === repairOrderAttachmentSubject);
+  if (!link) return { user: (await auth(user, "VEHICLE_EVIDENCE_MANAGE", context, true)).user, locationId: undefined };
+  const order = await context.repository.findRepairOrderEvidenceContext(context.organizationId, link.subjectId);
+  if (!order || order.vehicleId !== link.vehicleId) throw new Error("Evidence object was not found.");
+  const access = await repairOrderEvidenceAccess(user, order, context);
+  if (!access.canView || !access.canManage || !isManager(user)) throw new Error("Vehicle capability required: repair order attachment retention.");
+  if (evidence?.accessLevel === "RESTRICTED") assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants: access.grants, locationId: order.locationId, now: access.now });
+  if (context.enforceRollout) {
+    const flags = await context.foundationRepository.listFeatureFlags(context.organizationId);
+    if (!evaluateVehicleOperationsFeature(flags, "VEHICLE_360", user.id, order.locationId).executable) throw new Error("Attachment changes are not enabled at this repair order’s location.");
+  }
+  return { user, locationId: order.locationId };
+}
+
 export async function updateVehicleEvidenceGovernance(actor: AuthenticatedUser | null, evidenceId: string, value: unknown, input: Dependencies = {}) {
-  const context = deps(input), data = normalizeEvidenceGovernance(value, context.now()), { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true);
+  const context = deps(input), data = normalizeEvidenceGovernance(value, context.now());
+  const id = required(evidenceId, "Evidence ID", 100);
+  const { user, locationId } = await authorizeEvidenceGovernance(actor, id, context);
+  if (locationId && data.accessLevel !== null) throw new Error("Repair order attachment access follows repair order permissions.");
   const payload = { accessLevel: data.accessLevel, legalHold: data.legalHold, retentionUntil: data.retentionUntil?.toISOString() ?? null };
-  return context.repository.updateEvidence(command({ actorUserId: user.id, commandType: "UPDATE_VEHICLE_EVIDENCE_GOVERNANCE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload, reason: data.reason, subjectId: required(evidenceId, "Evidence ID", 100) }), { ...data, actorUserId: user.id });
+  return context.repository.updateEvidence(command({ actorUserId: user.id, commandType: "UPDATE_VEHICLE_EVIDENCE_GOVERNANCE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, locationId, payload, reason: data.reason, subjectId: id }), { ...data, actorUserId: user.id });
 }
 
 export async function deleteVehicleEvidence(actor: AuthenticatedUser | null, evidenceId: string, value: unknown, input: Dependencies = {}) {
-  const context = deps(input), data = normalizeEvidenceGovernance(value, context.now()), { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true);
-  return context.repository.deleteEvidence(command({ actorUserId: user.id, commandType: "DELETE_VEHICLE_EVIDENCE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: {}, reason: data.reason, subjectId: required(evidenceId, "Evidence ID", 100) }), user.id, context.now());
+  const context = deps(input), data = normalizeEvidenceGovernance(value, context.now());
+  const id = required(evidenceId, "Evidence ID", 100);
+  const { user, locationId } = await authorizeEvidenceGovernance(actor, id, context);
+  return context.repository.deleteEvidence(command({ actorUserId: user.id, commandType: "DELETE_VEHICLE_EVIDENCE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, locationId, payload: {}, reason: data.reason, subjectId: id }), user.id, context.now());
 }
 
 export async function downloadVehicleEvidence(actor: AuthenticatedUser | null, evidenceId: string, input: Dependencies = {}) {
-  const context = deps(input), { grants, user } = await auth(actor, "VEHICLE_EVIDENCE_VIEW", context), evidence = await context.repository.getEvidence(context.organizationId, required(evidenceId, "Evidence ID", 100));
+  const context = deps(input), user = assertAuthenticatedUser(actor), evidence = await context.repository.getEvidence(context.organizationId, required(evidenceId, "Evidence ID", 100));
+  const attachment = evidence?.links?.find(link => link.subjectType === repairOrderAttachmentSubject);
+  if (attachment) {
+    const order = await context.repository.findRepairOrderEvidenceContext(context.organizationId, attachment.subjectId);
+    if (!order || order.vehicleId !== attachment.vehicleId) throw new Error("Evidence object was not found.");
+    const access = await repairOrderEvidenceAccess(user, order, context);
+    if (!access.canView) throw new Error("Vehicle capability required: repair order evidence view.");
+    if (evidence?.accessLevel === "RESTRICTED") assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants: access.grants, locationId: order.locationId, now: access.now });
+  } else {
+    const { grants } = await auth(user, "VEHICLE_EVIDENCE_VIEW", context);
+    if (evidence?.accessLevel === "RESTRICTED") assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants, locationId: null, now: context.now() });
+  }
   if (!evidence || evidence.status === "DELETED") throw new Error("Evidence object was not found.");
   if (evidence.status !== "AVAILABLE" || evidence.malwareStatus !== "CLEAN") throw new Error("Evidence is quarantined and cannot be downloaded.");
-  if (evidence.accessLevel === "RESTRICTED") assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants, locationId: null, now: context.now() });
+  const original = await context.repository.getAvailableEvidenceBytes(context.organizationId, evidence.id, evidence.version);
+  if (!original) throw new Error("Evidence object was not found.");
   await context.repository.recordEvidenceAccess(context.organizationId, evidence.id, user.id, "Authorized Vehicle 360 evidence download.");
-  return { content: evidence.content, contentType: evidence.contentType, fileName: evidence.fileName };
+  return { content: original.content, contentType: evidence.contentType, fileName: evidence.fileName };
 }
 
 export async function getVehicle360(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {

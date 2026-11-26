@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
+import { repairOrderAttachmentSubject } from "@/lib/repair-order-attachments";
 
 function authorize(actor: AuthenticatedUser | null) {
   const user = assertAuthenticatedUser(actor);
@@ -14,11 +15,12 @@ export async function getRetentionPrivacyOperations(actor: AuthenticatedUser | n
   authorize(actor);
   const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
   const now = input.now ?? new Date();
+  const scope = { organizationId, links: { none: { subjectType: repairOrderAttachmentSubject } } };
   const [due, held, quarantined, deleted] = await Promise.all([
-    prisma.vehicleEvidenceObject.findMany({ where: { organizationId, status: { not: "DELETED" }, retentionUntil: { lte: now } }, orderBy: { retentionUntil: "asc" }, take: 200, select: { id: true, fileName: true, retentionUntil: true, legalHold: true, status: true, accessLevel: true, createdAt: true } }),
-    prisma.vehicleEvidenceObject.count({ where: { organizationId, status: { not: "DELETED" }, legalHold: true } }),
-    prisma.vehicleEvidenceObject.count({ where: { organizationId, status: "QUARANTINED" } }),
-    prisma.vehicleEvidenceObject.count({ where: { organizationId, status: "DELETED" } })
+    prisma.vehicleEvidenceObject.findMany({ where: { ...scope, status: { not: "DELETED" }, retentionUntil: { lte: now } }, orderBy: { retentionUntil: "asc" }, take: 200, select: { id: true, fileName: true, retentionUntil: true, legalHold: true, status: true, accessLevel: true, createdAt: true } }),
+    prisma.vehicleEvidenceObject.count({ where: { ...scope, status: { not: "DELETED" }, legalHold: true } }),
+    prisma.vehicleEvidenceObject.count({ where: { ...scope, status: "QUARANTINED" } }),
+    prisma.vehicleEvidenceObject.count({ where: { ...scope, status: "DELETED" } })
   ]);
   return { evaluatedAt: now.toISOString(), policy: { deletionRequiresExpiredRetentionAndNoLegalHold: true, auditEvidencePreserved: true }, summary: { dueForDisposition: due.length, legalHolds: held, quarantined, deleted }, dueForDisposition: due.map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), createdAt: item.createdAt.toISOString(), disposition: item.legalHold ? "HOLD_BLOCKED" : "READY_FOR_REVIEW" })) };
 }

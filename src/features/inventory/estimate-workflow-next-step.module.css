@@ -23,3 +23,4 @@
 .review form label:has(input) { display: flex; align-items: flex-start; }
 .review button { padding: 12px 20px; border: 0; border-radius: 8px; background: #175b9e; color: white; font: inherit; font-weight: 700; cursor: pointer; justify-self: start; }
 .review button:disabled { opacity: .5; cursor: not-allowed; }
+.saved a.next { background: #175b9e; border-color: #175b9e; color: #fff; font-weight: 700; }

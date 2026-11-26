@@ -3,8 +3,8 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
-import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { evaluateVehicleOperationsFeature, type VehicleOperationsFeatureCode } from "@/server/enterprise-command/service";
+import { assertVehicleCapability, evaluateVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { normalizeLicensePlate, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "./domain";
 import { createVehicleRegistryRepository, type RegistryCreationDetails, type VehicleRegistryRepository } from "./repository";
@@ -43,6 +43,32 @@ export async function listVehicleRegistry(actor: AuthenticatedUser | null, query
 export async function getVehicleRegistryCreateOptions(actor: AuthenticatedUser | null, input: Dependencies = {}) {
   const context = deps(input); await authorize(actor, "VEHICLE_OPERATIONS_VIEW", null, context);
   return { locations: await context.repository.getCreateOptions(context.organizationId) };
+}
+
+export async function getVehicleRegistryToolAccess(actor: AuthenticatedUser, input: Dependencies = {}) {
+  const context = deps(input);
+  const [grants, flags, locations] = await Promise.all([
+    context.foundationRepository.listCapabilityGrants(actor.id, context.organizationId),
+    context.foundationRepository.listFeatureFlags(context.organizationId),
+    context.repository.getCreateOptions(context.organizationId),
+  ]);
+  const now = context.now();
+  const can = (capability: VehicleCapability, locationId: string | null) =>
+    evaluateVehicleCapability({ actor, capability, grants, locationId, now }).allowed;
+  const canRead = can("VEHICLE_OPERATIONS_VIEW", null);
+  const enabled = (locationId: string | null, feature: VehicleOperationsFeatureCode = "VEHICLE_REGISTRY") => !context.enforceRollout ||
+    evaluateVehicleOperationsFeature(flags, feature, actor.id, locationId).executable;
+  const canCreateAt = (locationId: string | null) => can("VEHICLE_IDENTITY_CREATE", locationId) && enabled(locationId);
+  return {
+    add: canRead && locations.some(({ id }) => canCreateAt(id)),
+    serviceLocations: canRead ? locations.filter(({ id }) => can("VEHICLE_IDENTITY_CREATE", id) && can("REPAIR_ORDER_VIEW", id) && can("REPAIR_ORDER_MANAGE", id)) : [],
+    createIdentity: canRead && canCreateAt(null),
+    correctIdentity: canRead && can("VEHICLE_COMMAND_EXECUTE", null) && enabled(null),
+    resolveDuplicates: canRead && can("VEHICLE_DUPLICATE_RESOLVE", null) && enabled(null),
+    importCsv: canRead && locations.some(({ id }) => can("VEHICLE_OPERATIONS_VIEW", id) && canCreateAt(id)),
+    importDocuments: canRead && locations.some(({ id }) => can("VEHICLE_OPERATIONS_VIEW", id) && can("INVENTORY_INTAKE_EDIT", id) && can("VEHICLE_EVIDENCE_MANAGE", id) && enabled(id, "INVENTORY_INTAKE") && enabled(id, "VEHICLE_360")),
+    export: canRead && locations.some(({ id }) => can("VEHICLE_OPERATIONS_VIEW", id) && can("VEHICLE_OUTPUT_CREATE", id) && can("INVENTORY_UNIT_VIEW", id)),
+  };
 }
 
 export async function getVehicleRegistryDetail(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {
@@ -129,9 +155,9 @@ export async function resolveVehicleDuplicate(actor: AuthenticatedUser | null, v
   return context.repository.resolveDuplicate(cmd, { caseId, resolution, reason, resolvedByUserId: user.id });
 }
 
-export async function previewVehicleRegistryImport(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
+export async function previewVehicleRegistryImport(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}, matchVinOnly = false) {
   const context = deps(input); await authorize(actor, "VEHICLE_OPERATIONS_VIEW", null, context); const raw = record(value, "Import preview request"); if (!Array.isArray(raw.rows)) throw new Error("Import preview rows must be an array.");
   const rows = previewVehicleImportRows(raw.rows);
-  const evaluated = await Promise.all(rows.map(async (row) => row.status === "INVALID" ? row : { ...row, potentialDuplicate: await context.repository.findPotentialDuplicate(context.organizationId, row.normalized) }));
+  const evaluated = await Promise.all(rows.map(async (row) => row.status === "INVALID" ? row : { ...row, potentialDuplicate: await context.repository.findPotentialDuplicate(context.organizationId, matchVinOnly ? { vin: row.normalized.vin, stockNumberNormalized: null } : row.normalized) }));
   return { rows: evaluated, summary: { total: evaluated.length, invalid: evaluated.filter((row) => row.status === "INVALID").length, potentialDuplicates: evaluated.filter((row) => "potentialDuplicate" in row && row.potentialDuplicate).length } };
 }

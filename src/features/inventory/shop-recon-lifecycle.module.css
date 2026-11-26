@@ -3,13 +3,37 @@
 .header h1 { margin: 4px 0; font-size: 1.35rem; }
 .header p { margin: 8px 0; overflow-wrap: anywhere; }
 .headerRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.focused :global(.srv-stage-nav) {
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(133px, 1fr);
-  overflow-x: auto;
-  padding: 3px 3px 6px;
-}
 .focused :global(.srv-workspace) { grid-template-columns: minmax(0, 1fr); }
-.stageDetails summary { cursor: pointer; padding: 8px; font-weight: 650; }
-.legacyRail { display: contents; }
+.taskCard:global(.srv-card) { min-height: 0; padding-block-end: 16px; }
+.toolBar, .taskActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; }
+.toolBar { border-block-end: 1px solid var(--border, #d5dfe9); }
+.toolBar button, .toolBar a, .taskActions button, .taskActions a, .resume button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px;
+  padding: 6px 12px; border: 1px solid var(--border, #bdcce0); border-radius: 6px;
+  background: var(--surface, white); color: var(--text, #172942); font: inherit; font-weight: 650; text-decoration: none;
+}
+.toolBar button[aria-pressed="true"] { box-shadow: inset 0 -3px #355bbc; background: var(--surface-muted, #eef3fb); }
+.taskActions .primary { border-color: #3658a5; background: #3658a5; color: white; }
+.taskActions p { flex-basis: 100%; margin: 0; }
+.taskCard :global(.srv-workspace) { padding-top: 8px; }
+.taskCard :global(.srv-workspace-main) { min-width: 0; }
+.taskCard :global(.srv-workspace-main) > header { padding: 12px 16px; }
+.taskCard :global(.srv-workspace-main) > header h2 { font-size: 1.06rem; }
+.taskCard :global(.srv-workspace-main) > header p { margin-block: 3px 0; }
+.details { padding: 12px 16px; min-width: 0; }
+.details > section, .details > details { padding-block: 8px; border-bottom: 1px solid var(--border, #d5dfe9); }
+.details summary, .exception summary { cursor: pointer; font-weight: 650; }
+.details select { max-width: 100%; }
+.exception, .resume { padding: 8px 16px; margin: 0; }
+.exception textarea { display: block; width: 100%; }
+.custody:global(.custody-tool-shell) { min-width: 0; min-height: 0; }
+.custodyForm { padding: 12px 16px; max-width: 1030px; }
+.custodyForm fieldset { min-width: 0; margin: 0; }
+.custodyForm :global(.custody-row) { grid-template-columns: minmax(0, 1fr); }
+.custodyForm :global(.custody-row) > i { display: none; }
+.custodyForm :global(.custody-row) > div { grid-column: 1; }
+@media (max-width: 650px) {
+  .custodyForm :global(.custody-row) > div { grid-template-columns: minmax(0, 1fr); }
+  .taskCard :global(.srv-workspace-main) > header { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .taskCard :global(.srv-workspace-main) > header > b { justify-self: start; }
+}

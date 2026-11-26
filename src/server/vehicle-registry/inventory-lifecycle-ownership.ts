@@ -1,11 +1,12 @@
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
+import type { Prisma } from "@prisma/client";
 
 /** Call after the viewer has been authorized to read this vehicle or its repair order. */
-export async function isCustomerOwnedForInventoryLifecycle(vehicleId: string, organizationId: string = INITIAL_ORGANIZATION.id) {
+export async function isCustomerOwnedForInventoryLifecycle(vehicleId: string, organizationId: string = INITIAL_ORGANIZATION.id, database: Pick<Prisma.TransactionClient, "vehicleRelationship" | "inventoryUnit" | "repairOrder" | "customerVehicle"> = prisma) {
   const now = new Date();
   const [relationship, inventory, lastOrder, legacyOwner] = await Promise.all([
-    prisma.vehicleRelationship.findFirst({
+    database.vehicleRelationship.findFirst({
       where: {
         vehicleId, organizationId, effectiveFrom: { lte: now },
         OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
@@ -14,7 +15,7 @@ export async function isCustomerOwnedForInventoryLifecycle(vehicleId: string, or
       orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
       select: { relationshipType: true, effectiveFrom: true },
     }),
-    prisma.inventoryUnit.findFirst({
+    database.inventoryUnit.findFirst({
       where: {
         vehicleId, organizationId, closedAt: null, operatingState: { not: "CLOSED" },
         lifecycleStage: { notIn: ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"] },
@@ -22,12 +23,12 @@ export async function isCustomerOwnedForInventoryLifecycle(vehicleId: string, or
       orderBy: { financialAcquiredAt: "desc" },
       select: { financialAcquiredAt: true },
     }),
-    prisma.repairOrder.findFirst({
+    database.repairOrder.findFirst({
       where: { vehicleId, organizationId },
       orderBy: { openedAt: "desc" },
       select: { origin: true },
     }),
-    prisma.customerVehicle.findFirst({
+    database.customerVehicle.findFirst({
       where: {
         vehicleId, customer: { organizationId }, relationshipType: { in: ["OWNER", "CUSTOMER_OWNER", "SOLD_TO_CUSTOMER"] },
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],

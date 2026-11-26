@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, FileCheck2, GitBranch, LockKeyhole, Save, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, FileCheck2, GitBranch, LockKeyhole, Save } from "lucide-react";
 import { TITLE_PREPARATION_CHECKS } from "@/server/shop-recon/parallel-title-preparation-domain";
 import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
@@ -19,7 +19,7 @@ type Operation = {
   updatedAt: string;
   binding: { valid: boolean; reasons: string[]; policyVersion: string };
 };
-export type TitlePreparationWorkspace = { eligible: boolean; lifecycleInitialized: boolean; operation: Operation | null; policyVersion: string } | null;
+export type TitlePreparationWorkspace = { eligible: boolean; canEdit: boolean; lifecycleInitialized: boolean; operation: Operation | null; policyVersion: string } | null;
 
 function checklist(value: unknown) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -37,7 +37,7 @@ export function ShopReconParallelTitlePreparation({ currentStageLabel, initial, 
   const [blockerNote, setBlockerNote] = useState(operation?.blockerNote ?? "");
   const [busy, setBusy] = useState(false), [feedback, setFeedback] = useState<string | null>(null);
   const complete = useMemo(() => TITLE_PREPARATION_CHECKS.filter(item => checks[item.code]).length, [checks]);
-  const locked = operation?.status === "READY_FOR_INVENTORY_REVIEW" || operation?.status === "CANCELLED" || operation?.status === "REVALIDATION_REQUIRED";
+  const locked = !workspace?.canEdit || operation?.status === "READY_FOR_INVENTORY_REVIEW" || operation?.status === "CANCELLED" || operation?.status === "REVALIDATION_REQUIRED";
 
   async function request(method: "POST" | "PATCH", body: Record<string, unknown>) {
     setBusy(true); setFeedback(null);
@@ -64,13 +64,13 @@ export function ShopReconParallelTitlePreparation({ currentStageLabel, initial, 
   return <section className={`srv-parallel-operation ${operation?.status.toLowerCase().replaceAll("_", "-") ?? "available"}`} aria-label="Safe parallel title and document preparation">
     <header>
       <span><GitBranch /></span>
-      <div><small>Optional parallel work · administrative lane</small><h2>Title &amp; Document Preparation</h2><p>Prepare evidence while <strong>{currentStageLabel}</strong> continues as the primary Shop &amp; Recon stage.</p></div>
+      <div><h2>Title follow-up</h2><p>Prepare documents for Inventory review without moving {currentStageLabel}.</p></div>
       <b>{operation ? label(operation.status) : "Available"}</b>
     </header>
-    <div className="srv-parallel-boundary"><ShieldCheck /><span><strong>Safe boundary</strong>This packet cannot move recon, declare title readiness, authorize spending, or release the vehicle. Inventory Lifecycle keeps final authority.</span></div>
-    <DocumentReadingPanel purpose="TITLE" disabled={busy||locked} onApply={(reading,fields)=>{const note=`Reviewed ${reading.fileName}: ${Object.entries(fields).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join("; ")}`;setHandoffNote(current=>[current,note].filter(Boolean).join("\n"));setFeedback("Reviewed title details added to the handoff draft. Verify evidence and checklist items, then save separately.");}}/>
-    {!operation ? <div className="srv-parallel-start"><div><strong>Start only when it saves time.</strong><span>Owner, source binding, evidence, and handoff are recorded independently from recon.</span></div><button disabled={busy || !workspace.lifecycleInitialized} onClick={() => request("POST", { reason: "Start bounded title and document preparation beside active Inventory Recon work." })} type="button"><GitBranch />{busy ? "Starting…" : "Start parallel preparation"}</button>{!workspace.lifecycleInitialized ? <small>Save the current recon stage once to establish its governed source record.</small> : null}</div> : <>
-      <div className="srv-parallel-meta"><p><span>Primary work</span><strong>{currentStageLabel} · unchanged</strong></p><p><span>Preparation owner</span><strong>{operation.ownerName}</strong></p><p><span>Progress</span><strong>{complete}/{TITLE_PREPARATION_CHECKS.length} checks</strong></p><p><span>Join point</span><strong>Inventory review only</strong></p></div>
+    {!workspace.canEdit && <p className="srv-parallel-feedback">Read only. The preparation owner or a manager with repair access must make changes.</p>}
+    {!operation ? workspace.canEdit && <div className="srv-parallel-start"><button disabled={busy || !workspace.lifecycleInitialized} onClick={() => request("POST", { reason: "Start bounded title and document preparation beside active Inventory Recon work." })} type="button"><GitBranch />{busy ? "Starting…" : "Start parallel preparation"}</button>{!workspace.lifecycleInitialized ? <small>Save the current recon task once before starting title follow-up.</small> : null}</div> : <>
+      <p className="srv-parallel-feedback">Owner: {operation.ownerName} · {complete}/{TITLE_PREPARATION_CHECKS.length} checks</p>
+      {!locked && <details><summary>Read a title document</summary><DocumentReadingPanel purpose="TITLE" disabled={busy} onApply={(reading,fields)=>{const note=`Reviewed ${reading.fileName}: ${Object.entries(fields).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join("; ")}`;setHandoffNote(current=>[current,note].filter(Boolean).join("\n"));setFeedback("Reviewed title details added to the handoff draft. Verify evidence and checklist items, then save separately.");}}/></details>}
       {!operation.binding.valid || operation.status === "REVALIDATION_REQUIRED" ? <p className="srv-parallel-warning"><AlertTriangle /><span><strong>Revalidation required</strong>Source identity, inventory unit, or recon scope changed. Inventory must revalidate this packet before it can continue.</span></p> : null}
       <div className="srv-parallel-body">
         <section><h3>Preparation checks</h3>{TITLE_PREPARATION_CHECKS.map(item => <label className={checks[item.code] ? "checked" : ""} key={item.code}><input checked={checks[item.code]} disabled={busy || locked} onChange={event => setChecks(current => ({ ...current, [item.code]: event.target.checked }))} type="checkbox" /><i>{checks[item.code] ? <Check /> : null}</i><span>{item.label}</span></label>)}</section>

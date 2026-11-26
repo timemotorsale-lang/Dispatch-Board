@@ -33,7 +33,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Describe the work, confirm time and price, then add the line.");
     expect(markup).toContain("What is being added?");
     expect(markup).toContain("What should be done?");
-    expect(markup).toContain("Advanced defaults");
+    expect(markup).toContain("Pricing and estimate terms");
+    expect(markup).toContain("Unit price ($)");
+    expect(markup).toContain('<option value="PART">Part</option>');
     expect(markup).toContain("Open full Labor Guide");
     expect(markup).toContain("Evidence ledger");
     expect(markup).toContain("Exact-version customer authorization required");

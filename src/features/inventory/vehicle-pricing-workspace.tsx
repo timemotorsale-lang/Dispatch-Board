@@ -1,12 +1,23 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save } from "lucide-react";
 import styles from "./vehicle-cost-workspace.module.css";
 
 type Proposal = { id: string; inventoryVersion: number; priceCents: number; packEnabled: boolean; packCents: number; includeEstimates: boolean; marginMode: string; threshold: number | null; reason: string; createdAt: string };
 export type PricingModel = { id: string; vehicleId: string; inventoryNumber: string; version: number; latest: Proposal | null; intakePriceCents?: number | null; history: Proposal[]; hasMoreHistory: boolean; costsKnown: boolean; costs: { incurredCents: number; estimatedCents: number; unclassified: number }; stale: boolean };
+type IntakePrice = { cents: number; draft: boolean };
+type PriceReceipt = { id: string; version: number; priceCents: number };
+type PriceForm = { price: string; packEnabled: boolean; pack: string; includeEstimates: boolean; marginMode: string; threshold: string; reason: string };
+type SavedPrice = PriceReceipt & { form: PriceForm };
+
+export function recordedSellingPrice(proposal?: { priceCents: number } | null, intake?: IntakePrice, confirmedIntakeCents?: number | null) {
+  if (proposal) return { label: "Latest proposed selling price", cents: proposal.priceCents };
+  if (intake) return { label: intake.draft ? "Selling price · Intake draft" : "Selling price · Confirmed intake", cents: intake.cents };
+  if (confirmedIntakeCents != null) return { label: "Selling price · Confirmed intake", cents: confirmedIntakeCents };
+  return { label: "Selling price", cents: undefined };
+}
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 const decimal = (value: number) => (value / 100).toFixed(2);
 function hundredths(value: string) {
@@ -15,11 +26,31 @@ function hundredths(value: string) {
   const number = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
   return Number.isSafeInteger(number) ? number : null;
 }
-export function VehiclePricingWorkspace({ unit, vehicleId, embedded = false }: { unit: PricingModel | null; vehicleId: string; embedded?: boolean }) {
+export function VehiclePricingWorkspace({ unit, vehicleId, embedded = false, intakePrice, onDirtyChange }: { unit: PricingModel | null; vehicleId: string; embedded?: boolean; intakePrice?: IntakePrice; onDirtyChange?: (dirty: boolean) => void }) {
   const router = useRouter(), pending = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
-  const [form, setForm] = useState(() => ({ price: unit?.latest ? decimal(unit.latest.priceCents) : unit?.intakePriceCents != null ? decimal(unit.intakePriceCents) : "", packEnabled: unit?.latest?.packEnabled ?? false, pack: unit?.latest?.packEnabled ? decimal(unit.latest.packCents) : "", includeEstimates: unit?.latest?.includeEstimates ?? false, marginMode: unit?.latest?.marginMode ?? "OFF", threshold: unit?.latest?.threshold != null ? decimal(unit.latest.threshold) : "", reason: "" }));
-  const update = (key: keyof typeof form, value: string | boolean) => { pending.current = null; setForm(previous => ({ ...previous, [key]: value, ...(key === "marginMode" ? { threshold: "" } : {}) })); };
+  const [saved, setSaved] = useState<SavedPrice | null>(null);
+  const recentSave = saved && unit && saved.id === unit.id && saved.version > (unit.latest?.inventoryVersion ?? 0) ? saved : null;
+  const proposal = recentSave ?? unit?.latest;
+  const recorded = recordedSellingPrice(proposal, intakePrice, unit?.intakePriceCents);
+  const intakeRecorded = recordedSellingPrice(null, intakePrice, unit?.intakePriceCents);
+  const defaults = recentSave?.form ?? { price: recorded.cents == null ? "" : decimal(recorded.cents), packEnabled: unit?.latest?.packEnabled ?? false, pack: unit?.latest?.packEnabled ? decimal(unit.latest.packCents) : "", includeEstimates: unit?.latest?.includeEstimates ?? false, marginMode: unit?.latest?.marginMode ?? "OFF", threshold: unit?.latest?.threshold != null ? decimal(unit.latest.threshold) : "", reason: "" };
+  const [edits, setEdits] = useState<Partial<PriceForm>>({});
+  const form = { ...defaults, ...edits };
+  const dirty = (Object.keys(edits) as Array<keyof PriceForm>).some(key => form[key] !== defaults[key]);
+  useEffect(() => { onDirtyChange?.(dirty || busy); }, [dirty, busy, onDirtyChange]);
+  const update = (key: keyof PriceForm, value: string | boolean) => {
+    pending.current = null;
+    setEdits(previous => {
+      const next = { ...previous, [key]: value };
+      if (value === defaults[key]) delete next[key];
+      if (key === "marginMode") {
+        if (value === defaults.marginMode || !defaults.threshold) delete next.threshold;
+        else next.threshold = "";
+      }
+      return next;
+    });
+  };
   const price = hundredths(form.price), pack = form.packEnabled ? hundredths(form.pack) : 0, threshold = form.marginMode === "OFF" ? null : hundredths(form.threshold);
   const basis = unit && pack !== null ? unit.costs.incurredCents + (form.includeEstimates ? unit.costs.estimatedCents : 0) + pack : null;
   const margin = unit?.costsKnown && basis !== null && basis >= 0 && price !== null && price > 0 ? price - basis : null;
@@ -30,22 +61,31 @@ export function VehiclePricingWorkspace({ unit, vehicleId, embedded = false }: {
     if (price === null || pack === null || (form.marginMode !== "OFF" && threshold === null)) { setNotice("Enter amounts with at most two decimal places."); return; }
     const values = { priceCents: price, packEnabled: form.packEnabled, packCents: pack, includeEstimates: form.includeEstimates, marginMode: form.marginMode, threshold, reason: form.reason };
     const signature = JSON.stringify(values);
-    if (pending.current?.signature !== signature) pending.current = { signature, body: { ...values, expectedVersion: unit.version, idempotencyKey: crypto.randomUUID() } };
+    if (pending.current?.signature !== signature) pending.current = { signature, body: { ...values, expectedVersion: Math.max(unit.version, recentSave?.version ?? 0), idempotencyKey: crypto.randomUUID() } };
     setBusy(true); setNotice("");
     try {
       const response = await fetch(`/api/inventory-units/${unit.id}/pricing`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(pending.current.body) });
       const result = await response.json();
       if (!response.ok) { if (response.status === 409) { pending.current = null; router.refresh(); } throw new Error(result.error ?? "Price proposal could not be saved."); }
-      pending.current = null; setNotice("Price proposal saved with its cost comparison and revision history."); setForm(previous => ({ ...previous, reason: "" })); router.refresh();
+      const committed = result.result as PriceReceipt | undefined;
+      if (committed?.id === unit.id && Number.isSafeInteger(committed.priceCents) && Number.isSafeInteger(committed.version)) {
+        setSaved({ ...committed, form: { ...form, price: decimal(committed.priceCents), reason: "" } });
+      }
+      pending.current = null; setNotice("Price proposal saved with its cost comparison and revision history."); setEdits({}); router.refresh();
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request failed. Retry the same proposal."); }
     finally { setBusy(false); }
   }
   return <section className={`${styles.workspace} ${embedded ? styles.embedded : ""}`}>
     {!embedded ? <header><h1>Pricing &amp; Margin</h1><p>{unit?.inventoryNumber ?? "No open inventory cycle"}</p><nav><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/journey`}>Inventory Journey</Link><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/costs`}>Costs &amp; Investment</Link><Link href={`/vehicles/360/${encodeURIComponent(vehicleId)}`}>Vehicle 360</Link></nav></header> : null}
+    <dl className={styles.totals}>
+      <div><dt>{recorded.label}</dt><dd>{recorded.cents == null ? "Not set" : money(recorded.cents)}</dd></div>
+      {proposal && intakeRecorded.cents != null &&
+        <div><dt>{intakeRecorded.label}</dt><dd>{money(intakeRecorded.cents)}</dd></div>}
+      {unit && <><div><dt>Recorded incurred costs</dt><dd>{money(unit.costs.incurredCents)}</dd></div><div><dt>Separate estimates</dt><dd>{money(unit.costs.estimatedCents)}</dd></div></>}
+    </dl>
     {!unit ? <p>An open inventory cycle is required before proposing a price.</p> : <>
-      <dl className={styles.totals}><div><dt>Recorded incurred costs</dt><dd>{money(unit.costs.incurredCents)}</dd></div><div><dt>Separate estimates</dt><dd>{money(unit.costs.estimatedCents)}</dd></div><div><dt>Latest proposed selling price</dt><dd>{unit.latest ? money(unit.latest.priceCents) : "Not set"}</dd></div></dl>
       <p className={styles.note}>USD · Proposals do not publish a price or authorize final release. Recorded-cost comparisons are not accounting net profit. Pack is optional and separate from incurred expenses.</p>
-      {unit.stale ? <p role="status">Inventory changed since the last proposal. The comparison below uses current costs; save a new revision before review.</p> : null}
+      {unit.stale && (!recentSave || unit.version > recentSave.version) ? <p role="status">Inventory changed since the last proposal. The comparison below uses current costs; save a new revision before review.</p> : null}
       {!unit.costsKnown ? <p role="status">A recorded acquisition cost and a supported cost basis are required for margin enforcement.</p> : null}
       <form onSubmit={save}><h2>Price proposal</h2><fieldset disabled={busy} className={styles.fields}>
         <label>Proposed selling price (USD)<input required inputMode="decimal" value={form.price} onChange={event => update("price", event.target.value)}/></label>

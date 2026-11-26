@@ -20,8 +20,10 @@ export async function getVehicleJourney(actor: AuthenticatedUser | null, vehicle
     if (!vehicle) return null;
     const unit = await tx.inventoryUnit.findFirst({ where: { organizationId, vehicleId, closedAt: null }, select: { id: true, inventoryNumber: true, version: true, lifecycleStage: true, operatingState: true, nextAction: true, stateReason: true, targetAt: true, locationId: true, ownerUser: { select: { name: true } }, location: { select: { name: true } } } });
     const custody = !unit ? await tx.vehicleCustodyEvent.findFirst({ where: { organizationId, vehicleId, occurredAt: { lte: now } }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], select: { locationId: true } }) : null;
-    const allowed = (capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, grants, locationId: unit?.locationId ?? custody?.locationId ?? null, now }).allowed;
-    const access = { inventory: allowed("INVENTORY_UNIT_VIEW"), costs: allowed("INVENTORY_COST_VIEW"), pricing: evaluatePricingAccess({ actor: user, grants, locationId: unit?.locationId ?? custody?.locationId ?? null, now }).allowed, repair: allowed("REPAIR_ORDER_VIEW"), evidence: allowed("VEHICLE_EVIDENCE_VIEW") };
+    const locationId = unit?.locationId ?? custody?.locationId ?? null;
+    const allowed = (capability: VehicleCapability, scope: string | null = locationId) => evaluateVehicleCapability({ actor: user, capability, grants, locationId: scope, now }).allowed;
+    const access = { inventory: allowed("INVENTORY_UNIT_VIEW"), costs: allowed("INVENTORY_COST_VIEW"), pricing: evaluatePricingAccess({ actor: user, grants, locationId, now }).allowed, repair: allowed("REPAIR_ORDER_VIEW"), evidence: allowed("VEHICLE_EVIDENCE_VIEW") };
+    const canOpenRecon = access.repair && allowed("REPAIR_ORDER_VIEW", null) && allowed("INVENTORY_UNIT_VIEW", null) && allowed("VEHICLE_OPERATIONS_VIEW", null);
     const canEditIntake = evaluateIntakeAccess({ actor: user, grants, locationId: unit?.locationId ?? custody?.locationId ?? null, now }).allowed;
     if (!access.inventory && !access.pricing) throw new Error("Vehicle capability required: inventory journey.");
     const costEntries = unit && (access.costs || access.pricing) ? await tx.inventoryUnitCost.findMany({ where: { organizationId, inventoryUnitId: unit.id }, select: { id: true, category: true, status: true, currency: true, amountCents: true } }) : [];
@@ -32,7 +34,7 @@ export async function getVehicleJourney(actor: AuthenticatedUser | null, vehicle
     const pricing = !proposal ? "missing" : proposal.inventoryVersion !== unit?.version ? "stale" : comparison?.meetsThreshold === false ? "below" : "saved";
     const blocked = unit?.operatingState === "BLOCKED" || frontline?.operatingState === "BLOCKED";
     const steps = vehicleJourneySteps({ vehicleId, unitId: unit?.id ?? null, blocked, hasPurchase: costEntries.some(cost => cost.category === "ACQUISITION" && cost.status === "INCURRED" && cost.currency === "USD"), costCount: costEntries.filter(cost => !["VOID", "REVERSED"].includes(cost.status)).length, receiptStatus: receipt?.status ?? null, pricing, access });
-    const latestIntake = access.inventory ? await tx.inventoryIntakeRevision.findFirst({ where: { organizationId, vehicleId }, orderBy: { version: "desc" }, select: { status: true, pendingItems: true, inventoryUnitId: true, details: true } }) : null;
+    const latestIntake = access.inventory || access.pricing ? await tx.inventoryIntakeRevision.findFirst({ where: { organizationId, vehicleId }, orderBy: { version: "desc" }, select: { status: true, pendingItems: true, inventoryUnitId: true, details: true } }) : null;
     const intakeRevision = latestIntake && (latestIntake.inventoryUnitId === null || latestIntake.inventoryUnitId === unit?.id) ? latestIntake : null;
     const intakeDetails = intakeRevision?.details && typeof intakeRevision.details === "object" && !Array.isArray(intakeRevision.details) ? intakeRevision.details : {};
     const intakeText = (key: string) => typeof intakeDetails[key] === "string" ? intakeDetails[key] as string : "";
@@ -40,7 +42,10 @@ export async function getVehicleJourney(actor: AuthenticatedUser | null, vehicle
     if (canEditIntake) steps.splice(1, 0, { id: "intake", label: "Acquisition & Intake", status: intake?.status === "CONFIRMED" ? "Confirmed" : intake?.status === "DRAFT" ? "Draft" : "Not started", detail: intake?.pendingItems.length ? `Pending: ${intake.pendingItems.join(", ")}` : "Capture purchase, arrival and handoff details", href: `/vehicles/${encodeURIComponent(vehicleId)}/intake` });
     const next = !blocked && canEditIntake && intake?.status !== "CONFIRMED" ? steps.find(step => step.id === "intake") ?? null : nextJourneyStep(steps, access.inventory && blocked);
     const visibleUnit = unit && !access.inventory ? { ...unit, lifecycleStage: "Restricted", operatingState: "Restricted", nextAction: "Ask the inventory owner to review operational work", stateReason: null, targetAt: null, ownerUser: { name: "Restricted" }, location: { name: "Restricted" }, locationId: "" } : unit;
-    return { vehicle, unit: visibleUnit, access, steps, next, intake, blocked: access.inventory && blocked, frontline, asOf: now.toISOString(), costs: unit && (access.costs || access.pricing) ? summarizeRecordedCosts(costEntries) : null, proposal: proposal ? { priceCents: proposal.priceCents, comparison, stale: pricing === "stale" } : null };
+    const intakePrice = access.pricing && typeof intakeDetails.proposedPriceCents === "number"
+      ? { cents: intakeDetails.proposedPriceCents, draft: intakeRevision?.status === "DRAFT" }
+      : null;
+    return { vehicle, unit: visibleUnit, access, canOpenRecon, steps, next, intake, intakePrice, blocked: access.inventory && blocked, frontline, asOf: now.toISOString(), costs: unit && (access.costs || access.pricing) ? summarizeRecordedCosts(costEntries) : null, proposal: proposal ? { priceCents: proposal.priceCents, comparison, stale: pricing === "stale" } : null };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }
 export type VehicleJourneyModel = NonNullable<Awaited<ReturnType<typeof getVehicleJourney>>>;

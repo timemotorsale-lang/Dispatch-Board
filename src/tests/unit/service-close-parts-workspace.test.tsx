@@ -89,6 +89,15 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).not.toContain("Manager approval required");
   });
 
+  it("keeps parallel recon parts on the named order with a return to the unfinished Shop task", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} initialRepairOrderId="ro-1" parallelTask reviewOrderId="ro-1" returnLabel="Return to current Shop & Recon task" returnTo="/vehicles/shop-recon/ro-1" />);
+    expect(html).toContain("Parts for this repair");
+    expect(html).toContain("Return to current Shop &amp; Recon task");
+    expect(html).toContain("href=\"/vehicles/shop-recon/ro-1\"");
+    expect(html).not.toContain("Finish parts stage");
+    expect(html).not.toContain("Invoice, payment &amp; handoff");
+  });
+
   it("opens active outside-vendor parts work directly into delivery and repair-progress controls", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} initialRepairOrderId="ro-1" returnLabel="Return to RO-DB21B235" returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
 
@@ -202,4 +211,14 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).not.toContain("Manager approval required");
     expect(html).toContain("Only records linked to RO-DB21B235 are shown.");
   });
+});
+
+it("shows the return task directly and keeps saved purchasing records available", () => {
+  const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} taskLayout parallelTask focusReturns reviewOrderId="ro-1" initialRepairOrderId="ro-1" />);
+  expect(html).toContain('aria-pressed="true">Use &amp; return');
+  expect(html).toContain("Use or return received parts");
+  expect(html).toContain("No parts are available to use or return.");
+  expect(html).toContain("Recent parts records");
+  expect(html).toContain("Awaiting approval or issue");
+  expect(html).toContain("Parts Search Workbook");
 });

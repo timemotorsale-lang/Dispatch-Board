@@ -7,12 +7,13 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
+import { isCustomerOwnedForInventoryLifecycle } from "@/server/vehicle-registry/inventory-lifecycle-ownership";
 type Tx = Prisma.TransactionClient;
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
 async function execute(database: PrismaClient, input: EnterpriseCommandCommitInput, mutate: (tx: Tx, version: number) => Promise<{ result: unknown; previous?: unknown }>, serializable = false) { return database.$transaction(async (tx) => { const existing = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: input.organizationId, domain: input.domain, commandType: input.commandType, idempotencyKey: input.idempotencyKey } } }); if (existing) { if (existing.requestHash !== input.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED"); return { duplicate: true, result: existing.resultSnapshot, version: existing.resultingVersion ?? input.expectedVersion }; } const key = { organizationId_domain_subjectType_subjectId: { organizationId: input.organizationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId } }; const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key }); const currentVersion = aggregate?.version ?? 0; let baselineVersion = currentVersion; if (currentVersion !== input.expectedVersion) { const repairOrder = await tx.repairOrder.findFirst({ where: { id: input.subjectId, organizationId: input.organizationId, closedAt: null }, select: { version: true } }); const ledgerBehindRepairOrder = repairOrder && currentVersion < input.expectedVersion && repairOrder.version === input.expectedVersion; if (!ledgerBehindRepairOrder) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT"); baselineVersion = input.expectedVersion; } const version = baselineVersion + 1; const mutation = await mutate(tx, version); if (aggregate) await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version, locationId: input.locationId } }); else await tx.enterpriseAggregateVersion.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, version } }); const resultSnapshot = json(mutation.result); const command = await tx.enterpriseCommandLedger.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, commandType: input.commandType, status: "SUCCEEDED", idempotencyKey: input.idempotencyKey, requestHash: input.requestHash, correlationId: input.correlationId, expectedVersion: input.expectedVersion, resultingVersion: version, resultSnapshot, completedAt: new Date() } }); const eventType = `${input.commandType}_COMPLETED`; const event = await tx.enterpriseDomainEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, commandId: command.id, domain: input.domain, aggregateType: input.subjectType, aggregateId: input.subjectId, aggregateVersion: version, eventType, payload: json({ ...input.payload, reason: input.reason, result: mutation.result }) } }); await tx.enterpriseAuditEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, commandId: command.id, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, eventType, reason: input.reason, priorValue: mutation.previous == null ? undefined : json(mutation.previous), newValue: resultSnapshot, metadata: json({ requestHash: input.requestHash }), correlationId: input.correlationId } }); await tx.enterpriseOutboxMessage.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domainEventId: event.id, topic: "vehicle-operations.shop", messageKey: input.subjectId, payload: json({ aggregateId: input.subjectId, aggregateVersion: version, correlationId: input.correlationId, eventId: event.id, eventType }) } }); return { duplicate: false, result: mutation.result, version }; }, serializable ? { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } : undefined); }
 
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
-export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
+export type RepairOrderConcernCandidate = { id:string;locationId:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
 type InspectionConsentRecord = { diagnosticFeeCents: number; customerName: string; channel: string; consentReference: string; consentedAt: Date };
 export type RepairOrderDuplicateCloseRecord = { actorUserId: string; duplicateOfRepairOrderId: string | null; occurredAt: Date; reason: string };
@@ -45,13 +46,13 @@ const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: 
 
 export function createRepairOrderRepository(database: PrismaClient = prisma) { return {
   readLocations(organizationId: string) { return database.location.findMany({ where: { organizationId }, select: { id: true } }); },
-  findByAppointment(organizationId: string, appointmentId: string) { return database.repairOrder.findFirst({ where: { organizationId, serviceVisit: { appointmentId } }, select: { id: true, repairOrderNumber: true, stage: true, operatingState: true, version: true } }); },
+  findByAppointment(organizationId: string, appointmentId: string) { return database.repairOrder.findFirst({ where: { organizationId, serviceVisit: { appointmentId } }, select: { id: true, locationId: true, repairOrderNumber: true, stage: true, operatingState: true, version: true } }); },
   async findOpenConcernCandidates(organizationId:string,input:{appointmentId:string|null;inventoryUnitId:string|null;vehicleId:string|null}):Promise<RepairOrderConcernCandidate[]>{
     let vehicleId=input.vehicleId;
     if(!vehicleId&&input.inventoryUnitId)vehicleId=(await database.inventoryUnit.findFirst({where:{id:input.inventoryUnitId,organizationId,closedAt:null},select:{vehicleId:true}}))?.vehicleId??null;
     if(!vehicleId&&input.appointmentId)vehicleId=(await database.appointmentVehicle.findFirst({where:{appointmentId:input.appointmentId,isPrimary:true},select:{vehicleId:true}}))?.vehicleId??null;
     if(!vehicleId)return[];
-    const rows=await database.repairOrder.findMany({where:{organizationId,vehicleId,closedAt:null},orderBy:{openedAt:"asc"},select:{id:true,repairOrderNumber:true,stage:true,operatingState:true,version:true,serviceVisit:{select:{concernSummary:true}}}});
+    const rows=await database.repairOrder.findMany({where:{organizationId,vehicleId,closedAt:null},orderBy:{openedAt:"asc"},select:{id:true,locationId:true,repairOrderNumber:true,stage:true,operatingState:true,version:true,serviceVisit:{select:{concernSummary:true}}}});
     return rows.map(({serviceVisit,...row})=>({...row,concernSummary:serviceVisit.concernSummary}));
   },
   async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string; excludedLocationIds?: string[]; allowedLocationIds?: string[] }) {
@@ -209,7 +210,10 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       } else if (data.intakeSource === "INVENTORY_RECON") {
         if (!inventoryUnitId) throw new Error("Inventory unit ID is required.");
         const unit = await tx.inventoryUnit.findFirst({
-          where: { id: inventoryUnitId, organizationId: command.organizationId, locationId: data.locationId, closedAt: null },
+          where: {
+            id: inventoryUnitId, organizationId: command.organizationId, locationId: data.locationId, closedAt: null,
+            operatingState: { not: "CLOSED" }, lifecycleStage: { notIn: ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"] }
+          },
           select: { id: true, vehicleId: true, inventoryNumber: true, version: true }
         });
         if (!unit) throw new Error("Inventory unit is not active at the selected location.");
@@ -228,6 +232,9 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       if (!location) throw new Error("Repair-order location does not belong to the organization.");
       if (!owner) throw new Error("Repair-order owner must be an active user.");
       await tx.$queryRaw`SELECT "id" FROM "Vehicle" WHERE "id" = ${vehicle.id} AND "organizationId" = ${command.organizationId} FOR NO KEY UPDATE`;
+      if (data.intakeSource === "INVENTORY_RECON" && await isCustomerOwnedForInventoryLifecycle(vehicle.id, command.organizationId, tx)) {
+        throw new EnterpriseCommandConflictError("Vehicle ownership changed. Reopen the vehicle to select the correct repair workflow.", "VERSION_CONFLICT");
+      }
       const [openOrder] = await tx.repairOrder.findMany({
         where: { organizationId: command.organizationId, vehicleId: vehicle.id, closedAt: null }, select: { id: true }, take: 1
       });
@@ -281,7 +288,7 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         await reconcileRepairOrderOwnerTaskInTransaction(tx, command.organizationId, ro.id, data.actorUserId);
       }
       return { result: { id: ro.id, repairOrderNumber: ro.repairOrderNumber, stage: ro.stage, operatingState: ro.operatingState, version } };
-    });
+    }, data.intakeSource === "INVENTORY_RECON");
   },
   recordInspectionConsent(command: EnterpriseCommandCommitInput, data: InspectionConsentRecord) {
     const locationId = command.locationId;

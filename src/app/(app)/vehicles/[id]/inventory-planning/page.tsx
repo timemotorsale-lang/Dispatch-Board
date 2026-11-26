@@ -6,11 +6,12 @@ import { VehicleWorkflowSwitch } from "@/features/prototype/repair-workflow/vehi
 import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 import { needsRepairRoadTest } from "@/lib/final-repair-qc";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
-import { customerInventoryLifecycleNotice, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
+import { customerInventoryLifecycleNotice, customerRepairShopNotice, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
 import { isCustomerOwnedForInventoryLifecycle } from "@/server/vehicle-registry/inventory-lifecycle-ownership";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getFrontlineOptions, getFrontlineWorkflowForInventoryUnit, listFrontlineWorkflows } from "@/server/inventory-frontline/service";
 import { getVehicleExecutionWorkbench } from "@/server/inventory-execution/workbench-service";
+import { getEarlyReconContext, listEarlyReconAppointments } from "@/server/inventory-execution/early-recon";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { getVehicleRegistryCreateOptions } from "@/server/vehicle-registry/service";
 
@@ -20,24 +21,29 @@ export default async function InventoryPlanningPage({ params, searchParams }: { 
   const query = searchParams ? await searchParams : {};
   const guided = query.view === "guided-lifecycle";
   const focused = query.view === "lifecycle" || guided;
-  const projection = await getVehicleExecutionWorkbench(user, id);
-  const requestedOrder = projection.workOrders.items.find(order => order.id === query.repairOrderId);
-  const exactOrder = focused && query.repairOrderId && (guided || !requestedOrder)
-    ? await getShopPlanningDetail(user, query.repairOrderId).catch(() => null)
-    : null;
-  const requestedOrderId = typeof requestedOrder?.id === "string" ? requestedOrder.id
-    : exactOrder?.vehicle.id === id ? exactOrder.id : undefined;
-  if (focused && await isCustomerOwnedForInventoryLifecycle(id)) {
+  const candidate = typeof query.repairOrderId === "string" ? await getShopPlanningDetail(user, query.repairOrderId).catch(() => null) : null;
+  const exactOrder = candidate?.vehicle.id === id ? candidate : null;
+  const requestedOrderId = exactOrder?.id;
+  if (query.repairOrderId !== undefined && !exactOrder) return <section className="panel-card page-stack">
+    <h1>Repair order unavailable for this vehicle</h1>
+    <p role="status">The requested order could not be opened for this vehicle. No other order was selected.</p>
+    <Link href={`/vehicles/${encodeURIComponent(id)}/workbench`}>Back to vehicle workbench</Link>
+  </section>;
+  const customerRepair = exactOrder?.origin === "CUSTOMER_REPAIR";
+  const unavailable = (notice: string) => {
     const returnTo = safeLaborGuideReturnTo(query.returnTo) ?? (requestedOrderId ? repairReviewHref(requestedOrderId) : `/vehicles/${encodeURIComponent(id)}/workbench`);
     return <section className="panel-card page-stack" aria-label="Inventory lifecycle unavailable">
       <h1>Inventory Lifecycle unavailable</h1>
-      <p role="status">{customerInventoryLifecycleNotice}</p>
+      <p role="status">{notice}</p>
       <div className="form-actions">
         {requestedOrderId && <Link className="button button-primary" href={shopReconLifecycleHref(requestedOrderId, returnTo)}>Continue in Shop &amp; Recon</Link>}
         <Link className="button button-secondary" href={returnTo}>Return to workbench</Link>
       </div>
     </section>;
-  }
+  };
+  if (customerRepair) return unavailable(customerRepairShopNotice);
+  const projection = await getVehicleExecutionWorkbench(user, id);
+  if (focused && await isCustomerOwnedForInventoryLifecycle(id)) return unavailable(customerInventoryLifecycleNotice);
   const [frontline, options, registryOptions] = !focused || projection.hasInventoryRecord
     ? await Promise.all([listFrontlineWorkflows(user, { vehicleId: id }), getFrontlineOptions(user), guided ? null : getVehicleRegistryCreateOptions(user)])
     : [null, null, null] as const;
@@ -55,7 +61,7 @@ export default async function InventoryPlanningPage({ params, searchParams }: { 
     const previewHref = "/vehicles/" + encodeURIComponent(id) + "/inventory-planning?" + previewQuery;
     const requestedStage = query.guidedStage && /^\d+$/.test(query.guidedStage) ? Number(query.guidedStage) : -1;
     const liveHref = `/vehicles/${encodeURIComponent(id)}/inventory-planning?${liveQuery}`;
-    const order = exactOrder?.vehicle.id === id ? exactOrder : null;
+    const order = exactOrder;
     const linkedUnit = order?.inventoryUnit;
     const previewWorkflow = linkedUnit ? await getFrontlineWorkflowForInventoryUnit(user, linkedUnit) : workflow;
     const unit = previewWorkflow?.inventoryUnit ?? (order && linkedUnit ? { ...linkedUnit, vehicle: order.vehicle } : eligibleUnit);
@@ -86,8 +92,24 @@ export default async function InventoryPlanningPage({ params, searchParams }: { 
       }} /> : <p role="status">The linked inventory unit is unavailable for this preview. Open the live Inventory Lifecycle to review its record.</p>}
     </section>;
   }
+  const earlyRecon = focused ? null : await getEarlyReconContext(user, id);
+  const planningHref = `/vehicles/${encodeURIComponent(id)}/inventory-planning`;
+  const intake = new URLSearchParams({ intakeSource: "INVENTORY_RECON", vehicleId: id });
+  const reconAppointments = earlyRecon ? await listEarlyReconAppointments(user, earlyRecon) : [];
+  const dateInStore = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" });
+  const reconActions = !earlyRecon ? undefined : {
+    appointment: earlyRecon.canBook ? `/appointments?${new URLSearchParams({ action: "new", inventoryReconVehicleId: id })}` : undefined,
+    appointments: reconAppointments.map(item => {
+      const query = new URLSearchParams({ view: "board", appointment: item.appointmentNumber, returnTo: planningHref });
+      if (item.startsAt) query.set("localDate", dateInStore.format(item.startsAt));
+      return { href: `/appointments?${query}`, label: `${item.bookingStatus === "DRAFT" ? "Resume appointment draft" : "View recon appointment"} · ${item.appointmentNumber}` };
+    }),
+    order: earlyRecon.activeOrderId ? repairReviewHref(earlyRecon.activeOrderId, undefined, { workflow: "shop", returnTo: planningHref }) : undefined,
+    shop: earlyRecon.canStartOrder && !earlyRecon.activeOrderId ? `/vehicles/repair-orders?${intake}&earlyRecon=shop` : undefined,
+    vendor: earlyRecon.canRouteVendor ? `/vehicles/repair-orders?${intake}&earlyRecon=vendor` : undefined
+  };
   return <>
     {!focused && returnTo && <Link className="button button-secondary" href={returnTo}>Return to Repair Workbench</Link>}
-    <InventoryPlanningReview focused={focused} returnTo={returnTo} shopHref={shopHref} eligibleUnit={eligibleUnit ? JSON.parse(JSON.stringify(eligibleUnit)) : null} initial={JSON.parse(JSON.stringify(projection))} initialRepairOrderId={focused ? repairOrderId : query.repairOrderId} initialWorkflow={workflow ? JSON.parse(JSON.stringify(workflow)) : null} locations={JSON.parse(JSON.stringify(registryOptions?.locations ?? []))} users={JSON.parse(JSON.stringify(options?.users ?? []))} />
+    <InventoryPlanningReview focused={focused} returnTo={returnTo} shopHref={shopHref} reconActions={reconActions} eligibleUnit={eligibleUnit ? JSON.parse(JSON.stringify(eligibleUnit)) : null} initial={JSON.parse(JSON.stringify(projection))} initialRepairOrderId={focused ? repairOrderId : requestedOrderId} initialWorkflow={workflow ? JSON.parse(JSON.stringify(workflow)) : null} locations={JSON.parse(JSON.stringify(registryOptions?.locations ?? []))} users={JSON.parse(JSON.stringify(options?.users ?? []))} />
   </>;
 }

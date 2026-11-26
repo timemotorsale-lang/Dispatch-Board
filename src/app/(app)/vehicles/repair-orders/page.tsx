@@ -6,6 +6,8 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { getWorkspaceKey } from "@/server/auth/navigation";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getServiceHandoffIntake } from "@/server/repair-order/task-handoff";
+import { getEarlyReconContext } from "@/server/inventory-execution/early-recon";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
 import Link from "next/link";
 
 function safeReturnTo(value?: string) {
@@ -16,7 +18,7 @@ function safeSearch(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
-export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ customerId?: string; reviewWorkbench?: string; concernSummary?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; serviceHandoff?: string; source?: string; vehicleId?: string }> }) {
+export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ customerId?: string; reviewWorkbench?: string; concernSummary?: string; earlyRecon?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; serviceHandoff?: string; source?: string; vehicleId?: string }> }) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
   if (params.serviceHandoff) {
@@ -45,6 +47,38 @@ export default async function RepairOrderCorePage({ searchParams }: { searchPara
   }
   if (params.repairOrderId) {
     redirect(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(params.repairOrderId)}`);
+  }
+  if (params.intakeSource === "INVENTORY_RECON" && (params.earlyRecon === "shop" || params.earlyRecon === "vendor")) {
+    const recon = typeof params.vehicleId === "string" ? await getEarlyReconContext(user, params.vehicleId) : null;
+    const returnTo = recon ? `/vehicles/${encodeURIComponent(recon.vehicle.id)}/inventory-planning` : "/vehicles/registry";
+    if (recon?.activeOrderId && (params.earlyRecon !== "vendor" || !recon.canRouteVendor)) redirect(repairReviewHref(recon.activeOrderId, undefined, { workflow: "shop", returnTo }));
+    if (!recon?.canStartOrder) return <section className="panel-card page-stack">
+      <h1>Recon intake unavailable</h1>
+      <p role="status">An active inventory unit and permission to open repair orders are required.</p>
+      <Link href={returnTo}>Go back</Link>
+    </section>;
+    const allOptions = await getRepairOrderCreateOptions(user);
+    const options = {
+      ...allOptions,
+      appointments: [],
+      customers: [],
+      inventoryUnits: allOptions.inventoryUnits.filter(unit => unit.id === recon.id),
+      locations: allOptions.locations.filter(location => location.id === recon.locationId),
+      repairOrders: allOptions.repairOrders.filter(order => order.vehicle.id === recon.vehicle.id && order.locationId === recon.locationId),
+      vehicles: allOptions.vehicles.filter(vehicle => vehicle.id === recon.vehicle.id),
+    };
+    if (!options.inventoryUnits.length || !options.locations.length || !options.vehicles.length) notFound();
+    return <ServiceIntakeWorkspace
+      key={`${recon.id}:${params.earlyRecon}`}
+      currentUserId={user.id}
+      initialTimestamp={new Date().toISOString()}
+      initialVehicleId={recon.vehicle.id}
+      initialVehicleRelationship="DEALERSHIP_INVENTORY"
+      earlyReconPath={params.earlyRecon === "vendor" ? "OUTSIDE_VENDOR" : "INTERNAL_SHOP"}
+      earlyReconOrderId={recon.activeOrderId ?? undefined}
+      options={JSON.parse(JSON.stringify(options))}
+      returnTo={returnTo}
+    />;
   }
   const search = safeSearch(params.search);
   const [initial, options] = await Promise.all([

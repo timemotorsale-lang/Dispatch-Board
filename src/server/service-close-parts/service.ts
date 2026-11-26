@@ -166,8 +166,10 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   const sourcingOrder = ["CREATE_VENDOR", "CREATE_VENDOR_OFFER"].includes(action) && typeof raw.repairOrderId === "string"
     ? view.repairOrders.find(item => item.id === raw.repairOrderId && !item.closedAt) : undefined;
   if (["CREATE_VENDOR", "CREATE_VENDOR_OFFER"].includes(action) && raw.repairOrderId && !sourcingOrder) throw new Error("Select an open repair order before recording a supplier.");
+  const budgetAction = ["REQUEST_RECON_BUDGET_EXCEPTION", "DENY_RECON_BUDGET_EXCEPTION", "APPROVE_RECON_BUDGET_EXCEPTION"].includes(action);
+  const budgetOrder = budgetAction ? view.repairOrders.find(item => item.id === subjectId) : null;
   const locationId = receivePurchaseOrder?.locationId ?? purchaseOrder?.locationId ?? order?.locationId
-    ?? requisitionLocation ?? demand?.repairOrder.locationId ?? newPurchase?.locationId ?? sourcingOrder?.locationId ?? null;
+    ?? requisitionLocation ?? demand?.repairOrder.locationId ?? newPurchase?.locationId ?? sourcingOrder?.locationId ?? budgetOrder?.locationId ?? null;
   const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, locationId, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
   const receipt = shop ? await context.repository.commandReceipt?.(context.organizationId, action, String(raw.idempotencyKey ?? "")) : null;
@@ -228,17 +230,19 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizePurchaseRevision(raw, record.status), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
     return context.repository.revisePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
   }
-  if (action === "REQUEST_RECON_BUDGET_EXCEPTION" || action === "DENY_RECON_BUDGET_EXCEPTION" || action === "APPROVE_RECON_BUDGET_EXCEPTION") {
-    const repairOrder = view.repairOrders.find((item) => item.id === subjectId);
+  if (budgetAction) {
+    const repairOrder = budgetOrder;
     if (!repairOrder) throw new Error("Repair order was not found.");
+    if (repairOrder.closedAt) throw new Error("This repair order is closed.");
     if (partsProcurementType(repairOrder) !== "INVENTORY_RECON") throw new Error("Recon budget approvals apply only to internal inventory repairs. Customer purchases use the customer repair order.");
     if (!repairOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so a recon budget exception cannot be recorded here.");
     if (action !== "REQUEST_RECON_BUDGET_EXCEPTION" && !isManager(user)) throw new Error("A manager or authorized approver is required to decide a recon budget exception.");
 
     const increaseByCents = integer(raw.increaseByCents, "Increase amount");
-    const currentMaxReconBudgetCents = recordedReconBudget(repairOrder)?.estimatedReconBudgetCents ?? 0;
+    const currentMaxReconBudgetCents = recordedReconBudget(repairOrder)?.estimatedReconBudgetCents ?? null;
     const exceptionReason = required(raw.reason, "Reason", 500);
-    const nextBudgetCents = currentMaxReconBudgetCents + increaseByCents;
+    const nextBudgetCents = (currentMaxReconBudgetCents ?? 0) + increaseByCents;
+    if (increaseByCents <= 0 || nextBudgetCents > 2147483647) throw new Error("Enter a positive allowance within the supported range.");
     const appraisalSnapshot = snapshot(repairOrder.inventoryUnit.acquisitionCase?.appraisalSnapshot);
     const latestAppraisal = repairOrder.inventoryUnit.acquisitionAppraisals?.[0] ?? null;
     const expectedRetailCents = centsFrom(appraisalSnapshot.expectedRetailCents) ?? centsFrom(latestAppraisal?.estimatedRetailCents) ?? null;
@@ -262,7 +266,7 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
       confidence: "UNKNOWN",
       decisionStatus,
       estimatedFeesCents: estimatedFeesCents ?? undefined,
-      estimatedReconCents: action === "APPROVE_RECON_BUDGET_EXCEPTION" ? nextBudgetCents : currentMaxReconBudgetCents,
+      estimatedReconCents: action === "APPROVE_RECON_BUDGET_EXCEPTION" ? nextBudgetCents : currentMaxReconBudgetCents ?? undefined,
       estimatedRetailCents: expectedRetailCents ?? undefined,
       evidenceObjectIds: [`recon-budget-exception:${repairOrder.repairOrderNumber}`, `${decisionStatus.toLowerCase()}-by:${user.id}`],
     });

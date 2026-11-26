@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
+import { calculateReconCeiling, parseReconPlanningAmount, buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 
 describe("recon budget summary", () => {
   it("prefers TAI/appraisal data and calculates remaining recon spend", () => {
@@ -44,4 +44,16 @@ describe("recon budget summary", () => {
     expect(formatMoneyCents(123_456)).toBe("$1,234.56");
     expect(formatMoneyCents(null)).toBe("Not set");
   });
+});
+
+it("uses market retail less landed cost, target gross, and a reserve", () => {
+  expect(calculateReconCeiling({ retail: 1_800_000, landed: 1_350_000, gross: 250_000, reserve: 50_000 }))
+    .toEqual({ ceilingCents: 150_000, shortfallCents: 0 });
+  expect(calculateReconCeiling({ retail: 1_600_000, landed: 1_400_000, gross: 250_000, reserve: 0 }))
+    .toEqual({ ceilingCents: 0, shortfallCents: 50_000 });
+  expect(calculateReconCeiling({ retail: 1_600_000, landed: null, gross: 250_000, reserve: 0 })).toBeNull();
+  expect(parseReconPlanningAmount("130.25")).toBe(13025);
+  expect(parseReconPlanningAmount("")).toBeNull();
+  expect(parseReconPlanningAmount("0")).toBe(0);
+  expect(parseReconPlanningAmount("0.001")).toBeNull();
 });

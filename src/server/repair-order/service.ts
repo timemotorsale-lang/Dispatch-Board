@@ -32,17 +32,35 @@ export async function createRepairOrder(actor:AuthenticatedUser|null,value:unkno
   const now=context.now();
   const normalized=normalizeRepairOrderCreate(value,now);
   const user=await authorize(actor,"REPAIR_ORDER_MANAGE",normalized.locationId,context,true);
+  const authorizeExistingOrder = async (locationId: string) => {
+    try { await assertRepairLocationRead(user, context.organizationId, locationId, context.foundationRepository, now); }
+    catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Vehicle capability required:")) throw error;
+      throw new EnterpriseCommandConflictError("The vehicle already has open repair work. Ask an authorized advisor to review it.", "VERSION_CONFLICT");
+    }
+  };
   const claim = input.handoffClaim;
   if (claim && !normalized.readinessSnapshotId) throw new RepairHandoffError("Complete Service readiness checks before creating the repair order.", 400);
   if (claim && normalized.appointmentId && await context.repository.findByAppointment(context.organizationId, normalized.appointmentId)) {
     throw new RepairHandoffError("An order already exists for this appointment. Review it and explicitly link the handoff.");
   }
-  if(normalized.appointmentId){const existing=await context.repository.findByAppointment(context.organizationId,normalized.appointmentId);if(existing){await context.taskBridge.reconcileOwner(context.organizationId,existing.id,user.id);return{duplicate:true,result:existing,version:existing.version};}}
+  if(normalized.appointmentId){
+    const existing=await context.repository.findByAppointment(context.organizationId,normalized.appointmentId);
+    if(existing){
+      await authorizeExistingOrder(existing.locationId);
+      if (existing.locationId === normalized.locationId) await context.taskBridge.reconcileOwner(context.organizationId,existing.id,user.id);
+      return{duplicate:true,result:existing,version:existing.version};
+    }
+  }
   const concernCandidates=await context.repository.findOpenConcernCandidates(context.organizationId,{appointmentId:normalized.appointmentId,inventoryUnitId:normalized.inventoryUnitId,vehicleId:normalized.vehicleId});
   const sameConcern=concernCandidates.find(candidate=>isSameRepairOrderConcern(candidate.concernSummary,normalized.concernSummary));
   const openVehicleOrder=sameConcern??concernCandidates[0];
   if (claim && openVehicleOrder) throw new RepairHandoffError("An order already exists for this vehicle. Review it and explicitly link the handoff if it covers this visit.");
-  if(openVehicleOrder){await context.taskBridge.reconcileOwner(context.organizationId,openVehicleOrder.id,user.id);return{duplicate:true,result:{id:openVehicleOrder.id,repairOrderNumber:openVehicleOrder.repairOrderNumber,stage:openVehicleOrder.stage,operatingState:openVehicleOrder.operatingState,version:openVehicleOrder.version,duplicateReason:sameConcern?"OPEN_VEHICLE_CONCERN_MATCH":"OPEN_VEHICLE_REPAIR_ORDER"},version:openVehicleOrder.version};}
+  if (openVehicleOrder) {
+    await authorizeExistingOrder(openVehicleOrder.locationId);
+    if (openVehicleOrder.locationId === normalized.locationId) await context.taskBridge.reconcileOwner(context.organizationId, openVehicleOrder.id, user.id);
+    return {duplicate:true,result:{id:openVehicleOrder.id,repairOrderNumber:openVehicleOrder.repairOrderNumber,stage:openVehicleOrder.stage,operatingState:openVehicleOrder.operatingState,version:openVehicleOrder.version,duplicateReason:sameConcern?"OPEN_VEHICLE_CONCERN_MATCH":"OPEN_VEHICLE_REPAIR_ORDER"},version:openVehicleOrder.version};
+  }
   await context.repository.validateReadinessSnapshot(context.organizationId,normalized,now);
   const id=randomUUID();
   const repairOrderNumber=`RO-${id.slice(0,8).toUpperCase()}`;

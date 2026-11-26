@@ -11,6 +11,12 @@ describe("vehicle record tools", () => {
     expect(html).toContain("/vehicles/acquisition-appraisal?vehicleId=vehicle-1");
     expect(html).toContain("Mark as Deleted (unavailable)");
     expect(html.match(/disabled=""/g)).toHaveLength(2);
+    expect(html).not.toContain("Continue to Recon");
+  });
+  it("offers the vehicle-specific recon tool when given an authorized destination", () => {
+    const html = renderToStaticMarkup(<VehicleTools vehicleId="vehicle-1" reconHref="/vehicles/vehicle-1/inventory-planning"/>);
+    expect(html).toContain('href="/vehicles/vehicle-1/inventory-planning"');
+    expect(html).toContain("Continue to Recon");
   });
   it("renders authorized source history and empty/unavailable states", () => {
     const html = renderToStaticMarkup(<VehicleLogs context={{ available: true, specifications: [], timeline: [{ id: "1", occurredAt: "2026-10-10T12:00:00Z", source: "INVENTORY", type: "ACTIVE", title: "Inventory received", detail: "Receipt recorded" }] }}/>);

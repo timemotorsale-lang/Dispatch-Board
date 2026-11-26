@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import type { InventoryUnitRepository } from "@/server/inventory-unit/repository";
 import { getVehiclePricing, saveVehiclePricing } from "@/server/inventory-unit/service";
+import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { EDIT_INVENTORY_PRICING_DUTY_NAME, evaluatePricingAccess } from "@/server/inventory-unit/pricing-access";
 import { evaluateVehicleCapability, type VehicleCapabilityGrantRecord } from "@/server/enterprise-command/vehicle-capabilities";
 
@@ -53,5 +54,24 @@ describe("existing team functions authorize inventory pricing", () => {
   it("preserves inactive-account and existing manager behavior", () => {
     expect(evaluatePricingAccess({ actor: { ...authorized("direct"), isActive: false }, locationId: null }).allowed).toBe(false);
     expect(evaluatePricingAccess({ actor: { ...staff, roles: ["General Manager"] }, locationId: null }).allowed).toBe(true);
+  });
+
+  it("projects only the authorized selling price from saved intake and checks Recon destination access", async () => {
+    const tx = {
+      vehicle: { findFirst: vi.fn().mockResolvedValue({ id: "vehicle" }) },
+      inventoryUnit: { findFirst: vi.fn().mockResolvedValue(null) },
+      vehicleCustodyEvent: { findFirst: vi.fn().mockResolvedValue(null) },
+      inventoryIntakeRevision: { findFirst: vi.fn().mockResolvedValue({ status: "DRAFT", inventoryUnitId: null, details: { proposedPriceCents: 1199500, seller: "Private seller detail" } }) },
+    };
+    const database = { $transaction: (run: (transaction: typeof tx) => unknown) => run(tx) } as never;
+    const pricingOnly = { ...authorized("direct"), roles: [] };
+    const record = await getVehicleJourney(pricingOnly, "vehicle", { ...dependencies().input, database });
+    expect(record).toMatchObject({ intake: null, intakePrice: { cents: 1199500, draft: true }, canOpenRecon: false });
+    expect(JSON.stringify(record)).not.toContain("Private seller detail");
+    expect(await getVehicleJourney(staff, "vehicle", { ...dependencies().input, database })).toMatchObject({ intakePrice: null });
+    const manager: AuthenticatedUser = { ...staff, roles: ["General Manager"] };
+    const denied = dependencies([{ capability: "VEHICLE_OPERATIONS_VIEW", effect: "DENY", locationId: null, validFrom: new Date("2026-01-01"), validTo: null }]);
+    expect(await getVehicleJourney(manager, "vehicle", { ...denied.input, database })).toMatchObject({ access: { repair: true }, canOpenRecon: false });
+    expect(await getVehicleJourney(manager, "vehicle", { ...dependencies().input, database })).toMatchObject({ canOpenRecon: true });
   });
 });

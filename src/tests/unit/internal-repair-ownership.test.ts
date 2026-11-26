@@ -15,7 +15,8 @@ function fixture(owned: boolean) {
     enterpriseCommandLedger: { findUnique: vi.fn().mockResolvedValue(null), create: create() },
     enterpriseAggregateVersion: { findUnique: vi.fn().mockResolvedValue(null), create: create() },
     enterpriseDomainEvent: { create: create() }, enterpriseAuditEvent: { create: create() }, enterpriseOutboxMessage: { create: create() },
-    vehicleRelationship: { findFirst: vi.fn().mockResolvedValue(owned ? { id: "ownership-1", relationshipType: "DEALERSHIP_OWNED" } : null) },
+    vehicleRelationship: { findFirst: vi.fn().mockResolvedValue(owned ? { id: "ownership-1", relationshipType: "DEALERSHIP_OWNED", effectiveFrom: new Date("2026-10-01") } : null) },
+    customerVehicle: { findFirst: vi.fn().mockResolvedValue(null) },
     vehicle: { findFirst: vi.fn().mockResolvedValue({ id: "vehicle-1" }) },
     location: { findFirst: vi.fn().mockResolvedValue({ id: "loc-1" }) }, user: { findFirst: vi.fn().mockResolvedValue({ id: "advisor-1" }) },
     serviceDocument: { create: create(), findFirst: vi.fn().mockResolvedValue(null) },
@@ -33,8 +34,8 @@ describe("internal repair ownership guard", () => {
     await expect(repository.create(command, data)).resolves.toMatchObject({ result: { id: "ro-1" } });
     expect(tx.serviceVisit.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ customerId: null, vehicleId: "vehicle-1", inventoryUnitId: "unit-1", origin: "INVENTORY_RECON", sourceSnapshot: { inventoryNumber: "INV-1", inventoryUnitVersion: 1 } }) }));
     expect(tx.inventoryUnit.create).not.toHaveBeenCalled();
-    expect(tx.inventoryUnit.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "unit-1", organizationId: "org-1", locationId: "loc-1", closedAt: null } }));
-    expect(tx.vehicleRelationship.findFirst).not.toHaveBeenCalled();
+    expect(tx.inventoryUnit.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "unit-1", organizationId: "org-1", locationId: "loc-1", closedAt: null }) }));
+    expect(tx.vehicleRelationship.findFirst).toHaveBeenCalledTimes(1);
   });
   it.each([true, false])("rejects vehicle-only intake before writes even when dealership ownership is %s", async owned => {
     const { tx, repository } = fixture(owned);
@@ -46,6 +47,17 @@ describe("internal repair ownership guard", () => {
     expect(tx.enterpriseCommandLedger.create).not.toHaveBeenCalled();
     expect(tx.enterpriseDomainEvent.create).not.toHaveBeenCalled();
     expect(tx.enterpriseAuditEvent.create).not.toHaveBeenCalled();
+  });
+  it("blocks an internal order when a customer acquired the vehicle after its inventory acquisition", async () => {
+    const { tx, repository } = fixture(true);
+    tx.inventoryUnit.findFirst
+      .mockResolvedValueOnce({ id: "unit-1", vehicleId: "vehicle-1", inventoryNumber: "INV-1", version: 1 })
+      .mockResolvedValueOnce({ financialAcquiredAt: new Date("2026-10-01") });
+    tx.vehicleRelationship.findFirst.mockResolvedValue({ relationshipType: "CUSTOMER_OWNER", effectiveFrom: new Date("2026-10-02") });
+
+    await expect(repository.create(command, data)).rejects.toThrow("Vehicle ownership changed.");
+    expect(tx.serviceVisit.create).not.toHaveBeenCalled();
+    expect(tx.repairOrder.create).not.toHaveBeenCalled();
   });
   it("still rejects an invalid inventory unit instead of silently dropping its link", async () => {
     const { tx, repository } = fixture(true);

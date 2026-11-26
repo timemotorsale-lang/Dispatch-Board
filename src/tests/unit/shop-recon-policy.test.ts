@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canCompleteShopReconStage, evaluateDraftCompletion, evaluateGovernedTransition, normalizeShopReconPartsReadinessReturn, normalizeShopReconScopeChange } from "@/server/shop-recon/policy";
+import { effectiveShopCustodyKeys } from "@/server/shop-recon/repository";
 
 const actor = (name: string, roles: string[] = []): AuthenticatedUser => ({ id: name.toLowerCase().replaceAll(" ", "-"), name, email: `${name}@example.com`, isActive: true, roles, duties: { direct: [], roleDefaults: [], all: [] } });
 const completeDraft = {
@@ -15,6 +16,12 @@ const completeInventoryHandoffDraft = {
 };
 
 describe("Shop Recon governed transition policy", () => {
+  it("uses published shop custody for key reconciliation without rewriting the original intake", () => {
+    expect(effectiveShopCustodyKeys({ custodyAccepted: true, custodyEventId: "custody-1", keyCount: 2 }, 0)).toBe(2);
+    expect(effectiveShopCustodyKeys({ custodyAccepted: true, keyCount: 2 }, 1)).toBe(1);
+    expect(effectiveShopCustodyKeys({ custodyAccepted: true, custodyEventId: "custody-1", keyCount: 21 }, 1)).toBe(1);
+    expect(effectiveShopCustodyKeys(undefined, 1)).toBe(1);
+  });
   it("allows any attributable draft shape but keeps stage completion with the named authority", () => {
     const decision = evaluateGovernedTransition({ actor: actor("Brock"), fromStage: "SERVICE_RECON_JOB_INTAKE", toStage: "JOB_SCOPE_DEFINITION", facts: { JOB_INTAKE_COMPLETE: true }, draft: completeDraft, override: null, now: new Date("2026-08-03T15:00:00.000Z") });
     expect(decision.allowed).toBe(true);

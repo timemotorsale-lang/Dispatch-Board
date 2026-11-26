@@ -1256,7 +1256,22 @@ function buildEditPlan(
     });
   }
 
+  const isInventoryRecon = typeof appointment.sourceSnapshot?.inventoryUnitId === "string";
+  if ((isInventoryRecon && (input.payload?.customerSnapshot ||
+      (input.payload?.vehicleSnapshot?.vehicleId && input.payload.vehicleSnapshot.vehicleId !== appointment.vehicleSnapshot?.vehicleId) ||
+      input.payload?.sourceSnapshot !== undefined)) || input.payload?.sourceSnapshot?.inventoryUnitId !== undefined) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "INVENTORY_RECON_IDENTITY_LOCKED",
+      rejectionReasons: ["A recon appointment stays with the inventory vehicle it was created for. Create a separate appointment for a different vehicle."]
+    });
+  }
   const { error, set } = buildEditSet(input);
+  if (isInventoryRecon) {
+    delete set.vehicleSnapshot;
+    delete set.customerSnapshot;
+  }
 
   if (error) {
     return rejectPlan({

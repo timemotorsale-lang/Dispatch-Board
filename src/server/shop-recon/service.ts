@@ -25,6 +25,9 @@ export async function getShopReconLifecycleWorkspace(actor: AuthenticatedUser | 
   const lane = order.origin === "INVENTORY_RECON" ? "INVENTORY_RECON" : "CUSTOMER_REPAIR";
   const grants = await context.foundationRepository.listCapabilityGrants(user.id, context.organizationId);
   const canSave = evaluateVehicleCapability({ actor: user, capability: lane === "INVENTORY_RECON" ? inventoryShopStageCapability(currentStage) ?? "REPAIR_ORDER_MANAGE" : "REPAIR_ORDER_MANAGE", grants, locationId: order.locationId, now: context.now() }).allowed;
+  const canViewParts = [null, order.locationId].every(locationId => evaluateVehicleCapability({
+    actor: user, capability: "PARTS_VIEW", grants, locationId, now: context.now()
+  }).allowed) && evaluateVehicleCapability({ actor: user, capability: "REPAIR_ORDER_VIEW", grants, locationId: null, now: context.now() }).allowed;
   const currentDraft = lifecycle?.drafts.find(item => item.stage === currentStage && item.scopeVersion === scopeVersion) ?? null;
   const currentEvidence = lifecycle?.stageEvidence.find(item => {
     if (item.stage !== currentStage || item.scopeVersion !== scopeVersion || !currentDraft) return false;
@@ -38,7 +41,7 @@ export async function getShopReconLifecycleWorkspace(actor: AuthenticatedUser | 
     history: lifecycle?.events.map(event => ({ sequence: event.sequence, eventType: event.eventType, fromStage: event.fromStage, toStage: event.toStage, fromOperatingState: event.fromOperatingState, toOperatingState: event.toOperatingState, scopeVersion: event.scopeVersion, actorUserId: event.actorUserId, actorName: names.get(event.actorUserId) ?? "Unknown user", reason: event.reason, payload: event.payload, occurredAt: event.occurredAt.toISOString() })) ?? [],
     overrides: lifecycle?.overrides.map(record => ({ id: record.id, stage: record.stage, kind: record.kind, authorizedByUserId: record.authorizedByUserId, authorizedByName: names.get(record.authorizedByUserId) ?? "Unknown user", reason: record.reason, boundaries: record.boundaries, expiresAt: record.expiresAt?.toISOString() ?? null, followUpAt: record.followUpAt?.toISOString() ?? null, createdAt: record.createdAt.toISOString() })) ?? [],
     scopeChanges: lifecycle?.scopeChanges.map(record => ({ id: record.id, version: record.version, status: record.status, discoveredAtStage: record.discoveredAtStage, returnStage: record.returnStage, finding: record.finding, affectedRepairJobIds: record.affectedRepairJobIds, originalScope: record.originalScope, proposedScope: record.proposedScope, submittedByUserId: record.submittedByUserId, submittedByName: names.get(record.submittedByUserId) ?? "Unknown user", submittedAt: record.submittedAt.toISOString() })) ?? [],
-    permissions: { currentUserName: user.name, canSave, canPublishEvidence: canSave && canCompleteShopReconStage(user, currentStage, lane).allowed, canComplete: canSave && canCompleteShopReconStage(user, currentStage, lane).allowed, canOverride: isGeneralManager(user), overrideAuthority: "General Manager" },
+    permissions: { currentUserName: user.name, canSave, canViewParts, canPublishEvidence: canSave && canCompleteShopReconStage(user, currentStage, lane).allowed, canComplete: canSave && canCompleteShopReconStage(user, currentStage, lane).allowed, canOverride: isGeneralManager(user), overrideAuthority: "General Manager" },
   };
 }
 

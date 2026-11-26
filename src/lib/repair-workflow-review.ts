@@ -17,7 +17,7 @@ export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowSte
   returnLabel?: string;
   tool?: string;
   reconPath?: ReconRepairPath;
-  workflow?: "shop";
+  workflow?: "shop" | "rapid";
   repairJobId?: string;
   repairAction?: "progress";
 } = {}) {

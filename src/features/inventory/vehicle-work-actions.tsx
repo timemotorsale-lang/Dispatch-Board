@@ -23,28 +23,33 @@ export function RepairOrderActions({ order, returnTo, returnLabel, showSummary =
   </div>;
 }
 
-export function VehicleWorkToolkit({ work, vehicleId, returnTo, returnLabel, showDetails = true }: {
+export function VehicleWorkToolkit({ work, vehicleId, returnTo, returnLabel, showDetails = true, preferSale = false }: {
   work?: VehicleWorkActions;
   vehicleId: string;
   returnTo?: string;
   returnLabel?: string;
   showDetails?: boolean;
+  preferSale?: boolean;
 }) {
   const details = `/vehicles/360/${encodeURIComponent(vehicleId)}`;
   const detailsHref = returnTo ? `${details}?${new URLSearchParams({ section: "identity", returnTo })}` : `${details}?section=identity`;
   const saleHref = `/vehicles/${encodeURIComponent(vehicleId)}/sale`;
   const intakeHref = `/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "WALK_IN", vehicleId, ...(returnTo && { returnTo }) })}`;
+  const saleFirst = preferSale && work?.canPrepareSale && !work.orders.length;
+  const hasPrimary = Boolean(work?.orders.length || work?.canCheckIn || saleFirst);
   return <div className={styles.toolkit}>
     {work?.orders.length === 1 ? <RepairOrderActions order={work.orders[0]} returnTo={returnTo} returnLabel={returnLabel} />
       : work && work.orders.length > 1 ? <details className={styles.orderList}>
         <summary>Choose open work ({work.orders.length})</summary>
         {work.orders.map(order => <RepairOrderActions key={order.id} order={order} returnTo={returnTo} returnLabel={returnLabel} />)}
-      </details> : work?.canCheckIn ? <Link prefetch={false} className={styles.primary} href={intakeHref}>Check in for service</Link> : null}
+      </details> : saleFirst ? <Link prefetch={false} className={styles.primary} href={saleHref}>Prepare for sale</Link>
+      : work?.canCheckIn ? <Link prefetch={false} className={styles.primary} href={intakeHref}>Check in for service</Link> : null}
     <div className={styles.actions}>
-      {showDetails && <Link prefetch={false} href={detailsHref}>Vehicle details</Link>}
-      {work?.canPrepareSale && !work.orders.length && <details className={styles.more}>
+      {showDetails && <Link className={preferSale && !hasPrimary ? styles.primary : undefined} prefetch={false} href={detailsHref}>Vehicle details</Link>}
+      {saleFirst && work.canCheckIn && <Link prefetch={false} href={intakeHref}>Check in for service</Link>}
+      {work?.canPrepareSale && !work.orders.length && (!saleFirst || work.canStartAsIsSale) && <details className={styles.more}>
         <summary>Sale tools</summary>
-        <div><Link prefetch={false} href={saleHref}>Prepare for Sale</Link>
+        <div>{!saleFirst && <Link prefetch={false} href={saleHref}>Prepare for Sale</Link>}
           {work.canStartAsIsSale && <Link prefetch={false} href={`${saleHref}?mode=as-is`}>Start As-Is Sale</Link>}
         </div>
       </details>}

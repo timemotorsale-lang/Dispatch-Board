@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useId, useState } from "react";
 import { ArrowLeft, ArrowRight, Car, CheckCircle2, FileText } from "lucide-react";
 import type { VehicleJourneyModel } from "@/server/inventory-unit/journey-service";
-import { VehiclePricingWorkspace, type PricingModel } from "./vehicle-pricing-workspace";
+import { recordedSellingPrice, VehiclePricingWorkspace, type PricingModel } from "./vehicle-pricing-workspace";
 import { VehicleCostWorkspace, type VehicleCostModel } from "./vehicle-cost-workspace";
 import { VehicleIntakeWorkspace } from "./vehicle-intake-workspace";
 import type { VehicleIntakeModel } from "@/server/inventory-unit/intake-service";
@@ -23,14 +23,24 @@ export function FrontlinePreparationWorkspace({ journey, pricing, costs, documen
   const [tab, setTab] = useState<Tab>(initialTab);
   const [info, setInfo] = useState("Summary");
   const [gallery, setGallery] = useState(salesMedia);
+  const [intakeDirty, setIntakeDirty] = useState(false);
+  const [pricingDirty, setPricingDirty] = useState(false);
   const tabGroup = useId();
   const id = encodeURIComponent(journey.vehicle.id), vehicle = journey.vehicle;
   const photo = gallery?.items.find(item => item.contentType.startsWith("image/") && item.href);
   const ready = journey.frontline?.stage === "POST_RELEASE_VERIFICATION" && journey.frontline.operatingState === "COMPLETED";
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
   const status = journey.blocked ? "On hold" : ready ? "Frontline verified" : "Preparation required";
+  const reconHref = journey.canOpenRecon ? `/vehicles/${id}/inventory-planning` : undefined;
+  const allowReconNavigation = () => ((!intake || !intakeDirty) && (!journey.access.pricing || !pricingDirty)) ||
+    window.confirm("Leave Vehicle Details without saving your changes?");
+  const intakePrice = journey.intakePrice ?? undefined;
+  const proposal = pricing ? pricing.latest : journey.proposal;
+  const price = journey.access.pricing ? recordedSellingPrice(proposal, intakePrice, pricing?.intakePriceCents) : null;
+  const intakeRecorded = recordedSellingPrice(null, intakePrice, pricing?.intakePriceCents);
+  const separateIntakePrice = price && proposal && intakeRecorded.cents != null ? intakeRecorded : null;
   return <section className={styles.workspace}>
-    <header className={styles.header}><div><Link href="/vehicles/registry"><ArrowLeft size={16}/>Inventory vehicles</Link><h1>{title}</h1><span>Vehicle Details · {vehicle.stockNumber ?? vehicle.vehicleNumber} / {journey.unit?.inventoryNumber ?? "No inventory cycle"}</span></div><div className={styles.commands}><Link href={`/vehicles/${id}/intake`}>Acquisition &amp; Intake</Link><Link className={styles.primary} href={`/vehicles/inventory-to-frontline?vehicleId=${id}`}><CheckCircle2 size={16}/>Review release<ArrowRight size={16}/></Link><VehicleTools vehicleId={vehicle.id}/></div></header>
+    <header className={styles.header}><div><Link href="/vehicles/registry"><ArrowLeft size={16}/>Inventory vehicles</Link><h1>{title}</h1><span>Vehicle Details · {vehicle.stockNumber ?? vehicle.vehicleNumber} / {journey.unit?.inventoryNumber ?? "No inventory cycle"}</span></div><div className={styles.commands}><Link href={`/vehicles/${id}/intake`}>Acquisition &amp; Intake</Link><Link className={styles.primary} href={`/vehicles/inventory-to-frontline?vehicleId=${id}`}><CheckCircle2 size={16}/>Review release<ArrowRight size={16}/></Link><VehicleTools vehicleId={vehicle.id} reconHref={reconHref} allowReconNavigation={allowReconNavigation}/></div></header>
     <div className={styles.layout}>
       <aside className={styles.identity}>
         <div className={styles.photo}>{photo?.href ? <Image src={photo.href} alt={title} width={640} height={480} unoptimized/> : <Car size={56} aria-label="Vehicle photo not available"/>}</div>
@@ -52,7 +62,7 @@ export function FrontlinePreparationWorkspace({ journey, pricing, costs, documen
           <nav className={styles.subtabs} aria-label="Vehicle information sections">{["Summary", "General Info", "Pricing", "Description"].map(section => <button key={section} type="button" aria-pressed={info === section} onClick={() => setInfo(section)}>{section}</button>)}</nav>
           <div hidden={info !== "Summary"}>
           <div className={styles.overview}>
-            <section><h2>Price &amp; Investment</h2><dl><div><dt>Proposed price</dt><dd>{money(journey.proposal?.priceCents)}</dd></div><div><dt>Incurred costs</dt><dd>{money(journey.costs?.incurredCents)}</dd></div><div><dt>Separate estimates</dt><dd>{money(journey.costs?.estimatedCents)}</dd></div><div><dt>Price review</dt><dd>{journey.proposal ? journey.proposal.stale ? "Revision required" : "Proposal recorded" : "Not proposed"}</dd></div></dl>{journey.access.pricing ? <button type="button" onClick={() => setInfo("Pricing")}>Pricing review<ArrowRight size={16}/></button> : null}</section>
+            <section><h2>Price &amp; Investment</h2><dl>{price && <div><dt>{price.label}</dt><dd>{money(price.cents)}</dd></div>}{separateIntakePrice && <div><dt>{separateIntakePrice.label}</dt><dd>{money(separateIntakePrice.cents)}</dd></div>}<div><dt>Incurred costs</dt><dd>{money(journey.costs?.incurredCents)}</dd></div><div><dt>Separate estimates</dt><dd>{money(journey.costs?.estimatedCents)}</dd></div>{journey.access.pricing && <div><dt>Price review</dt><dd>{proposal ? (pricing?.stale ?? journey.proposal?.stale) ? "Revision required" : "Proposal recorded" : "No pricing proposal"}</dd></div>}</dl>{journey.access.pricing ? <button type="button" onClick={() => setInfo("Pricing")}>Pricing review<ArrowRight size={16}/></button> : null}</section>
             <section><h2>Readiness</h2><dl><div><dt>Release</dt><dd>{status}</dd></div><div><dt>Current workflow</dt><dd>{journey.frontline?.stage.replaceAll("_", " ") ?? "Not started"}</dd></div><div><dt>Next action</dt><dd>{journey.frontline?.nextAction ?? journey.unit?.nextAction ?? "Complete acquisition intake"}</dd></div></dl><button type="button" onClick={() => setTab("Release Review")}>Readiness review<ArrowRight size={16}/></button></section>
             <section><h2>Vehicle Condition</h2><p>{journey.intake?.handoff?.condition || "No confirmed intake condition recorded."}</p><dl><div><dt>Keys</dt><dd>{journey.intake?.handoff?.keys ?? "Not recorded"}</dd></div><div><dt>Pending items</dt><dd>{journey.intake?.pendingItems.join(", ") || "None recorded"}</dd></div></dl><Link href={`/vehicles/360/${id}`}>Specifications &amp; history<ArrowRight size={16}/></Link></section>
             <section><h2>Documents &amp; Media</h2><p>{mediaUnavailable ? "Document data is temporarily unavailable." : `${documents.length} linked files`}</p>{documents.slice(0, 4).map(item => <p key={item.id}>{item.href ? <a href={item.href}><FileText size={16}/>{item.name}</a> : item.name}</p>)}<button type="button" onClick={() => setTab("Media")}>Photos &amp; Videos<ArrowRight size={16}/></button></section>
@@ -60,7 +70,7 @@ export function FrontlinePreparationWorkspace({ journey, pricing, costs, documen
           <section className={styles.description}><h2>Intake Handoff</h2><p>{journey.intake?.handoff?.pendingNotes || "No additional handoff notes."}</p><p>{journey.intake?.handoff?.documents || "No confirmed document summary."}</p></section>
           </div>
           <section hidden={info !== "General Info"}><h2>General Info</h2><dl>{(recordContext?.specifications ?? []).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{!recordContext?.specifications.length ? <p>No decoded specifications available.</p> : null}<Link href={`/vehicles/360/${id}`}>Review vehicle identity &amp; specifications<ArrowRight size={16}/></Link></section>
-          <div hidden={info !== "Pricing"}>{journey.access.pricing ? <VehiclePricingWorkspace unit={pricing} vehicleId={vehicle.id} embedded/> : <p>Pricing permission is required.</p>}</div>
+          <div hidden={info !== "Pricing"}>{journey.access.pricing ? <VehiclePricingWorkspace unit={pricing} vehicleId={vehicle.id} intakePrice={intakePrice} onDirtyChange={setPricingDirty} embedded/> : <p>Pricing permission is required.</p>}</div>
           <section hidden={info !== "Description"}><h2>Recorded Condition &amp; Description</h2><p>{journey.intake?.handoff?.condition || "No confirmed condition description."}</p><Link href={`/vehicles/${id}/intake`}>Edit intake condition</Link></section>
         </div>
         {/* Keep forms mounted so switching sections does not discard unsaved edits. */}
@@ -70,9 +80,9 @@ export function FrontlinePreparationWorkspace({ journey, pricing, costs, documen
         <div role="tabpanel" id={`${tabGroup}-panel-1`} aria-labelledby={`${tabGroup}-tab-1`} hidden={tab !== "Marketing"} tabIndex={0}><section><h2>Active Exports &amp; Publishing</h2><dl><div><dt>Current workflow</dt><dd>{journey.frontline?.stage.replaceAll("_", " ") ?? "Not started"}</dd></div><div><dt>Release status</dt><dd>{status}</dd></div></dl><p>External listing connectors are disabled. No external publication has been confirmed by this screen.</p><Link href={`/vehicles/inventory-to-frontline?vehicleId=${id}`}>Open merchandising &amp; publishing review<ArrowRight size={16}/></Link></section></div>
         <div role="tabpanel" id={`${tabGroup}-panel-2`} aria-labelledby={`${tabGroup}-tab-2`} hidden={tab !== "Media"} tabIndex={0}><VehicleSalesMediaWorkspace vehicleId={vehicle.id} initialModel={salesMedia} initialKind={initialMediaKind} onChange={setGallery}/></div>
         <div role="tabpanel" id={`${tabGroup}-panel-3`} aria-labelledby={`${tabGroup}-tab-3`} hidden={tab !== "Market Data"} tabIndex={0}><section><h2>Market Data &amp; Appraisal</h2><p>External valuation subscriptions are not connected.</p><Link href={`/vehicles/acquisition-appraisal?vehicleId=${id}`}>Open recorded appraisal<ArrowRight size={16}/></Link><p><Link href={`/vehicles/${id}/sale?mode=as-is`}>Review as-is disposition</Link></p></section></div>
-        <div role="tabpanel" id={`${tabGroup}-panel-4`} aria-labelledby={`${tabGroup}-tab-4`} hidden={tab !== "Purchase Info"} tabIndex={0}>{intake ? <VehicleIntakeWorkspace model={intake} costs={costs} embedded/> : <section><h2>Purchase Info</h2><p>Acquisition intake access is required, or the record is temporarily unavailable.</p><Link href={`/vehicles/${id}/intake`}>Open acquisition intake</Link></section>}</div>
+        <div role="tabpanel" id={`${tabGroup}-panel-4`} aria-labelledby={`${tabGroup}-tab-4`} hidden={tab !== "Purchase Info"} tabIndex={0}>{intake ? <VehicleIntakeWorkspace model={intake} costs={costs} onDirtyChange={setIntakeDirty} embedded/> : <section><h2>Purchase Info</h2><p>Acquisition intake access is required, or the record is temporarily unavailable.</p><Link href={`/vehicles/${id}/intake`}>Open acquisition intake</Link></section>}</div>
         <div role="tabpanel" id={`${tabGroup}-panel-5`} aria-labelledby={`${tabGroup}-tab-5`} hidden={tab !== "Activities"} tabIndex={0}><section><h2>Current Activities</h2><div className={styles.checklist}>{journey.steps.map(step => <div key={step.id}><strong>{step.label}</strong><span>{step.status}</span>{step.href ? <Link href={step.href}>Open<ArrowRight size={16}/></Link> : null}</div>)}</div></section></div>
-        <div role="tabpanel" id={`${tabGroup}-panel-8`} aria-labelledby={`${tabGroup}-tab-8`} hidden={tab !== "Recon"} tabIndex={0}><section><h2>Recon &amp; Repair</h2><p>{journey.unit?.nextAction ?? "No current recon action recorded."}</p>{journey.access.repair ? <Link href={`/vehicles/${id}/inventory-planning`}>Open recon planning &amp; repair orders<ArrowRight size={16}/></Link> : <p>Repair access is required.</p>}</section></div>
+        <div role="tabpanel" id={`${tabGroup}-panel-8`} aria-labelledby={`${tabGroup}-tab-8`} hidden={tab !== "Recon"} tabIndex={0}><section><h2>Recon &amp; Repair</h2><p>{journey.unit?.nextAction ?? "No current recon action recorded."}</p>{reconHref ? <Link href={reconHref} onNavigate={event => { if (!allowReconNavigation()) event.preventDefault(); }}>Open recon planning &amp; repair orders<ArrowRight size={16}/></Link> : <p>Recon access is required.</p>}</section></div>
         <div role="tabpanel" id={`${tabGroup}-panel-9`} aria-labelledby={`${tabGroup}-tab-9`} hidden={tab !== "Logs"} tabIndex={0}><VehicleLogs context={recordContext}/></div>
       </div>
       </div>

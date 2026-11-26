@@ -76,3 +76,10 @@
   background: #fff3f2;
   font-size: .84rem;
 }
+
+.intakeDraftFeedback { flex: 0 0 100%; margin: 0; font-size: .84rem; color: var(--sic-ink); }
+:global(.sic-reference-v2 .sic-footer) > button.intakeSaveDraft {
+  color: var(--sic-ink);
+  background: var(--sic-soft);
+  border: 1px solid var(--sic-line);
+}

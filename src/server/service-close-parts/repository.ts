@@ -112,7 +112,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
                 acquisitionAppraisals: {
                   orderBy: { version: "desc" },
                   take: 1,
-                  select: { decisionStatus: true, estimatedReconCents: true, estimatedRetailCents: true }
+                  select: { conditionSummary: true, decisionStatus: true, estimatedReconCents: true, estimatedRetailCents: true }
                 },
                 acquisitionCase: {
                   select: { appraisalSnapshot: true }

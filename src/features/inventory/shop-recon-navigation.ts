@@ -6,7 +6,7 @@ function normalizeReturnTo(returnTo?: string) {
 
 export function getShopReconStageHref(
   repairOrderId: string,
-  stage: ShopReconStageCode | number,
+  stage: ShopReconStageCode | number | undefined,
   returnTo?: string,
   focused = false,
 ) {

@@ -3,19 +3,20 @@
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useId, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-revision";
-import { emptyManualLaborReview, estimateReviewScope } from "@/lib/estimate-review";
+import { emptyManualLaborReview, estimateReviewScope, manualReviewComplete } from "@/lib/estimate-review";
 import { estimateControlsScope, initialEstimatePricing, type EstimateControls } from "@/lib/labor-guide-controls";
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { laborOperationForLineKey } from "@/lib/labor-catalog-selection";
 import { EstimateControlsPanel } from "@/features/diagnostics/estimate-controls-panel";
+import { EstimateWorkflowNextStep } from "./estimate-workflow-next-step";
 import { EstimatePriceCorrection } from "./estimate-price-correction";
 import styles from "./shop-planning-workspace.module.css";
 import { notifyRepairReviewSaved, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 
-type Line = { key: string; type: "LABOR" | "PART" | "FEE"; description: string; quantity: number; unitPriceCents: number; taxable: boolean; workTypeCode: string; laborGuideMinutes: number; plannedCorrection: string };
+type Line = { partNumber?: string; laborLineKey?: string; key: string; type: "LABOR" | "PART" | "FEE"; description: string; quantity: number; unitPriceCents: number; taxable: boolean; workTypeCode: string; laborGuideMinutes: number; plannedCorrection: string };
 type AdvisorUpdate = { id: string; version: number; statusCode: string; promiseAt: string | null; contactChannel: string; contactDirection: string; contactOutcome: string; customerVisibleSummary: string; internalNotes: string | null; nextContactAt: string | null; occurredAt: string; authorUser: { name: string } };
 type RepairVendorWork = {
   approvalStatus: string;
@@ -77,6 +78,8 @@ type ReleaseJobDraft = {
   workTypeCode: string;
 };
 type EstimateDraft = {
+  partNumber?: string;
+  laborLineKey?: string;
   lineKey: string;
   lineType: "LABOR" | "PART" | "FEE";
   description: string;
@@ -107,6 +110,19 @@ type ClearanceItem = {
 
 const local = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const daysAfter = (value: string | Date, days: number) => local(new Date(new Date(value).getTime() + days * 86_400_000).toISOString());
+function pendingEstimateLine(draft: EstimateDraft, defaultKey: string): Line | null {
+  const description = draft.description.trim();
+  const plannedCorrection = draft.plannedCorrection.trim() || (draft.lineType !== "LABOR" ? description : "");
+  if (!description || !plannedCorrection) return null;
+  return {
+    key: draft.lineKey.trim() || defaultKey, type: draft.lineType, description, plannedCorrection,
+    quantity: draft.quantity, unitPriceCents: draft.unitPriceCents, taxable: draft.taxable,
+    workTypeCode: draft.workTypeCode, laborGuideMinutes: draft.lineType === "LABOR" ? draft.laborGuideMinutes : 0,
+    ...(draft.lineType === "PART" && draft.partNumber?.trim() ? { partNumber: draft.partNumber.trim() } : {}),
+    ...(draft.lineType === "PART" && draft.laborLineKey ? { laborLineKey: draft.laborLineKey } : {}),
+  };
+}
+
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 const format = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const readableDateTime = (value: string | Date) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -234,7 +250,7 @@ const inspectionClearanceSeed: ClearanceItem[] = [
   { detail: "Extra customer concern, cosmetic note, or optional shop observation.", key: "OPTIONAL_NOTE", label: "Optional note", proof: "", required: false, result: "NOT_APPLICABLE", status: "OPTIONAL" },
 ];
 
-export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false, defaultLaborRate = 125, canOverrideLaborRate = false, reviewOrderId, focusStep, repairOnly = false, guidedPath, compactStage = false }: { initial: Model; reviewOrderId?: string; focusStep?: number; repairOnly?: boolean; returnTo?: string; vendorFollowUp?: boolean; defaultLaborRate?: number; canOverrideLaborRate?: boolean; guidedPath?: RepairPath; compactStage?: boolean }) {
+export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false, defaultLaborRate = 125, canOverrideLaborRate = false, reviewOrderId, focusStep, repairOnly = false, guidedPath, compactStage = false, estimateNextHref }: { estimateNextHref?: string; initial: Model; reviewOrderId?: string; focusStep?: number; repairOnly?: boolean; returnTo?: string; vendorFollowUp?: boolean; defaultLaborRate?: number; canOverrideLaborRate?: boolean; guidedPath?: RepairPath; compactStage?: boolean }) {
   const router = useRouter();
   const [model, setModel] = useState(initial);
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
@@ -261,6 +277,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const [estimate, setEstimate] = useState<EstimateDraft>(createEstimateDraft(defaultPresentedAt, defaultExpiresAt));
   const [estimateLines, setEstimateLines] = useState<Line[]>([]);
   const [manualLaborReview, setManualLaborReview] = useState({ ...emptyManualLaborReview });
+  const laborReviewDetails = useRef<HTMLDetailsElement>(null);
+  const laborReviewId = useId();
+  const estimateLineDetails = useRef<HTMLDetailsElement>(null);
+  const estimateSavedPanel = useRef<HTMLDivElement>(null);
+  const [savedEstimateId, setSavedEstimateId] = useState<string | null>(null);
   const [estimateControls, setEstimateControls] = useState<EstimateControls>({ version: 1, pricing: { ...initialEstimatePricing, laborRate: defaultLaborRate }, fitment: {}, overlapResolution: "", reviewedScope: "" });
   const [editingStep, setEditingStep] = useState<number | null>(null);
   const cancelDraftEdits = useRef<(() => void) | null>(null);
@@ -289,6 +310,13 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : summaryCardHref;
   const currentStep = activeStep(selected);
   const latestEstimate = selected?.estimateVersions[0];
+  const pendingLine = pendingEstimateLine(estimate, "LINE-1");
+  const reviewLines = estimateLines.length ? estimateLines : pendingLine ? [pendingLine] : [];
+  const draftSubtotal = reviewLines.reduce((total, line) => total + line.unitPriceCents * line.quantity, 0);
+  const estimateTotal = draftSubtotal + estimate.taxCents - estimate.discountCents;
+  const hasLaborReview = reviewLines.some(line => line.type === "LABOR");
+  const reviewScope = selected ? estimateReviewScope(selected.vehicle.id, reviewLines) : "";
+  const laborReviewed = hasLaborReview && manualReviewComplete(manualLaborReview, reviewScope);
   const latestDiagnosis = selected?.diagnosisVersions[0];
   const latestDecision = latestEstimate?.authorizations[0];
   const accepted = latestEstimate && latestDecision && ["ACCEPTED", "PARTIAL"].includes(latestDecision.disposition) ? { ...latestDecision, estimate: latestEstimate } : undefined;
@@ -584,27 +612,15 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   }
 
   function saveEstimateLine() {
-    const description = estimate.description.trim();
-    const plannedCorrection = estimate.plannedCorrection.trim();
-    if (!description || !plannedCorrection) {
-      setNotice("Add a short description and what should be done before saving the estimate line.");
+    const nextLine = pendingEstimateLine(estimate, nextEstimateLineKey());
+    if (!nextLine) {
+      setNotice(estimate.lineType === "LABOR" ? "Enter a description and what should be done for the labor line." : "Enter a description for this line.");
       return;
     }
-    if (estimate.quantity <= 0) {
-      setNotice("Quantity must be greater than zero.");
+    if (!Number.isInteger(nextLine.quantity) || nextLine.quantity <= 0 || !Number.isInteger(nextLine.unitPriceCents) || nextLine.unitPriceCents < 0) {
+      setNotice("Enter a positive whole quantity and a valid price.");
       return;
     }
-    const nextLine: Line = {
-      key: estimate.lineKey.trim() || nextEstimateLineKey(),
-      type: estimate.lineType,
-      description,
-      quantity: estimate.quantity,
-      unitPriceCents: estimate.unitPriceCents,
-      taxable: estimate.taxable,
-      workTypeCode: estimate.workTypeCode,
-      laborGuideMinutes: estimate.laborGuideMinutes,
-      plannedCorrection,
-    };
     setEstimateLines((value) => {
       const existingIndex = value.findIndex((line) => line.key === nextLine.key);
       if (existingIndex >= 0) {
@@ -623,6 +639,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       ...value,
       lineKey: line.key,
       lineType: line.type,
+      partNumber: line.partNumber,
+      laborLineKey: line.laborLineKey,
       description: line.description,
       quantity: line.quantity,
       unitPriceCents: line.unitPriceCents,
@@ -755,13 +773,21 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setNotice(`${option.title} loaded into the estimate line. Review it, edit anything needed, then save the line.`);
   }
 
+  function focusEstimateDetails(details: HTMLDetailsElement | null) {
+    if (!details) return;
+    details.open = true;
+    details.scrollIntoView({ block: "center" });
+    details.querySelector("summary")?.focus({ preventScroll: true });
+  }
+
   async function submitEstimate(correctedLines?: Line[]) {
     if (revisionSource && !revisionReason.trim()) {
       setNotice("Enter the reason for revising this estimate before saving.");
       return;
     }
     if (!correctedLines && estimateLines.length && (estimate.description.trim() || estimate.plannedCorrection.trim())) {
-      setNotice("Save your line changes with Update line or Add line to estimate before presenting this version.");
+      setNotice("Use Update line or Add line to estimate to keep the changes you are editing, then present the estimate.");
+      focusEstimateDetails(estimateLineDetails.current);
       return;
     }
     const now = new Date();
@@ -776,24 +802,26 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice("The estimate expiration had already passed. Presented and Expires were updated to a seven-day window. Review them, then select Present estimate version again.");
       return;
     }
-    const currentDraftReady = estimate.description.trim() && estimate.plannedCorrection.trim();
-    const lineItems = correctedLines ?? (estimateLines.length
-      ? estimateLines
-      : currentDraftReady
-        ? [{
-          key: estimate.lineKey.trim() || "LINE-1",
-          type: estimate.lineType,
-          description: estimate.description.trim(),
-          quantity: estimate.quantity,
-          unitPriceCents: estimate.unitPriceCents,
-          taxable: estimate.taxable,
-          workTypeCode: estimate.workTypeCode,
-          laborGuideMinutes: estimate.laborGuideMinutes,
-          plannedCorrection: estimate.plannedCorrection.trim()
-        }]
-        : []);
+    const lineItems = correctedLines ?? reviewLines;
     if (!lineItems.length) {
       setNotice("Add at least one estimate line before presenting the estimate.");
+      focusEstimateDetails(estimateLineDetails.current);
+      return;
+    }
+    const partWithoutLabor = lineItems.find(line => line.laborLineKey &&
+      !lineItems.some(labor => labor.type === "LABOR" && labor.key === line.laborLineKey));
+    if (partWithoutLabor) {
+      if (!correctedLines) {
+        editEstimateLine(partWithoutLabor);
+        focusEstimateDetails(estimateLineDetails.current);
+      }
+      setNotice(`Review the labor link for ${partWithoutLabor.description}. Choose a current labor line or clear the link before presenting.`);
+      return;
+    }
+    if (!correctedLines && selected && lineItems.some(line => line.type === "LABOR") &&
+        !manualReviewComplete(manualLaborReview, estimateReviewScope(selected.vehicle.id, lineItems))) {
+      setNotice("Before presenting, enter the engine, configuration and labor source, then confirm the review for these lines.");
+      focusEstimateDetails(laborReviewDetails.current);
       return;
     }
     const usesCatalog = lineItems.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()));
@@ -803,8 +831,13 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       resetEstimateDraft("LINE-1");
       setRevisionSource(null); setRevisionReason(""); setRevisionNotes(""); setRevisionOptions(null);
       setAuthorization(value => ({ ...value, estimateVersionId: "", authorizedLineKeys: "", decisionActorName: "", decisionActorReference: "", decidedAt: local(new Date().toISOString()) }));
-      setNotice("New estimate version saved. Review it and record a new authorization decision; previous approvals do not transfer.");
-      window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-4"), 0);
+      setNotice("Estimate saved. Authorization is a separate step.");
+      if (focusStep === 3 && estimateNextHref && saved.result?.id) {
+        setSavedEstimateId(saved.result.id);
+        requestAnimationFrame(() => estimateSavedPanel.current?.focus());
+      } else {
+        window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-4"), 0);
+      }
     }
   }
 
@@ -894,10 +927,14 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         body: JSON.stringify({ action, ...value, expectedVersion: selected.version, idempotencyKey: crypto.randomUUID(), reason })
       }) as { result?: { id?: string; jobNumber?: string; message?: string } };
       setNotice(result?.result?.message ?? reason);
-      await refresh();
+      try { await refresh(); }
+      catch (error) {
+        if (action !== "PRESENT_ESTIMATE" || !result.result?.id) throw error;
+        // The server already returned the saved estimate. Do not invite a second submission.
+      }
       cancelDraftEdits.current = null;
       setEditingStep(null);
-      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId, action === "PRESENT_ESTIMATE" && focusStep === 3 ? "estimate" : undefined);
       return result;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop planning request failed.");
@@ -1361,57 +1398,75 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 </div>
               </div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
-              {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}>{directPath || vendorNeedsInternalCompletion ? <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button> : null}<Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
-              <details className={styles.estimateEntryCard} aria-label="Add work to estimate">
-                <summary>Estimate line details</summary>
+              {!vendorPath && focusStep !== 3 ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}>{directPath || vendorNeedsInternalCompletion ? <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button> : null}<Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
+              <details open={focusStep === 3 || undefined} ref={estimateLineDetails} className={styles.estimateEntryCard} aria-label="Add work to estimate">
+                <summary>{focusStep === 3 ? "Estimate line · labor, part or fee" : "Estimate line details"}</summary>
                 <header>
                   <span>Add work to estimate</span>
-                  <h3>Describe the work, confirm time and price, then add the line.</h3>
+                  <h3>{focusStep === 3 ? "Enter the work or charge, then add the line." : "Describe the work, confirm time and price, then add the line."}</h3>
                 </header>
                 <div className={styles.estimateEntryGrid}>
                   <Field label="Work type">
-                    <select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{format(value)}</option>)}</select>
+                    <select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value} value={value}>{format(value)}</option>)}</select>
                   </Field>
                   <Field label="Quantity">
                     <input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} />
                   </Field>
-                  <Field label="Labor time">
+                  {estimate.lineType === "LABOR" && <Field label="Labor minutes">
                     <input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} />
-                  </Field>
-                  <Field label="Price">
-                    <input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} />
+                  </Field>}
+                  <Field label="Unit price ($)">
+                    <input min="0" step="0.01" inputMode="decimal" type="number" value={estimate.unitPriceCents / 100} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Math.round(Number(event.target.value) * 100) }))} />
                   </Field>
                   <Field label="What is being added?" wide>
                     <input placeholder="Example: R & R brake vacuum pump" required={!estimateLines.length} value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} />
                   </Field>
-                  <Field label="What should be done?" wide>
+                  {estimate.lineType === "LABOR" && <Field label="What should be done?" wide>
                     <input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required={!estimateLines.length} value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} />
-                  </Field>
+                  </Field>}
+                  {estimate.lineType === "PART" && <>
+                    <Field label="Part number (optional)"><input maxLength={100} value={estimate.partNumber ?? ""} onChange={event => setEstimate(value => ({ ...value, partNumber: event.target.value }))} /></Field>
+                    {estimateLines.some(line => line.type === "LABOR") && <Field label="For labor line (optional)">
+                      <select value={estimate.laborLineKey ?? ""} onChange={event => setEstimate(value => ({ ...value, laborLineKey: event.target.value }))}>
+                        <option value="">Choose a labor line</option>
+                        {estimateLines.filter(line => line.type === "LABOR").map(line => <option key={line.key} value={line.key}>{line.description}</option>)}
+                      </select>
+                    </Field>}
+                  </>}
                 </div>
                 <details className={styles.advancedDetails}>
-                  <summary>Advanced defaults</summary>
+                  <summary>Pricing and estimate terms</summary>
                   <FormGrid>
                     <Field label="Line key"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field>
                     <Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field>
-                    <Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field>
-                    <Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field>
+                    <Field label="Tax ($)"><input min="0" step="0.01" type="number" value={estimate.taxCents / 100} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Math.round(Number(event.target.value) * 100) }))} /></Field>
+                    <Field label="Discount ($)"><input min="0" step="0.01" type="number" value={estimate.discountCents / 100} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Math.round(Number(event.target.value) * 100) }))} /></Field>
                     <Field label="Presented"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field>
                     <Field label="Expires"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field>
                   </FormGrid>
                 </details>
                 {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
               </details>
-              {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
-              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}>
+              {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} in this draft</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
+              {reviewLines.length > 0 && <p className={styles.estimateTotals} aria-label="Estimate draft total">
+                <span>Subtotal {money(draftSubtotal)}</span><span>Tax {money(estimate.taxCents)}</span><span>Discount {money(estimate.discountCents)}</span><strong>Total {money(estimateTotal)}</strong>
+              </p>}
+              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date|before presenting/i.test(displayNotice) ? styles.danger : ""}`}>
                 <p>{displayNotice}</p>
                 {directPath && displayNotice.includes("Save the bodywork repair scope first") ? <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget("#repair-planning-step-2")} type="button">Open bodywork scope<ChevronRight /></button> : null}
               </div> : null}
-              <details><summary>Labor source and applicability review (required for labor)</summary>
+              {hasLaborReview && <details ref={laborReviewDetails} id={laborReviewId}><summary>{laborReviewed ? "Labor review complete" : "Labor review details"}</summary>
                 {([ ["engine", "Engine / powertrain"], ["configuration", "Configuration / relevant options"], ["source", "Labor-hour and applicability source"], ["limitations", "Limitations / assumptions"] ] as const).map(([key, label]) => <Field key={key} label={label}><input maxLength={2000} value={manualLaborReview[key]} onChange={event => setManualLaborReview({ ...manualLaborReview, [key]: event.target.value, scope: "" })} /></Field>)}
-                <label><input type="checkbox" checked={manualLaborReview.scope === estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }])} onChange={event => setManualLaborReview({ ...manualLaborReview, scope: event.target.checked ? estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }]) : "" })} />I reviewed this vehicle and exact work. This is not OEM verification.</label>
-              </details>
+                <label><input type="checkbox" checked={Boolean(reviewScope && manualLaborReview.scope === reviewScope)} onChange={event => setManualLaborReview({ ...manualLaborReview, scope: event.target.checked ? reviewScope : "" })} />I reviewed this vehicle and exact work. This is not OEM verification.</label>
+              </details>}
               {estimateLines.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy())) && <EstimateControlsPanel controls={estimateControls} scope={estimateControlsScope(selected.vehicle.id, estimateLines, estimateControls)} labor={estimateLines.flatMap(line => { const operation = laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()); return operation ? [operation] : []; })} parts={estimateLines.filter(line => line.type === "PART").map(line => ({ key: line.key, label: line.description }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={defaultLaborRate} />}
-              <Submit busy={busy}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>
+              {hasLaborReview && !laborReviewed ? <footer className={styles.submit}>
+                <span>Review labor for this vehicle before presenting the estimate.</span>
+                <button type="button" disabled={busy} aria-controls={laborReviewId} onClick={() => focusEstimateDetails(laborReviewDetails.current)}>Complete labor review</button>
+              </footer> : <Submit busy={busy} disabled={Boolean(savedEstimateId && !reviewLines.length)}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>}
+              {focusStep === 3 && estimateNextHref && !estimateLines.length && !estimate.description.trim() && !estimate.plannedCorrection.trim() && (savedEstimateId || latestEstimate?.id) && <div ref={estimateSavedPanel} tabIndex={-1}>
+                <EstimateWorkflowNextStep repairOrderId={selected.id} estimateId={savedEstimateId ?? latestEstimate!.id} nextHref={estimateNextHref} reviewWorkflow />
+              </div>}
             </form>
           </WorkflowStep>}
 

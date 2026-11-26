@@ -3,7 +3,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { evaluateTitlePreparationBinding, normalizeTitlePreparationStart, normalizeTitlePreparationUpdate, TITLE_PREPARATION_CHECKS, TITLE_PREPARATION_OPERATION, TITLE_PREPARATION_POLICY_VERSION } from "./parallel-title-preparation-domain";
 import { createTitlePreparationRepository } from "./parallel-title-preparation-repository";
@@ -19,19 +19,21 @@ async function authorize(actor: AuthenticatedUser | null, locationId: string, ma
 function operationCommand(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string }) {
   return normalizeEnterpriseCommand({ ...input, domain: "SHOP_RECON", locationId: null, subjectType: "SHOP_RECON_PARALLEL_OPERATION" });
 }
-function view(context: Awaited<ReturnType<Repository["getContext"]>>, actor: AuthenticatedUser) {
+function view(context: Awaited<ReturnType<Repository["getContext"]>>, actor: AuthenticatedUser, canManage: boolean) {
   if (!context) return null;
   const operation = context.shopReconLifecycle?.parallelOperations[0] ?? null;
-  if (!operation) return { eligible: context.origin === "INVENTORY_RECON", lifecycleInitialized: Boolean(context.shopReconLifecycle), operation: null, policyVersion: TITLE_PREPARATION_POLICY_VERSION };
+  if (!operation) return { eligible: context.origin === "INVENTORY_RECON", canEdit: canManage, lifecycleInitialized: Boolean(context.shopReconLifecycle), operation: null, policyVersion: TITLE_PREPARATION_POLICY_VERSION };
   const binding = evaluateTitlePreparationBinding({ operation, current: { inventoryUnitId: context.inventoryUnit?.id ?? null, scopeVersion: context.shopReconLifecycle!.scopeVersion, vin: context.vehicle.vin, vehicleId: context.vehicle.id, workLane: context.origin } });
-  return { eligible: context.origin === "INVENTORY_RECON", lifecycleInitialized: true, operation: { ...operation, ownerName: operation.ownerUserId === actor.id ? actor.name : "Assigned preparation owner", checklist: operation.checklist, evidenceReferences: operation.evidenceReferences, binding }, policyVersion: TITLE_PREPARATION_POLICY_VERSION };
+  return { eligible: context.origin === "INVENTORY_RECON", canEdit: canManage && (operation.ownerUserId === actor.id || isManager(actor)), lifecycleInitialized: true, operation: { ...operation, ownerName: operation.ownerUserId === actor.id ? actor.name : "Assigned preparation owner", checklist: operation.checklist, evidenceReferences: operation.evidenceReferences, binding }, policyVersion: TITLE_PREPARATION_POLICY_VERSION };
 }
 
 export async function getTitlePreparation(actor: AuthenticatedUser | null, repairOrderId: string, input: Dependencies = {}) {
   const context = deps(input), order = await context.repository.getContext(context.organizationId, repairOrderId.trim());
   if (!order) throw new Error("Repair order was not found.");
   const user = await authorize(actor, order.locationId, false, context);
-  return view(order, user);
+  const grants = await context.foundationRepository.listCapabilityGrants(user.id, context.organizationId);
+  const canManage = evaluateVehicleCapability({ actor: user, capability: "REPAIR_ORDER_MANAGE", locationId: order.locationId, grants, now: context.now() }).allowed;
+  return view(order, user, canManage);
 }
 
 export async function startTitlePreparation(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, input: Dependencies = {}) {

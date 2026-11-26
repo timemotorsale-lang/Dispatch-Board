@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import type { VehicleRegistryRepository } from "@/server/vehicle-registry/repository";
-import { correctRegistryVehicleColor, createRegistryVehicle, getVehicleRegistryCreateOptions, listVehicleRegistry } from "@/server/vehicle-registry/service";
+import { correctRegistryVehicleColor, createRegistryVehicle, getVehicleRegistryCreateOptions, getVehicleRegistryToolAccess, listVehicleRegistry, previewVehicleRegistryImport } from "@/server/vehicle-registry/service";
 
 const manager: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.com", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
 function foundation(): EnterpriseCommandRepository { return { listCapabilityGrants: vi.fn().mockResolvedValue([]), listFeatureFlags: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository; }
@@ -47,5 +47,20 @@ describe("vehicle registry service", () => {
 
   it("blocks mutations while the registry rollout is off", async () => {
     await expect(createRegistryVehicle(manager, { vehicleNumber: "TMS-1", vin: "1HGCM82633A004352", reason: "Create canonical registry identity.", idempotencyKey: "create-1" }, { organizationId: "org-1", repository: {} as VehicleRegistryRepository, foundationRepository: foundation() })).rejects.toThrow("not enabled");
+  });
+
+  it("matches secondary tools to staff capabilities and registry rollout", async () => {
+    const repository = { getCreateOptions: vi.fn().mockResolvedValue([{ id: "loc-1" }]) } as unknown as VehicleRegistryRepository;
+    const dependencies = { repository, foundationRepository: foundation() };
+    expect(await getVehicleRegistryToolAccess(manager, dependencies)).toMatchObject({ add: false, serviceLocations: [{ id: "loc-1" }], createIdentity: false, correctIdentity: false, resolveDuplicates: false, importCsv: false, importDocuments: false, export: true });
+    expect(await getVehicleRegistryToolAccess(manager, { ...dependencies, enforceRollout: false })).toMatchObject({ add: true, createIdentity: true, correctIdentity: true, resolveDuplicates: true, importCsv: true, export: true });
+    expect(Object.values(await getVehicleRegistryToolAccess({ ...manager, roles: ["Parts Specialist"] }, { ...dependencies, enforceRollout: false }))).not.toContain(true);
+  });
+
+  it("does not reuse a different VIN on the basis of a derived stock match", async () => {
+    const findPotentialDuplicate = vi.fn().mockResolvedValue(null);
+    const repository = { findPotentialDuplicate } as unknown as VehicleRegistryRepository;
+    await previewVehicleRegistryImport(manager, { rows: [{ vin: "1HGCM82633A004352", vehicleNumber: "PREVIEW", reason: "Check VIN", idempotencyKey: "preview" }] }, { repository, foundationRepository: foundation() }, true);
+    expect(findPotentialDuplicate).toHaveBeenCalledWith(expect.any(String), { vin: "1HGCM82633A004352", stockNumberNormalized: null });
   });
 });

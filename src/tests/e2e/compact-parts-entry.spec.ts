@@ -84,7 +84,7 @@ test("needed save retains failed input and rapid retry creates exactly one deman
     if (route.request().method() === "POST" && failures++ === 0) return route.fulfill({ status: 503, json: { error: "Synthetic temporary parts outage" } });
     await route.continue();
   });
-  await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+  await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue(`${partsOrder.tag} connector`);
   await expect(entry.getByLabel("Qty", { exact: true })).toHaveValue("2");
   expect(await prisma.repairPartDemand.count({ where: { repairOrderId: partsOrder.ro.id } })).toBe(0);
@@ -121,7 +121,7 @@ for (const scenario of ["received", "approval", "lost-receipt-response"] as cons
       receiptResponseLost = true;
       await route.fulfill({ status: 503, json: { error: "Synthetic connection lost after committed receipt" } });
     });
-    await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+    await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
     if (loseReceiptResponse) {
       await expect(entry.getByRole("button", { name: "Retry save", exact: true })).toBeVisible({ timeout: 60_000 });
       const committedReceipts = await prisma.partReceipt.findMany({ where: { purchaseOrder: { requisition: { demand: { repairOrderId: partsOrder.ro.id } } } }, orderBy: { id: "asc" } });
@@ -140,7 +140,7 @@ for (const scenario of ["received", "approval", "lost-receipt-response"] as cons
       expect(po.status).toBe("DRAFT");
       expect(await prisma.partReceipt.count({ where: { purchaseOrderId: po.id } })).toBe(0);
       await expect(entry.getByLabel("Part", { exact: true })).toHaveValue(`${partsOrder.tag} purchased connector`);
-      await expect(entry.getByRole("button", { name: "Save parts entry", exact: true })).toBeDisabled();
+      await expect(entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ })).toBeDisabled();
     } else {
       await expect.poll(() => prisma.partReceipt.count({ where: { purchaseOrderId: po.id } }), { timeout: 45_000 }).toBe(1);
       const receipt = await prisma.partReceipt.findFirstOrThrow({ where: { purchaseOrderId: po.id } });
@@ -182,7 +182,7 @@ test("needed part becomes purchase then exact partial receipts without re-enteri
   const entry = await openEntry(page, partsOrder.ro.id);
   await entry.getByLabel("Part", { exact: true }).fill(`${partsOrder.tag} continuity connector`);
   await entry.getByLabel("Qty", { exact: true }).fill("2");
-  await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+  await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("");
   const demand = await prisma.repairPartDemand.findFirstOrThrow({ where: { repairOrderId: partsOrder.ro.id } });
   await entry.getByRole("combobox", { name: /^Entry type/ }).selectOption("needed");
@@ -191,7 +191,7 @@ test("needed part becomes purchase then exact partial receipts without re-enteri
   await entry.getByLabel("Vendor / from where", { exact: true }).fill("SYNTHETIC continuity vendor");
   await entry.getByLabel("Purchased on", { exact: true }).fill("2026-11-14");
   await entry.getByLabel("Unit price ($)", { exact: true }).fill("12.50");
-  await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+  await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("");
   expect(await prisma.repairPartDemand.count({ where: { repairOrderId: partsOrder.ro.id } })).toBe(1);
   const po = await prisma.partPurchaseOrder.findFirstOrThrow({ where: { requisition: { demandId: demand.id } } });
@@ -208,7 +208,7 @@ test("needed part becomes purchase then exact partial receipts without re-enteri
     await entry.getByLabel("Received on", { exact: true }).fill("2026-11-14");
     await entry.getByRole("combobox", { name: /^Receiving bin/ }).selectOption(partsOrder.bin.id);
     await entry.getByLabel("Packing reference", { exact: true }).fill(`${partsOrder.tag}-partial-${remaining}`);
-    await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+    await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
     await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("");
   }
   expect(await prisma.partPurchaseOrder.count({ where: { requisition: { demandId: demand.id } } })).toBe(1);
@@ -238,7 +238,7 @@ test("existing multi-line PO receives exact selected line and preserves other re
   await entry.getByLabel("Received on", { exact: true }).fill("2026-11-14");
   await entry.getByRole("combobox", { name: /^Receiving bin/ }).selectOption(partsOrder.bin.id);
   await entry.getByLabel("Packing reference", { exact: true }).fill(`${partsOrder.tag}-B-only`);
-  await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
+  await entry.getByRole("button", { name: /^(Save needed part|Record purchase|Record receipt|Record purchase & receipt)$/ }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("");
   const receipts = await prisma.partReceipt.findMany({ where: { purchaseOrderId: po.id } });
   expect(receipts).toHaveLength(1);

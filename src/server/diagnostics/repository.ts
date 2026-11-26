@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
+import { repairOrderAttachmentSubject } from "@/lib/repair-order-attachments";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { DiagnosticCaseDuplicateError, isTerminalDiagnosticStatus, nextDiagnosticCaseState, type DiagnosticCaseStatus, type DiagnosticRiskTier } from "./domain";
@@ -263,7 +264,7 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
 
     async getEvidenceContext(organizationId, evidenceObjectId) {
       const evidence = await database.vehicleEvidenceObject.findFirst({
-        where: { id: evidenceObjectId, organizationId },
+        where: { id: evidenceObjectId, organizationId, links: { none: { subjectType: repairOrderAttachmentSubject } } },
         select: { accessLevel: true, id: true, malwareStatus: true, status: true, links: { select: { vehicleId: true } } }
       });
       return evidence ? { accessLevel: evidence.accessLevel, id: evidence.id, malwareStatus: evidence.malwareStatus, status: evidence.status, vehicleIds: [...new Set(evidence.links.map((item) => item.vehicleId))] } : null;
@@ -271,7 +272,7 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
 
     listEvidenceCandidates(organizationId, vehicleId) {
       return database.vehicleEvidenceObject.findMany({
-        where: { organizationId, links: { some: { organizationId, vehicleId } } },
+        where: { organizationId, links: { some: { organizationId, vehicleId }, none: { subjectType: repairOrderAttachmentSubject } } },
         orderBy: { createdAt: "desc" },
         take: 100,
         select: { accessLevel: true, byteSize: true, checksumSha256: true, contentType: true, fileName: true, id: true, legalHold: true, malwareStatus: true, retentionUntil: true, status: true, version: true }
@@ -792,7 +793,7 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
         if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
         if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be linked.");
-        const evidence = await tx.vehicleEvidenceObject.findFirst({ where: { id: data.evidenceObjectId, organizationId: command.organizationId }, include: { links: { where: { vehicleId: diagnosticCase.vehicleId }, select: { id: true } } } });
+        const evidence = await tx.vehicleEvidenceObject.findFirst({ where: { id: data.evidenceObjectId, organizationId: command.organizationId, links: { none: { subjectType: repairOrderAttachmentSubject } } }, include: { links: { where: { vehicleId: diagnosticCase.vehicleId }, select: { id: true } } } });
         if (!evidence) throw new Error("Vehicle Evidence object was not found.");
         if (evidence.status !== "AVAILABLE" || evidence.malwareStatus !== "CLEAN") throw new Error("Vehicle Evidence object must be available and malware-clean before linking.");
         if (!evidence.links.length) throw new Error("Vehicle Evidence object does not belong to the diagnostic-case vehicle.");

@@ -140,7 +140,7 @@ export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null,
     return { identity: vehicle?.vin ? { validationSource: "EXISTING_CANONICAL_RECORD", vin: vehicle.vin, vinState: "VALID" } : null, lookupType: "PLATE", plateMatch: Boolean(vehicle), potentialDuplicate: vehicle ?? null };
   }
   const vin = required(raw.vin, "VIN", 40);
-  const preview = await previewVehicleRegistryImport(actor, { rows: [{ idempotencyKey: `add-vehicle-preview-${vin}`, reason: "Validate identity before Add Vehicle workflow creation.", vehicleNumber: "ADD-VEHICLE-PREVIEW", vin }] });
+  const preview = await previewVehicleRegistryImport(actor, { rows: [{ idempotencyKey: `add-vehicle-preview-${vin}`, reason: "Validate identity before Add Vehicle workflow creation.", vehicleNumber: "ADD-VEHICLE-PREVIEW", vin }] }, {}, true);
   const row = preview.rows[0];
   if (!row || row.status === "INVALID") throw new Error(row && "error" in row ? row.error : "Vehicle identity could not be validated.");
   const potentialDuplicate = "potentialDuplicate" in row ? row.potentialDuplicate : null;
@@ -180,6 +180,8 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     vin: input.vin || null, year,
     workflowContext: { acquisitionSource: input.acquisitionSource ?? null, addMode: input.addMode, conditionSummary: input.description, description: input.description, externalLocation: input.externalLocation || null, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode, whereabouts: input.whereabouts }
   }, registryOptions, {
+    rejectDuplicateIdentity: true,
+    omitConflictingDerivedStock: true,
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? vinOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
     specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins: { ...fieldOrigins, conditionSummary: { source: "STAFF_CONFIRMED" } }, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications: { ...specifications, conditionSummary: input.description }, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }

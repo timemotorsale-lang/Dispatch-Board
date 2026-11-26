@@ -5,15 +5,18 @@ import { join } from "node:path";
 import styles from "@/features/inventory/vehicle-registry-workspace.module.css";
 import { parseQuickVehicleIdentity, VehicleRegistryWorkspace } from "@/features/inventory/vehicle-registry-workspace";
 
+const empty = { items: [], page: 1, pageSize: 25, total: 0, totalPages: 1 };
+const managerTools = { add: true, serviceLocations: [], createIdentity: true, correctIdentity: true, resolveDuplicates: true, importCsv: true, importDocuments: true, export: true };
+
 describe("vehicle registry workspace", () => {
   it("renders search, create, and import workflows", () => {
-    const html = renderToStaticMarkup(<VehicleRegistryWorkspace initial={{ items: [], page: 1, pageSize: 25, total: 0, totalPages: 1 }} />);
+    const html = renderToStaticMarkup(<VehicleRegistryWorkspace initial={empty} access={managerTools} />);
     expect(html).toContain("Find Work / Vehicle");
-    expect(html).toContain("Create canonical identity");
-    expect(html).toContain("Import / Export");
+    expect(html).toContain("Create vehicle identity");
+    expect(html).toContain("<summary>More tools</summary>");
     expect(html).toContain('href="/vehicles/import-export"');
     expect(html).not.toContain("Paste a JSON array");
-    expect(html).toContain("Search VIN, partial VIN");
+    expect(html).toContain("Search vehicles");
     expect(html).toContain(">Search</button>");
     expect(html).not.toContain("Open the vehicle workspace faster");
     expect(html).toContain("Quick add from description");
@@ -72,8 +75,7 @@ describe("vehicle registry workspace", () => {
     );
 
     expect(html).toContain("VEH-100");
-    expect(html).toContain("<table>");
-    expect(html).toContain("Work &amp; tools</th>");
+    expect(html).toContain('role="list"');
     expect(html).toContain("STK-100");
     expect(html).not.toContain("inventory-vehicle-result-card");
     expect(html).toContain("/vehicles/360/veh-1");
@@ -105,5 +107,27 @@ describe("vehicle registry workspace", () => {
 
     expect(html).toContain('0 vehicle matches for &quot;2025 Toyota Sienna&quot;');
     expect(html).toContain("No matching vehicle found");
+  });
+
+  it("offers a prefilled duplicate-checked intake only to authorized staff after a successful miss", () => {
+    const initialQuery = "jhmzc5f3xjc010501";
+    const permitted = renderToStaticMarkup(<VehicleRegistryWorkspace access={managerTools} initial={empty} initialQuery={initialQuery} />);
+    expect(permitted).toContain("Check &amp; add vehicle");
+    expect(permitted).toContain("vin=JHMZC5F3XJC010501");
+    expect(permitted).toContain("returnTo=%2Fvehicles%2Fregistry%3Fquery%3D");
+    const readOnly = renderToStaticMarkup(<VehicleRegistryWorkspace initial={empty} initialQuery={initialQuery} />);
+    expect(readOnly).not.toContain("/vehicles/workflows/add-vehicle");
+    expect(readOnly).not.toContain("More tools");
+    const partial = renderToStaticMarkup(<VehicleRegistryWorkspace access={managerTools} initial={empty} initialQuery="010501" />);
+    expect(partial).not.toContain("vin=");
+    expect(partial).toContain("Clear search");
+    const unavailable = renderToStaticMarkup(<VehicleRegistryWorkspace access={managerTools} initial={null} initialQuery={initialQuery} />);
+    expect(unavailable).toContain('role="alert"');
+    expect(unavailable).toContain("Retry search");
+    expect(unavailable).not.toContain("No matching vehicle found");
+    expect(unavailable).not.toContain("/vehicles/workflows/add-vehicle");
+    const service = renderToStaticMarkup(<VehicleRegistryWorkspace access={{ ...managerTools, add: false, serviceLocations: [{ id: "loc", code: "LOC", name: "Store" }] }} initial={empty} initialQuery={initialQuery} />);
+    expect(service).toContain("Check &amp; add for service");
+    expect(service).toContain("intent=service");
   });
 });
