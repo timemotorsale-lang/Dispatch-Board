@@ -445,6 +445,7 @@ test("customer captures reuse one restricted original on the saved deal", async 
   await expect(customerShortcut).toBeVisible();
   await expect(customerShortcut).toHaveAttribute("href", new RegExp("ownerId=" + id));
   expect((await customerShortcut.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await page.getByRole("navigation", { name: "Customer tools" }).getByRole("link", { name: "Documents" }).click();
   const captureLink = page.getByRole("link", { name: "Scan ID front / back" });
   await expect(captureLink).toBeVisible();
   await captureLink.click();

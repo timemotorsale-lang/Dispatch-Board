@@ -5,7 +5,7 @@ import type { DealCustomerList } from "@/lib/deal-continuity";
 import Link from "next/link";
 import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -51,6 +51,8 @@ import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
+import { CustomerDealTools, CustomerVehicleLink, CustomerWishlist, type CustomerWishlistValue } from "./customer360-tools";
+import customerTools from "./customer360-workspace.module.css";
 import { SavedCustomerFiles } from "./deal-customer-files";
 import { CaptureShortcut } from "@/features/mobile-capture/capture-shortcut";
 import { customerCaptureHref } from "@/features/mobile-capture/capture-navigation";
@@ -439,7 +441,7 @@ function customerSearchKeywords(customer: CrmNextCustomer360, attentionItem?: Cr
     customer.name,
     customer.phone,
     customer.email,
-    customer.vehicles.map((vehicle) => `${vehicle.label} ${vehicle.vin}`).join(" "),
+    customer.vehicles.map((vehicle) => `${vehicle.label} ${vehicle.vin || vehicle.relationship || ""}`).join(" "),
     customer.nextAction,
     attentionItem?.reason,
     attentionItem?.nextAction
@@ -2157,7 +2159,25 @@ export function CrmNextCustomerRecordUnavailable({ userName }: { userName: strin
   </CrmNextFrame>;
 }
 
-export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[]; captureEnabled?: boolean }) {
+const CUSTOMER_TOOLS = [["overview", "Work"], ["deals", "Deals & deposits"], ["vehicles", "Vehicles"], ["wishlist", "Wishlist"], ["documents-held", "Documents"], ["timeline", "Activity"]] as const;
+
+function subscribeCustomerTool(listener: () => void) {
+  window.addEventListener("hashchange", listener);
+  return () => window.removeEventListener("hashchange", listener);
+}
+
+function currentCustomerTool() {
+  const hash = window.location.hash.slice(1);
+  if (hash === "supporting-parties" || hash === "dashboard") return "dashboard";
+  if (hash === "cases" || hash === "appointments" || hash === "communications-held") return "overview";
+  return CUSTOMER_TOOLS.some(([id]) => id === hash) ? hash : "overview";
+}
+
+export function CrmNextCustomer360View({ customer, model, collections = [], captureEnabled = false, dealsEnabled = false, wishlist = null, wishlistEditable = false, canLinkVehicle = false }: {
+  customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[];
+  captureEnabled?: boolean; dealsEnabled?: boolean; wishlist?: CustomerWishlistValue | null; wishlistEditable?: boolean; canLinkVehicle?: boolean;
+}) {
+  const section = useSyncExternalStore(subscribeCustomerTool, currentCustomerTool, () => "overview");
   const attention = model.attention ?? [];
   const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
@@ -2194,242 +2214,124 @@ export function CrmNextCustomer360View({ customer, model, collections = [], capt
   const [savedCustomerProgress] = useState(() => readCustomerWorkbenchProgress(customer.id));
   const savedCustomerStage = savedCustomerProgress?.stage;
   const displayCustomerStatus = customerDisplayStatus(customer, savedCustomerStage);
-  const customerMetrics = [
-    { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
-    { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
-    { label: "Appointments", value: customer.glance.find((item) => item.label === "Appointments")?.value ?? "0", detail: "Upcoming", tone: "blue" },
-    { label: "Tasks", value: attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
-    { label: "SLA Risk", value: customer.riskLevel, detail: "Current", tone: customer.riskLevel === "High" ? "red" : customer.riskLevel === "Medium" ? "amber" : "green" }
-  ];
+  const customerOwner = customer.glance.find(item => item.label === "Owner")?.value;
+  const customerSince = new Date(customer.customerSince);
+  const customerHref = `/crm-next/customers/${encodeURIComponent(customer.id)}`;
+  const serviceHref = `/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "WALK_IN", customerId: customer.id, returnTo: customerHref + "#vehicles" })}`;
+  function openCheckIn() {
+    const details = document.getElementById("customer-check-in") as HTMLDetailsElement | null;
+    if (details) {
+      details.open = true;
+      details.querySelector("select")?.focus();
+    }
+  }
 
-  return (
-    <CrmNextFrame active="customer" userName={model.userName}>
-      <Topbar />
-      <CompactSourceStatus model={model} />
-      <section className={styles.customerWorkspace}>
-        <main className={styles.customerMain}>
-          <section className={styles.customerHeroCard}>
-            <div className={styles.customerIdentity}>
-              <span className={styles.profileAvatar}>{initials(customer.name)}</span>
-              <div>
-                <h1 className={styles.customerName}>{customer.name}</h1>
-                {captureEnabled && <CaptureShortcut className={styles.secondaryButton} href={customerCaptureHref(customer.id)} />}
-                <span className={styles.customerBadge}>Preferred Customer</span>
-                <CustomerContactDetails surface="crm-next" autoReveal customerId={customer.id} phone={customer.phone} email={customer.email} />
-                <p>{customer.address}</p>
-              </div>
-            </div>
-            <dl className={styles.customerFacts}>
-              <div><dt>Customer Since</dt><dd>{customer.customerSince}</dd></div>
-              <div><dt>Lifetime Value</dt><dd>{customer.lifetimeValue}</dd></div>
-              <div><dt>Owner</dt><dd>Unassigned</dd></div>
-              <div><dt>Status</dt><dd>{displayCustomerStatus}</dd></div>
-              <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
-            </dl>
-            <div className={styles.customerHeroActions}>
-              <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
-              <button
-                className={styles.primaryButton}
-                onClick={startCheckedInWorkbench}
-                type="button"
-              >
-                Check-In
-              </button>
-              <Link className={styles.secondaryButton} href={customerSalesWorkbenchHref}><Target size={16} /> Sales Workbench</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
-              <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
-            </div>
-            {captureEnabled && <nav className={styles.customerHeroActions} aria-label="Customer capture">
-              <Link className={styles.primaryButton} href={customerCaptureHref(customer.id, "id-front")}>Scan ID front / back</Link>
-              <Link className={styles.secondaryButton} href="#documents-held">Customer files</Link>
-            </nav>}
-            <section className={styles.customerCheckInPanel} aria-label="Customer check-in">
-              <div>
-                <span className={styles.eyebrow}>Check-In</span>
-                <h2>Choose why this customer or vendor is here.</h2>
-                <p>{selectedCategoryConfig.summary}</p>
-              </div>
-              <label>
-                <span>Work category</span>
-                <select value={selectedWorkCategory} onChange={(event) => setSelectedWorkCategory(event.target.value as CrmWorkCategoryId)}>
-                  {CRM_DEALERSHIP_WORK_CATEGORIES.map((category) => (
-                    <option key={category.id} value={category.id}>{category.label}</option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className={styles.secondaryButton}
-                onClick={startCheckedInWorkbench}
-                type="button"
-              >
-                Start {CRM_WORK_PATHS[selectedCategoryConfig.path].label}
-              </button>
-            </section>
-          </section>
-
-          <section className={styles.customerJourneyPanel} aria-label="Customer journey">
-            <header>
-              <div>
-                <span className={styles.eyebrow}>Customer journey</span>
-                <h2>Work the customer from first contact to outcome.</h2>
-              </div>
-              <Link className={styles.secondaryButton} href={checkInHref}>Update progress</Link>
-            </header>
-            <ol className={styles.customerJourneyRail}>
-              {CRM_WORK_PATHS["sales-deal"].stages.map((stage) => (
-                <li data-state={stage === currentJourneyStage ? "active" : "pending"} key={stage}>
-                  <span>{stage}</span>
-                </li>
-              ))}
-            </ol>
-            <p className={styles.muted}>Stage changes should come from staff actions: calls, texts, appointments, CRM tasks, deal work, or a sold/lost decision.</p>
-          </section>
-
-          <CustomerOperatingLedger
-            activeAttentionItem={activeAttentionItem}
-            customer={customer}
-            model={model}
-            savedStage={savedCustomerStage}
-          />
-
-          <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
-            {customerMetrics.map((metric) => (
-              <article className={styles.customerMetricCard} data-tone={metric.tone} key={metric.label}>
-                <small>{metric.label}</small>
-                <strong>{metric.value}</strong>
-                <span>{metric.detail}</span>
-              </article>
-            ))}
-          </section>
-
-          <section className={styles.panel}>
-            <nav className={styles.tabs} aria-label="Customer 360 sections">
-              <Link aria-current="page" href="#overview">Overview</Link>
-              <Link href="#timeline">Timeline</Link>
-              <Link href="#deals">Deals</Link>
-              <Link href="#cases">Cases</Link>
-              <Link href="#appointments">Appointments</Link>
-              <Link href="#documents-held">Documents</Link>
-              <Link href="#vehicles">Vehicles</Link>
-              <Link href="#supporting-parties">Parties</Link>
-              <Link href="#communications-held">Communications</Link>
-            </nav>
-            <div className={styles.compactInfoGrid} id="overview">
-              {customer.glance.map((item) => (
-                <Link className={styles.glanceItem} href={item.href} key={item.label}>
-                  <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
-                </Link>
-              ))}
-            </div>
-            <div className={styles.compactSectionGrid}>
-              <article id="deals" className={styles.compactSectionCard}>
-                <strong>Deals</strong>
-                <span>{customer.openDeals} open · managed in current CRM</span>
-                <Link href="/crm-next/deals">Open deal board</Link>
-              </article>
-              <article id="cases" className={styles.compactSectionCard}>
-                <strong>Cases</strong>
-                <span>{customer.openCases} open · support queue</span>
-                <Link href="/crm-next/ownership-support#cases">Open support cases</Link>
-              </article>
-              <article id="appointments" className={styles.compactSectionCard}>
-                <strong>Appointments</strong>
-                <span>{customer.glance.find((item) => item.label === "Appointments")?.value ?? "0"} upcoming · open calendar flow</span>
-                <Link href={appointmentHref}>Schedule appointment</Link>
-              </article>
-              <article id="documents-held" className={styles.compactSectionCard}>
-                <strong>Documents</strong>
-                <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>
-                {captureEnabled ? <>
-                  <span>Captures stay on this customer and are available to authorized staff on linked deals.</span>
-                  <SavedCustomerFiles key={customer.id} customerId={customer.id} />
-                </> : <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>}
-              </article>
-              <article id="communications-held" className={styles.compactSectionCard}>
-                <strong>Communications</strong>
-                <span>Use approved contact workflows for live calls, texts, and emails.</span>
-                <Link href={crmNextActionHref("log-call", customer.id)}>Review contact actions</Link>
-              </article>
-            </div>
-          </section>
-
-          <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
-            <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href={crmNextTimelineHref(customer.id)}>View all</Link></header>
-            {customer.communications.length > 0 ? (
-              <div className={styles.commList}>
-                {customer.communications.map((item) => (
-                  <article className={styles.communicationItem} key={item.id}>
-                    <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className={styles.activityTimelineEmpty}>
-                <strong>No verified communication yet</strong>
-                <span>No calls, texts, emails, or appointments have been recorded for {customer.name} in customer sources yet.</span>
-              </div>
-            )}
-          </section>
-        </main>
-
-        <aside className={styles.customerAside}>
-          <CustomerCollectionsPanel accounts={collections} className={styles.sidePanel} />
-          <article className={styles.sidePanel}>
-            <header><h2>Quick Actions</h2></header>
-            <div className={styles.quickActionTiles}>
-              <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={22} />Log Call</Link>
-              <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={22} />Send Email</Link>
-              <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />CRM Task</Link>
-              <Link href={crmNextActionHref("add-note", customer.id)}><MessageSquare size={22} />Add Note</Link>
-              <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
-              <Link href={appointmentHref}><CalendarDays size={22} />Schedule Appt</Link>
-              {captureEnabled ? <CaptureShortcut href={customerCaptureHref(customer.id)} /> :
-                <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>}
-              <Link href={customerSalesWorkbenchHref}><Target size={22} />Sales Workbench</Link>
-            </div>
-          </article>
-
-          <article className={styles.sidePanel}>
-            <header><h2>Next Best Action</h2></header>
-            <div className={styles.nextBestAction}>
-              <CheckCircle2 size={24} />
-              <div>
-                <strong>{customer.nextAction}</strong>
-                <p>Open Attend Mode to complete the next safe customer step.</p>
-              </div>
-            </div>
-            <Link className={styles.primaryButton} href={checkInHref}>Work Customer</Link>
-          </article>
-
-          <div id="supporting-parties">
-            <CrmNextSupportingParties compact model={model} />
+  return <CrmNextFrame active="customer" userName={model.userName}>
+    <section className={customerTools.workspace} aria-label="Customer 360">
+      <header className={`${styles.panel} ${customerTools.header}`}>
+        <div className={customerTools.identity}>
+          <Link href={CRM_NEXT_CUSTOMERS_HREF}>All customers</Link>
+          <h1>{customer.name}</h1>
+          <p className={styles.muted}>{[customer.customerNumber, displayCustomerStatus, customerOwner].filter(Boolean).join(" · ")}</p>
+        </div>
+        <div className={customerTools.actions}>
+          {captureEnabled && <CaptureShortcut className={styles.secondaryButton} href={customerCaptureHref(customer.id)} />}
+          <a className={`${styles.secondaryButton} ${customerTools.iconAction}`} href={section === "dashboard" ? "#overview" : "#dashboard"} aria-current={section === "dashboard" ? "page" : undefined}>
+            <LayoutDashboard size={18} aria-hidden="true" />{section === "dashboard" ? "Back to work" : "Dashboard"}
+          </a>
+        </div>
+      </header>
+      <nav className={customerTools.tabs} aria-label="Customer tools">
+        {CUSTOMER_TOOLS.map(([id, label]) => (id !== "deals" || dealsEnabled) && <a key={id} href={`#${id}`} aria-current={section === id ? "page" : undefined}>{label}</a>)}
+      </nav>
+      {section === "overview" && <section id="overview" className={`${styles.panel} ${customerTools.panel}`} aria-labelledby="customer-work-title">
+        <h2 id="customer-work-title">Work this customer</h2>
+        {activeAttentionItem && <p><strong>{activeAttentionItem.nextAction}</strong> · {activeAttentionItem.owner} <Link href={attendHref}>Open follow-up</Link></p>}
+        <CustomerContactDetails surface="crm-next" customerId={customer.id} phone={customer.phone} email={customer.email} />
+        <div className={customerTools.actions}>
+          <button className={styles.primaryButton} type="button" onClick={openCheckIn}>Check in</button>
+          <Link href={appointmentHref}>Schedule appointment</Link>
+          <Link href={crmNextActionHref("new-task", customer.id)}>Create task</Link>
+          <Link href={crmNextActionHref("add-note", customer.id)}>Add note</Link>
+        </div>
+        <details id="customer-check-in" className={customerTools.subsection}>
+          <summary>Check-in options</summary>
+          <div className={customerTools.actions}>
+            <label>Work category <select value={selectedWorkCategory} onChange={event => setSelectedWorkCategory(event.target.value as CrmWorkCategoryId)}>
+              {CRM_DEALERSHIP_WORK_CATEGORIES.map(category => <option key={category.id} value={category.id}>{category.label}</option>)}
+            </select></label>
+            <button type="button" onClick={startCheckedInWorkbench}>Start {CRM_WORK_PATHS[selectedCategoryConfig.path].label}</button>
           </div>
-
-          <article className={styles.sidePanel}>
-            <header><h2>Customer Risk</h2></header>
-            <strong className={levelClass(customer.riskLevel)}>{customer.riskLevel}</strong>
-            <ul className={styles.signalList}>
-              <li>{customer.openCases} open cases</li>
-              <li>{customer.vehiclesOwned} linked vehicles</li>
-              <li>{customer.openDeals} open deals</li>
-            </ul>
-          </article>
-
-          <article className={styles.sidePanel} id="vehicles">
-            <header><h2>Linked Vehicles ({customer.vehicles.length})</h2></header>
-            <div className={styles.vehicleList}>
-              {customer.vehicles.length ? customer.vehicles.map((vehicle) => (
-                <Link href="/crm-next/search" key={vehicle.id}>
-                  <strong>{vehicle.label}</strong>
-                  <small>{vehicle.status} · {vehicle.vin}</small>
-                </Link>
-              )) : <p className={styles.muted}>No linked vehicles exposed by the current source.</p>}
-            </div>
-          </article>
-        </aside>
+          <p>{selectedCategoryConfig.summary}</p>
+        </details>
+        <details className={customerTools.subsection}>
+          <summary>More customer actions</summary>
+          <div className={customerTools.actions}>
+            <Link href={crmNextActionHref("log-call", customer.id)}>Log call</Link>
+            <Link href={crmNextActionHref("send-text", customer.id)}>Send text</Link>
+            <Link href={crmNextActionHref("send-email", customer.id)}>Send email</Link>
+            <Link href={crmNextActionHref("new-case", customer.id)}>New case</Link>
+            <Link href="/crm-next/ownership-support#cases">Support queue</Link>
+            {dealsEnabled && <Link href={customerSalesWorkbenchHref}>Sales Workbench</Link>}
+          </div>
+        </details>
+      </section>}
+      {section === "deals" && <section id="deals" className={`${styles.panel} ${customerTools.panel}`} aria-label="Deals and deposits">
+        <h2>Deals &amp; deposits</h2>
+        {dealsEnabled ? <CustomerDealTools key={customer.id} customerId={customer.id} /> : <p>Your account does not have Deals access.</p>}
+        <CustomerCollectionsPanel accounts={collections} />
+      </section>}
+      {section === "vehicles" && <section id="vehicles" className={`${styles.panel} ${customerTools.panel}`} aria-label="Linked vehicles">
+        <h2>Linked vehicles</h2>
+        {customer.vehicles.length ? <ul className={customerTools.rows}>{customer.vehicles.map((vehicle, index) =>
+          <li key={`${vehicle.id}:${index}`}><div><strong>{vehicle.label}</strong><small>{[vehicle.relationship?.replaceAll("_", " ").toLowerCase(), vehicle.status].filter(Boolean).join(" · ")}</small></div>
+            {vehicle.href && <Link href={vehicle.href}>Open vehicle</Link>}</li>)}</ul> : <p>No linked vehicles are available for this customer.</p>}
+        {canLinkVehicle && <CustomerVehicleLink key={customer.id} customerId={customer.id} />}
+        <Link href={serviceHref}>Open service check-in</Link>
+      </section>}
+      <section id="wishlist" hidden={section !== "wishlist"} className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer wishlist">
+        <h2>Customer wishlist</h2>
+        <CustomerWishlist key={customer.id} customerId={customer.id} initial={wishlist} editable={wishlistEditable} />
       </section>
-    </CrmNextFrame>
-  );
+      {section === "documents-held" && <section id="documents-held" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer documents">
+        <h2>Documents &amp; photos</h2>
+        {captureEnabled ? <>
+          <div className={customerTools.actions}><Link href={customerCaptureHref(customer.id, "id-front")}>Scan ID front / back</Link></div>
+          <p>Captures stay on this customer and are available to authorized staff on linked deals.</p>
+          <SavedCustomerFiles key={customer.id} customerId={customer.id} />
+        </> : <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>}
+        {dealsEnabled && <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>}
+      </section>}
+      {section === "timeline" && <section id="timeline" className={`${styles.panel} ${customerTools.panel}`} aria-label="Customer activity">
+        <h2>Recent activity</h2>
+        {customer.communications.length ? <ul className={customerTools.rows}>{customer.communications.map(item =>
+          <li key={item.id}><div>{item.detail}</div></li>)}</ul> : <p>No verified activity is available yet.</p>}
+        <Link href={crmNextTimelineHref(customer.id)}>Open full timeline</Link>
+      </section>}
+      {section === "dashboard" && <section id="dashboard" className={customerTools.dashboard} aria-label="Customer dashboard">
+        <section className={`${styles.panel} ${customerTools.panel}`}>
+          <h2>Customer dashboard</h2>
+          <div className={customerTools.actions}>
+            {Number.isFinite(customerSince.getTime()) && <span>Customer since {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/Chicago" }).format(customerSince)}</span>}
+            <span>{customer.openDeals} opportunities</span><span>{customer.openCases} open cases</span>
+            <span>{customer.vehicles.length} linked vehicles</span>
+            <span>{customer.glance.find(item => item.label === "Appointments")?.value ?? "0"} appointments</span>
+            <span>{attention.filter(item => item.customerId === customer.id).length} attention items</span><span>{customer.riskLevel} risk</span>
+          </div>
+          <p>Journey stage · {currentJourneyStage}</p>
+          <div className={customerTools.actions}>
+            <Link href={checkInHref}>Update progress</Link>
+            {customer.glance.find(item => item.label === "Customer #")?.href && <Link href={customer.glance.find(item => item.label === "Customer #")!.href}>Open customer record</Link>}
+            <Link href="/crm-next/ownership-support">Outside-party and support records</Link>
+            <Link href="/crm">Older customer tools</Link>
+          </div>
+        </section>
+        <CustomerOperatingLedger activeAttentionItem={activeAttentionItem} customer={customer} model={model} savedStage={savedCustomerStage} />
+        <CustomerCollectionsPanel accounts={collections} className={styles.panel} />
+        <CompactSourceStatus model={model} />
+      </section>}
+    </section>
+  </CrmNextFrame>;
 }
 
 function CustomerOperatingLedger({

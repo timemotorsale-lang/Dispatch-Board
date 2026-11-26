@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
@@ -111,7 +112,7 @@ export async function correctRegistryVehicleColor(actor: AuthenticatedUser | nul
   return context.repository.correctColor(command({ actorUserId: user.id, commandType: "CORRECT_VEHICLE_COLOR", expectedVersion: expected(raw.expectedVersion), idempotencyKey: required(raw.idempotencyKey, "Idempotency key"), locationId, organizationId: context.organizationId, payload: { color }, reason, subjectId: required(vehicleId, "Vehicle ID") }), color);
 }
 
-export async function addVehicleRelationship(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
+export async function addVehicleRelationship(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies & { validateRelationship?: (tx: Prisma.TransactionClient) => Promise<void> } = {}) {
   const context = deps(input); const raw = record(value); const locationId = typeof raw.locationId === "string" ? raw.locationId : null;
   const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true); const reason = required(raw.reason, "Business reason");
   const relationshipType = enumValue(raw.relationshipType, "Relationship type", ["CUSTOMER_OWNER", "CUSTOMER_DRIVER", "DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT", "SOLD_TO_CUSTOMER", "SERVICE_ONLY", "OTHER"] as const);
@@ -121,7 +122,8 @@ export async function addVehicleRelationship(actor: AuthenticatedUser | null, ve
   if (effectiveTo && effectiveTo < effectiveFrom) throw new Error("Effective to cannot be before effective from.");
   const payload = { customerId, effectiveFrom: effectiveFrom.toISOString(), effectiveTo: effectiveTo?.toISOString() ?? null, relationshipType, sourceCode: required(raw.sourceCode, "Source code", 100) };
   const cmd = command({ actorUserId: user.id, commandType: "ADD_VEHICLE_RELATIONSHIP", expectedVersion: expected(raw.expectedVersion), idempotencyKey: required(raw.idempotencyKey, "Idempotency key"), locationId, organizationId: context.organizationId, payload, reason, subjectId: vehicleId });
-  return context.repository.addRelationship(cmd, { organizationId: context.organizationId, vehicleId, customerId, relationshipType, effectiveFrom, effectiveTo, sourceCode: payload.sourceCode, sourceReference: typeof raw.sourceReference === "string" ? raw.sourceReference.trim() || null : null, notes: typeof raw.notes === "string" ? raw.notes.trim() || null : null });
+  const data = { organizationId: context.organizationId, vehicleId, customerId, relationshipType, effectiveFrom, effectiveTo, sourceCode: payload.sourceCode, sourceReference: typeof raw.sourceReference === "string" ? raw.sourceReference.trim() || null : null, notes: typeof raw.notes === "string" ? raw.notes.trim() || null : null };
+  return input.validateRelationship ? context.repository.addRelationship(cmd, data, input.validateRelationship) : context.repository.addRelationship(cmd, data);
 }
 
 export async function addVehicleExternalIdentity(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {

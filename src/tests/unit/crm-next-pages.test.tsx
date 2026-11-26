@@ -1114,15 +1114,16 @@ describe("CRM Next pages", () => {
 
     const markup = renderToStaticMarkup(<CrmNextCustomer360View customer={customer} model={model} />);
     const captureMarkup = renderToStaticMarkup(<CrmNextCustomer360View customer={customer} model={model} captureEnabled />);
-    expect(captureMarkup).toContain("Scan ID front / back");
+    expect(captureMarkup).toContain("Work this customer");
+    expect(captureMarkup).toContain("Dashboard");
+    expect(captureMarkup).toContain("href=\"#documents-held\"");
     expect(captureMarkup).toContain("<span>Capture</span>");
     expect(captureMarkup).toContain("destination=CUSTOMER");
     expect(captureMarkup).toContain("requireDestination=1");
-    expect(captureMarkup).toContain("authorized staff on linked deals");
+    expect(captureMarkup).not.toContain("Source status:");
     expect(markup).not.toContain("Scan ID front / back");
 
-    expect(markup).toContain("<dd>Delivered</dd>");
-    expect(markup).toContain("Workbench outcome reflected");
-    expect(markup).toContain("Delivered recorded. Confirm note, owner, and any follow-up before archiving.");
+    expect(markup).toContain("Delivered");
+    expect(markup).not.toContain("Customer Operating Ledger");
   });
 });

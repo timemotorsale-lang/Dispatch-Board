@@ -6,6 +6,7 @@ export type UnifiedCrmCustomerNoteVisibility = "INTERNAL" | "RESTRICTED";
 
 export type UnifiedCrmCustomerNoteCommandInput = {
   body?: unknown;
+  expectedWishlistNoteId?: unknown;
   idempotencyKey?: unknown;
   visibility?: unknown;
 };
@@ -32,6 +33,7 @@ export type UnifiedCrmCustomerNoteFailureCode =
   | "CUSTOMER_NOT_AVAILABLE"
   | "CUSTOMER_SOURCE_UNAVAILABLE"
   | "IDEMPOTENCY_KEY_REUSED"
+  | "WISHLIST_CHANGED"
   | "INVALID_NOTE_COMMAND"
   | "RESTRICTED_NOTE_NOT_AUTHORIZED";
 
@@ -43,6 +45,7 @@ const FAILURE_STATUS: Record<UnifiedCrmCustomerNoteFailureCode, number> = {
   CUSTOMER_SOURCE_UNAVAILABLE: 503,
   IDEMPOTENCY_KEY_REUSED: 409,
   INVALID_NOTE_COMMAND: 400,
+  WISHLIST_CHANGED: 409,
   RESTRICTED_NOTE_NOT_AUTHORIZED: 403
 };
 

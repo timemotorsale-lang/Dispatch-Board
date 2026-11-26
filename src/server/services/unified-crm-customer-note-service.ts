@@ -24,10 +24,14 @@ import {
 } from "@/server/unified-crm/customer-note-command";
 
 type Dependencies = UnifiedCrmCustomerNoteAccessOptions & {
+  purpose?: "WISHLIST";
   now?: () => Date;
   repository?: UnifiedCrmCustomerNoteRepository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
 };
+
+export const CUSTOMER_WISHLIST_COMMAND = "RECORD_CUSTOMER_WISHLIST";
+export const CUSTOMER_WISHLIST_PREFIX = "Customer wishlist\n";
 
 const VISIBILITIES = ["INTERNAL", "RESTRICTED"] as const;
 
@@ -75,7 +79,14 @@ export async function logUnifiedCrmCustomerNote(
   const access = requireUnifiedCrmCustomerNoteAccess(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
   const normalizedCustomerId = normalizeCustomerId(customerId);
-  const normalizedCommand = normalizeCommand(value);
+  const expectedWishlistNoteId = dependencies.purpose === "WISHLIST" ? value.expectedWishlistNoteId : undefined;
+  if (dependencies.purpose === "WISHLIST" && expectedWishlistNoteId !== null &&
+      (typeof expectedWishlistNoteId !== "string" || !expectedWishlistNoteId.trim() || expectedWishlistNoteId.length > 200)) {
+    throw new UnifiedCrmCustomerNoteError("INVALID_NOTE_COMMAND", "Reopen the wishlist before editing.");
+  }
+  const normalizedCommand = normalizeCommand(dependencies.purpose === "WISHLIST"
+    ? { ...value, visibility: "INTERNAL", body: CUSTOMER_WISHLIST_PREFIX + text(value.body, "Wishlist", 1800) }
+    : value);
   const scopeRepository = dependencies.scopeRepository ?? createUnifiedCrmCustomerReadRepository();
   const repository = dependencies.repository ?? createUnifiedCrmCustomerNoteRepository();
 
@@ -94,7 +105,7 @@ export async function logUnifiedCrmCustomerNote(
     const organizationId = organizationIds[0];
     const command = normalizeEnterpriseCommand({
       actorUserId: actor!.id,
-      commandType: UNIFIED_CRM_CUSTOMER_NOTE_COMMAND,
+      commandType: dependencies.purpose === "WISHLIST" ? CUSTOMER_WISHLIST_COMMAND : UNIFIED_CRM_CUSTOMER_NOTE_COMMAND,
       domain: "UNIFIED_CRM",
       expectedVersion: 0,
       idempotencyKey: normalizedCommand.idempotencyKey,
@@ -102,9 +113,10 @@ export async function logUnifiedCrmCustomerNote(
       organizationId,
       payload: {
         body: normalizedCommand.body,
-        visibility: normalizedCommand.visibility
+        visibility: normalizedCommand.visibility,
+        ...(expectedWishlistNoteId !== undefined ? { expectedWishlistNoteId } : {})
       },
-      reason: `Record customer note: ${normalizedCommand.body.slice(0, 80)}`,
+      reason: dependencies.purpose === "WISHLIST" ? "Save customer wishlist" : `Record customer note: ${normalizedCommand.body.slice(0, 80)}`,
       subjectId: normalizedCustomerId,
       subjectType: "CUSTOMER"
     });
@@ -121,7 +133,8 @@ export async function logUnifiedCrmCustomerNote(
         organizationId,
         reason: command.reason,
         requestHash: command.requestHash,
-        visibility: normalizedCommand.visibility
+        visibility: normalizedCommand.visibility,
+        ...(expectedWishlistNoteId !== undefined ? { expectedWishlistNoteId: expectedWishlistNoteId as string | null } : {})
       },
       recordScope: access.recordScope
     });
@@ -136,6 +149,9 @@ export async function logUnifiedCrmCustomerNote(
     };
   } catch (error) {
     if (error instanceof UnifiedCrmCustomerNoteError) throw error;
+    if (error instanceof Error && "code" in error && error.code === "WISHLIST_CHANGED") {
+      throw new UnifiedCrmCustomerNoteError("WISHLIST_CHANGED", "The wishlist changed while you were editing. Compare the latest saved version before saving again.");
+    }
     if (error instanceof Error && error.message === "Customer not available.") {
       throw new UnifiedCrmCustomerNoteError("CUSTOMER_NOT_AVAILABLE", "Customer details are not available.");
     }

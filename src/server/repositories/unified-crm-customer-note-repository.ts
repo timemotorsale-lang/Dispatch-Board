@@ -16,6 +16,7 @@ type NoteCommandInput = {
   reason: string;
   requestHash: string;
   visibility: string;
+  expectedWishlistNoteId?: string | null;
 };
 
 export type UnifiedCrmCustomerNoteRepository = {
@@ -64,6 +65,9 @@ export function createUnifiedCrmCustomerNoteRepository(
   return {
     createNote(input) {
       return database.$transaction(async (tx) => {
+        if (input.command.expectedWishlistNoteId !== undefined) {
+          await tx.$queryRaw`SELECT id FROM "Customer" WHERE id = ${input.command.customerId} AND "organizationId" = ${input.command.organizationId} FOR UPDATE`;
+        }
         const customer = await tx.customer.findFirst({
           where: {
             id: input.command.customerId,
@@ -111,6 +115,16 @@ export function createUnifiedCrmCustomerNoteRepository(
           };
         }
 
+        if (input.command.expectedWishlistNoteId !== undefined) {
+          const latest = await tx.enterpriseCommandLedger.findFirst({
+            where: { organizationId: input.command.organizationId, domain: input.command.domain, subjectId: customer.id, subjectType: "CUSTOMER",
+              commandType: input.command.commandType, status: "SUCCEEDED" },
+            orderBy: [{ resultingVersion: "desc" }, { id: "desc" }], select: { resultSnapshot: true }
+          });
+          if ((noteSnapshot(latest?.resultSnapshot)?.noteId ?? null) !== input.command.expectedWishlistNoteId) {
+            throw Object.assign(new Error("Wishlist changed."), { code: "WISHLIST_CHANGED" });
+          }
+        }
         const note = await tx.customerNote.create({
           data: {
             authorUserId: input.command.actorUserId,

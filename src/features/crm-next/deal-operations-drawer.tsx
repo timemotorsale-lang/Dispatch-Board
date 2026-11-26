@@ -109,7 +109,7 @@ function RentalActivitySection({ activity, canEdit, busy, save }: {
   </section>;
 }
 
-export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string; customerId?: string | null; rental?: RentalWork | null }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
+export function DealOperationsDrawer({ deal, expectedCustomerId, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string; customerId?: string | null; rental?: RentalWork | null }; expectedCustomerId?: string; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null), pending = useRef<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [data, setData] = useState<DealOperationsView | null>(null), [packet, setPacket] = useState<SalesDocumentJacketView | null>(null);
   const [tab, setTab] = useState(isRentalPathway(deal.pathway) && initialTab === "Documents" ? "Rental" : initialTab), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [message, setMessage] = useState("");
@@ -119,21 +119,21 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   const load = useCallback(async (signal?: AbortSignal, background = false) => {
     if (!background) { setLoading(true); setError(""); }
     try {
-      const params = new URLSearchParams({ view: "operations", ...(deal.draftId ? { draftId: deal.draftId } : deal.jacketId ? { jacketId: deal.jacketId } : {}) });
+      const params = new URLSearchParams({ view: "operations", ...(expectedCustomerId ? { expectedCustomerId } : {}), ...(deal.draftId ? { draftId: deal.draftId } : deal.jacketId ? { jacketId: deal.jacketId } : {}) });
       const response = await fetch(`/api/crm/v1/deal-drafts?${params}`, { signal, cache: "no-store" }), body = await response.json();
       if (!response.ok) throw new Error(body.error || "Deal details could not be loaded.");
       if (!signal?.aborted) { setData(body); setPacket(current => current?.id === body.jacketId ? current : null); }
-      if (body.jacketId && body.pathway !== "repairs") { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal, cache: "no-store" }); const jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); if (!signal?.aborted) setPacket(jacket); }
+      if (!expectedCustomerId && body.jacketId && body.pathway !== "repairs") { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal, cache: "no-store" }); const jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); if (!signal?.aborted) setPacket(jacket); }
     } catch (caught) { if (!signal?.aborted) setError(caught instanceof Error ? caught.message : "Connection interrupted. Select Refresh to try again."); }
     finally { if (!background && !signal?.aborted) setLoading(false); }
-  }, [deal.draftId, deal.jacketId]);
+  }, [deal.draftId, deal.jacketId, expectedCustomerId]);
   useEffect(() => { dialog.current?.showModal(); const controller = new AbortController(); const timer = setTimeout(() => void load(controller.signal), 0); return () => { clearTimeout(timer); controller.abort(); }; }, [load]);
   async function save(fields: Record<string, unknown>) {
     if (!data || busy || loading) return false;
     setBusy(true); setError(""); setMessage("");
     try {
       const fingerprint = JSON.stringify(fields);
-      if (pending.current?.fingerprint !== fingerprint) pending.current = { fingerprint, body: { ...fields, draftId: data.draftId, jacketId: data.jacketId, draftRevision: data.draftRevision, jacketRevision: data.jacketRevision, operationKey: crypto.randomUUID() } };
+      if (pending.current?.fingerprint !== fingerprint) pending.current = { fingerprint, body: { ...fields, ...(expectedCustomerId ? { expectedCustomerId } : {}), draftId: data.draftId, jacketId: data.jacketId, draftRevision: data.draftRevision, jacketRevision: data.jacketRevision, operationKey: crypto.randomUUID() } };
       const rentalActivity = typeof fields.action === "string" && fields.action.startsWith("RENTAL_");
       const response = await fetch(rentalActivity ? "/api/claims-workspace/rental-activity" : "/api/crm/v1/deal-drafts", { method: rentalActivity ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) }), body = await response.json();
       if (!response.ok) { if (response.status !== 503) pending.current = null; throw new Error(body.error || "The change could not be saved."); }
@@ -192,7 +192,7 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   return <dialog ref={dialog} className={`${styles.archiveDialog} ${styles.dealDrawer}`} aria-label={`Deal details · ${deal.customerName}`} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
     <header><div><h2>{deal.customerName}</h2><p>{data?.vehicleReference}</p></div><button disabled={busy} onClick={onClose}>Close</button></header>
     {alerts.length > 0 && <ul className={styles.dealFlags} aria-label="Deal follow-up flags">{alerts.map(alert => <li key={alert}>{alert}</li>)}</ul>}
-    <div className={styles.tabs} role="tablist" aria-label="Deal detail sections" onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')); const current = buttons.findIndex(button => button.getAttribute("aria-selected") === "true"); const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length; setTab(buttons[next].textContent || "Documents"); buttons[next].focus(); }}>{[...(rental || data?.rentalActivity ? ["Rental"] : []), "Documents", "Completion", "Pathway", "Follow-ups", "Money", "History", ...(data?.canManage ? ["Manager"] : [])].map(label => <button key={label} id={`deal-detail-${label}`} role="tab" aria-controls="deal-details-panel" tabIndex={tab === label ? 0 : -1} aria-selected={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div>
+    <div className={styles.tabs} role="tablist" aria-label="Deal detail sections" onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')); const current = buttons.findIndex(button => button.getAttribute("aria-selected") === "true"); const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length; setTab(buttons[next].textContent || "Documents"); buttons[next].focus(); }}>{(expectedCustomerId ? ["Money"] : [...(rental || data?.rentalActivity ? ["Rental"] : []), "Documents", "Completion", "Pathway", "Follow-ups", "Money", "History", ...(data?.canManage ? ["Manager"] : [])]).map(label => <button key={label} id={`deal-detail-${label}`} role="tab" aria-controls="deal-details-panel" tabIndex={tab === label ? 0 : -1} aria-selected={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div>
     <p><button disabled={busy || loading} onClick={() => { pending.current = null; void load(); }}>Refresh details</button></p>
     {loading && <p role="status">Loading this deal…</p>}{error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {updatedDraft && <p><Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(updatedDraft.id)}`}>Open updated deal</Link></p>}
@@ -229,6 +229,9 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
       </>}
       {tab === "Money" && (!repair || data.financialEntries.length > 0) && <>
         <h3>{dailyRental ? "Rental payments" : repair ? "Existing deal financial records" : "Recorded financial activity"}</h3>
+        {expectedCustomerId && data.canManage && !repair && !dailyRental && !data.jacketId && data.draftId && <p>
+          Prepare the deal packet before recording a verified deposit. <Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(data.draftId)}&section=documents`}>Open deal documents</Link>
+        </p>}
         {dailyRental && data.draftId && !data.inactive && (data.canManage ? <RentalPaymentForm busy={busy} save={save} showError={setError} /> : <p>A manager can record a received payment and issue its receipt.</p>)}
         {issuedReceipt && issuedReceipt.draftId === data.draftId && <p><a className={styles.rentalPaymentPrimary} target="_blank" rel="noopener" href={rentalReceiptHref(issuedReceipt.draftId, issuedReceipt.paymentId)}>Open latest receipt</a></p>}
         {data.inactive && <p>Managers can record verified financial corrections for this inactive deal.</p>}

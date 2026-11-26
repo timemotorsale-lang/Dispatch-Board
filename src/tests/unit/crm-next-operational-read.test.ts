@@ -404,7 +404,7 @@ describe("CRM Next operational read model", () => {
     expect(result.customer.name).toBe("Amina Yusuf");
     expect(result.customer.customerNumber).toBe("C-1001");
     expect(result.customer.vehicles).toEqual([
-      { id: "vehicle-1", label: "2021 Toyota RAV4", status: "Owned", vin: "Owned" }
+      { id: "vehicle-1", label: "2021 Toyota RAV4", status: "Owned", vin: "", relationship: "Owned", href: "/vehicles/vehicle-1" }
     ]);
     expect(result.model.timeline[0]).toMatchObject({
       href: "/customers/customer-amina",

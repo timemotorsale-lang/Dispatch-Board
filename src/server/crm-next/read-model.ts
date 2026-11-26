@@ -85,7 +85,7 @@ export type CrmNextCustomer360 = {
   };
   riskLevel: CrmNextAttentionLevel;
   nextAction: string;
-  vehicles: Array<{ id: string; label: string; vin: string; status: string }>;
+  vehicles: Array<{ id: string; label: string; vin: string; status: string; href?: string; relationship?: string }>;
   glance: Array<{ label: string; value: string; href: string }>;
   communications: Array<{ id: string; channel: "Phone" | "Text" | "Email" | "Appointment"; detail: string; occurredAt: string }>;
 };
@@ -2346,7 +2346,9 @@ function crmNextCustomerFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextC
       id: vehicle.id,
       label: vehicle.label,
       status: vehicle.status,
-      vin: vehicle.relationshipType
+      vin: "",
+      relationship: vehicle.relationshipType,
+      href: vehicle.sourceHref
     })),
     glance: [
       { label: "Customer #", value: model.identity.customerNumber, href: model.source.href },

@@ -1,3 +1,7 @@
+import { canUseOwnDeals } from "@/server/policies/access";
+import { readCustomerWishlist } from "@/server/crm-next/customer-wishlist";
+import { customerVehicleToolsEnabled } from "@/server/crm-next/customer-vehicle-tools";
+import { canCreateUnifiedCrmCustomerNote } from "@/server/unified-crm/customer-note-access";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 import { CaptureArchiveError, resolveCaptureTarget } from "@/server/document-library/capture-archive";
 import { getCustomerCollectionsCard } from "@/features/collections/server/customer-card";
@@ -34,8 +38,16 @@ export default async function CrmNextCustomerPage({ params }: CrmNextCustomerPag
       }
       return false;
     });
+  const [wishlist, canLinkVehicle] = await Promise.all([
+    readCustomerWishlist(user, customer.id).catch(() => null),
+    customerVehicleToolsEnabled(user, customer.id).catch(() => false)
+  ]);
   return (
     <CrmNextCustomer360View
+      canLinkVehicle={canLinkVehicle}
+      dealsEnabled={canUseOwnDeals(user)}
+      wishlist={wishlist}
+      wishlistEditable={canCreateUnifiedCrmCustomerNote(user, { readMode: "REVIEW", shellMode: "REVIEW", commandMode: "REVIEW" })}
       captureEnabled={captureEnabled}
       customer={customer}
       model={model}

@@ -59,6 +59,9 @@ async function resolveDeal(actor: AuthenticatedUser, input: Record<string, unkno
   const snapshot = record(draft?.snapshot), linked = record(snapshot.jackets)[draft?.pathway || ""], refs = Object.values(record(snapshot.references)).filter((value): value is string => typeof value === "string");
   const jacket = jacketId || linked || refs.length ? await db.salesDocumentJacket.findFirst({ where: { organizationId, ...(draft ? { pathway: draft.pathway, OR: [...(typeof linked === "string" ? [{ id: linked }] : []), ...(refs.length ? [{ dealReference: { in: refs } }] : [])] } : {}), ...(jacketId ? { id: jacketId } : {}) } }) : null;
   if (jacketId && !jacket) throw new SalesDocumentsError("This packet is not linked to the selected deal.", 404);
+  if (input.expectedCustomerId !== undefined && (
+    !text(input.expectedCustomerId) || draft?.customerId !== input.expectedCustomerId || (jacket?.customerId && jacket.customerId !== input.expectedCustomerId)
+  )) throw new SalesDocumentsError("This deal no longer matches this customer. Reopen it from the customer record.", 409);
   return { draft, jacket, organizationId, subjectId: draft?.id || jacket!.id };
 }
 export async function readDealOperations(actor: AuthenticatedUser | null, input: Record<string, unknown>) {
@@ -157,12 +160,12 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
     if (action === "DEAL_REASSIGN" && !draft) throw new SalesDocumentsError("Only saved drafts can be reassigned. Packet creators remain part of the historical record.");
     // Lock in lifecycle order. Operational records do not change terms or invalidate reviewed paperwork.
     if (draft) {
-      const locked = await db.$queryRaw<Array<{ revision: number }>>(Prisma.sql`SELECT "revision" FROM "DealDeskDraft" WHERE "id" = ${draft.id} AND "organizationId" = ${organizationId} FOR UPDATE`);
-      if (locked.length !== 1 || input.draftRevision !== locked[0].revision) throw new SalesDocumentsError("This deal changed. Refresh this panel before saving.", 409);
+      const locked = await db.$queryRaw<Array<{ revision: number; customerId: string | null }>>(Prisma.sql`SELECT "revision", "customerId" FROM "DealDeskDraft" WHERE "id" = ${draft.id} AND "organizationId" = ${organizationId} FOR UPDATE`);
+      if (locked.length !== 1 || input.draftRevision !== locked[0].revision || (input.expectedCustomerId !== undefined && input.expectedCustomerId !== locked[0].customerId)) throw new SalesDocumentsError("This deal changed. Refresh this panel before saving.", 409);
     }
     if (jacket && !rentalAction) {
-      const locked = await db.$queryRaw<Array<{ revision: number }>>(Prisma.sql`SELECT "revision" FROM "SalesDocumentJacket" WHERE "id" = ${jacket.id} AND "organizationId" = ${organizationId} FOR UPDATE`);
-      if (locked.length !== 1 || input.jacketRevision !== locked[0].revision) throw new SalesDocumentsError("This packet changed. Refresh this panel before saving.", 409);
+      const locked = await db.$queryRaw<Array<{ revision: number; customerId: string | null }>>(Prisma.sql`SELECT "revision", "customerId" FROM "SalesDocumentJacket" WHERE "id" = ${jacket.id} AND "organizationId" = ${organizationId} FOR UPDATE`);
+      if (locked.length !== 1 || input.jacketRevision !== locked[0].revision || (input.expectedCustomerId !== undefined && locked[0].customerId && input.expectedCustomerId !== locked[0].customerId)) throw new SalesDocumentsError("This packet changed. Refresh this panel before saving.", 409);
     }
     const concurrent = await db.documentLibraryAuditEvent.findUnique({ where: { organizationId_action_idempotencyKey: { organizationId, action, idempotencyKey: operationKey } } });
     if (concurrent) { if (record(concurrent.metadata).requestHash !== requestHash || concurrent.actorUserId !== user.id) throw new SalesDocumentsError("This operation reference was already used. Refresh before retrying.", 409); return record(concurrent.metadata).result; }
