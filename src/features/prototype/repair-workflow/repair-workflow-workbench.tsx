@@ -393,7 +393,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
         <div className="form-actions">
           <Link className="button button-primary" href={purchaseUrl}>Order or receive parts</Link>
           <Link className="button button-secondary" href={`${purchaseUrl}&action=return#repair-parts-returns`}>Return received parts</Link>
-          <Link className="button button-secondary" href={`/vehicles/parts?${new URLSearchParams({ repairOrderId: order.id, returnTo: partsHub })}`}>Parts search workbook</Link>
+          <Link className="button button-secondary" href={`/vehicles/parts/workbook?${new URLSearchParams({ repairOrderId: order.id, returnTo: partsHub })}`}>Parts search workbook</Link>
         </div>
         <Link href={repairReviewHref(order.id, selected, { ...context, repairJobId, repairAction })}>Back to repair task</Link>
       </section> : <p role="status">Parts operations are unavailable for this repair order or your role. <Link href={home}>Back to repair task</Link></p>
