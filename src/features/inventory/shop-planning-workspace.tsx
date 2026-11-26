@@ -3,7 +3,7 @@
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useId, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-revision";
 import { emptyManualLaborReview, estimateReviewScope, manualReviewComplete } from "@/lib/estimate-review";
@@ -278,6 +278,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const [estimateLines, setEstimateLines] = useState<Line[]>([]);
   const [manualLaborReview, setManualLaborReview] = useState({ ...emptyManualLaborReview });
   const laborReviewDetails = useRef<HTMLDetailsElement>(null);
+  const laborReviewId = useId();
   const estimateLineDetails = useRef<HTMLDetailsElement>(null);
   const estimateSavedPanel = useRef<HTMLDivElement>(null);
   const [savedEstimateId, setSavedEstimateId] = useState<string | null>(null);
@@ -1454,12 +1455,15 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 <p>{displayNotice}</p>
                 {directPath && displayNotice.includes("Save the bodywork repair scope first") ? <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget("#repair-planning-step-2")} type="button">Open bodywork scope<ChevronRight /></button> : null}
               </div> : null}
-              {hasLaborReview && <details ref={laborReviewDetails}><summary>{laborReviewed ? "Labor review complete" : "Complete labor review before presenting"}</summary>
+              {hasLaborReview && <details ref={laborReviewDetails} id={laborReviewId}><summary>{laborReviewed ? "Labor review complete" : "Labor review details"}</summary>
                 {([ ["engine", "Engine / powertrain"], ["configuration", "Configuration / relevant options"], ["source", "Labor-hour and applicability source"], ["limitations", "Limitations / assumptions"] ] as const).map(([key, label]) => <Field key={key} label={label}><input maxLength={2000} value={manualLaborReview[key]} onChange={event => setManualLaborReview({ ...manualLaborReview, [key]: event.target.value, scope: "" })} /></Field>)}
                 <label><input type="checkbox" checked={Boolean(reviewScope && manualLaborReview.scope === reviewScope)} onChange={event => setManualLaborReview({ ...manualLaborReview, scope: event.target.checked ? reviewScope : "" })} />I reviewed this vehicle and exact work. This is not OEM verification.</label>
               </details>}
               {estimateLines.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy())) && <EstimateControlsPanel controls={estimateControls} scope={estimateControlsScope(selected.vehicle.id, estimateLines, estimateControls)} labor={estimateLines.flatMap(line => { const operation = laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()); return operation ? [operation] : []; })} parts={estimateLines.filter(line => line.type === "PART").map(line => ({ key: line.key, label: line.description }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={defaultLaborRate} />}
-              <Submit busy={busy} disabled={Boolean(savedEstimateId && !reviewLines.length)}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>
+              {hasLaborReview && !laborReviewed ? <footer className={styles.submit}>
+                <span>Review labor for this vehicle before presenting the estimate.</span>
+                <button type="button" disabled={busy} aria-controls={laborReviewId} onClick={() => focusEstimateDetails(laborReviewDetails.current)}>Complete labor review</button>
+              </footer> : <Submit busy={busy} disabled={Boolean(savedEstimateId && !reviewLines.length)}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>}
               {focusStep === 3 && estimateNextHref && !estimateLines.length && !estimate.description.trim() && !estimate.plannedCorrection.trim() && (savedEstimateId || latestEstimate?.id) && <div ref={estimateSavedPanel} tabIndex={-1}>
                 <EstimateWorkflowNextStep repairOrderId={selected.id} estimateId={savedEstimateId ?? latestEstimate!.id} nextHref={estimateNextHref} reviewWorkflow />
               </div>}
