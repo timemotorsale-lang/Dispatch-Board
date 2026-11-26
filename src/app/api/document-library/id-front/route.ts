@@ -7,12 +7,26 @@ export const runtime = "nodejs";
 const MAX_BYTES = 8 * 1024 * 1024;
 const headers = { "Cache-Control": "no-store", "Pragma": "no-cache" };
 
+function isAppOrigin(request: Request) {
+  const site = request.headers.get("sec-fetch-site");
+  if (site === "cross-site" || site === "same-site") return false;
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    const source = new URL(origin);
+    const target = new URL(request.url);
+    if (!["http:", "https:"].includes(source.protocol)) return false;
+    // A proxy can canonicalize the request URL while the browser still uses the public host.
+    return source.origin === target.origin ||
+      (site === "same-origin" && source.host === request.headers.get("host"));
+  } catch { return false; }
+}
+
 export async function POST(request: Request) {
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Sign in to read an ID front." }, { status: 401, headers });
   if (!actor.isActive) return NextResponse.json({ error: "An active app account is required." }, { status: 403, headers });
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Open ID capture from this app." }, { status: 403, headers });
+  if (!isAppOrigin(request)) return NextResponse.json({ error: "Open ID capture from this app." }, { status: 403, headers });
   if (Number(request.headers.get("content-length")) > MAX_BYTES + 65536) return NextResponse.json({ error: "Use an ID image under 8 MB." }, { status: 413, headers });
   try {
     const form = await request.formData();

@@ -4,10 +4,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Check, Flashlight, RotateCcw, SwitchCamera, UploadCloud, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { idFromBarcode, vinFromBarcode } from "./barcode-review";
-import { cameraErrorMessage, createCameraSession } from "./scanner-camera";
+import { cameraErrorMessage, captureCameraFrame, createCameraSession } from "./scanner-camera";
+import { createNativeBarcodeReader, createSoftwareBarcodeReader, normalizeScan, type ScanResult } from "./live-barcode-reader";
 import styles from "./barcode-scanner.module.css";
 
-export type ScanResult = { format: string; value: string };
+export type { ScanResult } from "./live-barcode-reader";
 
 export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onConfirm }: {
   vinOnly?: boolean;
@@ -29,15 +30,18 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torch, setTorch] = useState(false);
   const [reading, setReading] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [idConfirmed, setIdConfirmed] = useState(false);
   const [revealId, setRevealId] = useState(false);
   const idFields = result && idOnly ? idFromBarcode(result.value) : null;
   const videoRef = useRef<HTMLVideoElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const nativeRef = useRef<HTMLInputElement>(null);
   const trackRef = useRef<MediaStreamTrack | null>(null);
   const stopRef = useRef<() => void>(() => {});
   const fileSequence = useRef(0);
+  const manualCapture = useRef(false);
   const constraintSequence = useRef(0);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
@@ -85,10 +89,11 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
         return;
       }
       try {
-        const { BarcodeFormat, BrowserMultiFormatReader, BrowserPDF417Reader } = await import("@zxing/browser");
-        if (cancelled) return;
-        const reader = idOnly ? new BrowserPDF417Reader() : new BrowserMultiFormatReader();
-        const stream = await session.open(video!, facing, cameraId);
+        const mode = idOnly ? "id" : vinOnly ? "vin" : "all";
+        let native: Awaited<ReturnType<typeof createNativeBarcodeReader>> = null;
+        let nativeInFlight = false;
+        void createNativeBarcodeReader(mode).then(detector => { if (!cancelled) native = detector; });
+        const [stream, decode] = await Promise.all([session.open(video!, facing, cameraId), createSoftwareBarcodeReader(mode)]);
         if (!stream || cancelled) return;
         trackRef.current = stream.getVideoTracks()[0] ?? null;
         const capabilities = trackRef.current?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean; zoom?: { min: number; max: number; step: number }; focusMode?: string[] }) | undefined;
@@ -98,43 +103,56 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
         const settings = (trackRef.current?.getSettings?.() ?? {}) as MediaTrackSettings & { zoom?: number };
         setZoom(settings.zoom ?? range?.min ?? 1);
         if (capabilities?.focusMode?.includes("continuous")) {
-          await trackRef.current?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+          void trackRef.current?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
         }
-        if (cancelled) return;
         if (navigator.mediaDevices.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-          if (cancelled) return;
-          setCameras(devices.filter(device => device.kind === "videoinput" && device.deviceId).map((device, index) => ({ id: device.deviceId, label: device.label || `Camera ${index + 1}` })));
+          void navigator.mediaDevices.enumerateDevices().then(devices => {
+            if (!cancelled) setCameras(devices.filter(device => device.kind === "videoinput" && device.deviceId).map((device, index) => ({ id: device.deviceId, label: device.label || `Camera ${index + 1}` })));
+          }).catch(() => {});
         }
-        setStatus(idOnly ? "Turn the ID over. Hold the wide PDF417 barcode flat inside the guide. Move closer until the bars look sharp." : vinOnly ? "Aim at the VIN barcode or a QR code containing a VIN. Scanning is automatic." : "Aim at a barcode or QR code. Scanning is automatic.");
+        setCameraReady(true);
+        setStatus(idOnly ? "Scanning automatically. Fit the entire barcode on the back of the ID in the guide." : vinOnly ? "Scanning automatically. Center the VIN barcode and hold steady." : "Scanning automatically. Center the entire barcode or QR code.");
         const scanStartedAt = Date.now();
+        let currentFrame = -1;
+        let pass = 0;
+        let completed = false;
+        let hinted = false;
+        function accept(code: ScanResult) {
+          if (cancelled || completed || manualCapture.current) return;
+          completed = true;
+          clearTimeout(timer);
+          const sequence = ++fileSequence.current;
+          const snapshot = captureCameraFrame(video!, "barcode-scan.jpg");
+          session.stop();
+          setCameraReady(false);
+          void snapshot.catch(() => undefined).then(file => {
+            if (cancelled || sequence !== fileSequence.current) return;
+            setImage(file);
+            setResult(code);
+            setStatus("Code found. Check the result before continuing.");
+          });
+        }
         function scan() {
-          if (cancelled) return;
-          try {
-            if (video!.readyState >= 2) {
-              const decoded = reader.decode(video!);
-              const value = vinOnly ? vinFromBarcode(decoded.getText()) : decoded.getText().trim();
-              if (idOnly && !idFromBarcode(decoded.getText())) { setStatus("Barcode read, but recognizable ID fields were not found. Check the back of the ID or enter details in the customer form."); timer = setTimeout(scan, 500); return; }
-              if (value) {
-                const canvas = document.createElement("canvas");
-                canvas.width = video!.videoWidth;
-                canvas.height = video!.videoHeight;
-                canvas.getContext("2d")?.drawImage(video!, 0, 0);
-                canvas.toBlob((blob) => {
-                  if (cancelled) return;
-                  setImage(blob ? new File([blob], "barcode-scan.jpg", { type: "image/jpeg" }) : undefined);
-                  setResult({ format: BarcodeFormat[decoded.getBarcodeFormat()], value });
-                  setStatus("Code found. Check the result before continuing.");
-                }, "image/jpeg", 0.92);
-                session.stop();
-                return;
-              }
-              setStatus("Code read, but no 17-character VIN was found. Try the vehicle’s VIN barcode or enter it below.");
+          if (cancelled || completed) return;
+          if (!manualCapture.current && video!.readyState >= 2 && video!.currentTime !== currentFrame) {
+            currentFrame = video!.currentTime;
+            if (native && !nativeInFlight) {
+              nativeInFlight = true;
+              void native.detect(video!).then(codes => {
+                for (const item of codes) {
+                  const code = normalizeScan(mode, item.format, item.rawValue);
+                  if (code) { accept(code); break; }
+                }
+              }).catch(() => { native = null; }).finally(() => { nativeInFlight = false; });
             }
-          } catch {
-            if (Date.now() - scanStartedAt > 10000) setStatus(idOnly ? "Still looking for the ID barcode. Fill the guide with the entire stacked barcode, tilt away from glare, or choose a sharper photo." : "Still looking for a VIN. Try the door-jamb label, switch cameras or adjust zoom. You can also enter the VIN below.");
+            const code = decode(video!, pass++);
+            if (code) accept(code);
+            else if (!hinted && Date.now() - scanStartedAt > 4200) {
+              hinted = true;
+              setStatus(idOnly ? "Keep the entire barcode visible. Move a little closer or tilt away from glare." : vinOnly ? "Try the VIN label on the door jamb. Fill the guide, then move slightly back if the bars look blurry." : "Try moving closer or tilting away from glare. The whole code should be visible.");
+            }
           }
-          timer = setTimeout(scan, 300);
+          if (!completed) timer = setTimeout(scan, 120);
         }
         scan();
       } catch (error) {
@@ -144,27 +162,49 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     }
     void start();
     function visibility() {
-      if (document.hidden) { stop(); setStatus("Camera paused while the app was in the background. Tap Try again to resume."); }
+      if (document.hidden) { stop(); setCameraReady(false); setStatus("Camera paused while the app was in the background. Tap Try again to resume."); }
     }
     document.addEventListener("visibilitychange", visibility);
     return () => { stop(); document.removeEventListener("visibilitychange", visibility); };
   }, [attempt, facing, result, vinOnly, idOnly, cameraId]);
 
-  async function readPhoto(file: File | undefined) {
+  async function readPhoto(file: File | undefined, liveCapture = false) {
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) { setStatus("Choose an image under 25 MB."); return; }
+    if (!file.type.startsWith("image/") || !file.size || file.size > 25 * 1024 * 1024) { setStatus("Choose a nonempty image under 25 MB."); return; }
     const sequence = ++fileSequence.current;
-    stopRef.current();
+    manualCapture.current = true;
+    if (!liveCapture) { stopRef.current(); setCameraReady(false); }
     setReading(true);
     setStatus("Reading photo…");
     const url = URL.createObjectURL(file);
     try {
       const { BarcodeFormat, BrowserMultiFormatReader, BrowserPDF417Reader } = await import("@zxing/browser");
-      const decoded = await (idOnly ? new BrowserPDF417Reader() : new BrowserMultiFormatReader()).decodeFromImageUrl(url);
+      const reader = idOnly ? new BrowserPDF417Reader() : new BrowserMultiFormatReader();
+      let decoded;
+      try { decoded = await reader.decodeFromImageUrl(url); }
+      catch (error) {
+        if (!idOnly || sequence !== fileSequence.current) throw error;
+        const source = new Image();
+        source.src = url;
+        await source.decode();
+        if (sequence !== fileSequence.current) return;
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 2400 / Math.max(source.naturalWidth, source.naturalHeight));
+        canvas.width = Math.round(source.naturalHeight * scale);
+        canvas.height = Math.round(source.naturalWidth * scale);
+        const context = canvas.getContext("2d");
+        if (!context) throw error;
+        context.translate(canvas.width, 0);
+        context.rotate(Math.PI / 2);
+        context.drawImage(source, 0, 0, canvas.height, canvas.width);
+        decoded = reader.decodeFromCanvas(canvas);
+      }
       if (sequence !== fileSequence.current) return;
       const value = vinOnly ? vinFromBarcode(decoded.getText()) : decoded.getText().trim();
       if (idOnly && !idFromBarcode(decoded.getText())) { setStatus("This barcode did not contain recognizable ID fields. Use a clear photo of the barcode on the back of the ID."); return; }
       if (!value) { setStatus("No VIN in this code. Choose a VIN barcode photo or enter the VIN."); return; }
+      stopRef.current();
+      setCameraReady(false);
       setImage(file);
       setResult({ format: BarcodeFormat[decoded.getBarcodeFormat()], value });
       setStatus("Code found. Check the result before continuing.");
@@ -172,7 +212,23 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       if (sequence === fileSequence.current) setStatus("No readable code found. Choose a sharper photo with the whole code visible, or try the camera again.");
     } finally {
       URL.revokeObjectURL(url);
-      if (sequence === fileSequence.current) setReading(false);
+      if (sequence === fileSequence.current) { manualCapture.current = false; setReading(false); }
+    }
+  }
+
+  async function captureBarcode() {
+    if (!videoRef.current || !cameraReady || manualCapture.current) return;
+    manualCapture.current = true;
+    const sequence = ++fileSequence.current;
+    setReading(true);
+    setStatus("Capturing barcode…");
+    try {
+      const file = await captureCameraFrame(videoRef.current, "barcode-scan.jpg");
+      if (sequence === fileSequence.current) await readPhoto(file, true);
+    } catch (error) {
+      if (sequence === fileSequence.current) setStatus(error instanceof Error ? error.message : "Could not capture the barcode. Try again.");
+    } finally {
+      if (sequence === fileSequence.current) { manualCapture.current = false; setReading(false); }
     }
   }
 
@@ -197,6 +253,8 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
 
   function retry() {
     fileSequence.current += 1;
+    manualCapture.current = false;
+    setCameraReady(false);
     setReading(false);
     setResult(null);
     setImage(undefined);
@@ -229,7 +287,8 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       </div>
       <p className={styles.status} role="status">{status}</p>
       {result ? <>{idOnly ? <div className={styles.idReview}><button aria-pressed={revealId} onClick={() => setRevealId(!revealId)} type="button">{revealId ? "Hide ID number" : "Show ID number"}</button><label><input checked={idConfirmed} onChange={(event) => setIdConfirmed(event.target.checked)} type="checkbox" /> I checked these details against the front of the ID.</label><p>Details stay in this capture session until you choose an action. No customer record is changed automatically.</p></div> : null}<div className={styles.controls}><button className={styles.primary} disabled={idOnly && (!idFields || !idConfirmed)} onClick={() => onConfirm(result, image)} type="button"><Check />{idOnly ? "Use reviewed ID" : vinOnly ? "Use this VIN" : "Use this code"}</button><button onClick={retry} type="button"><RotateCcw />Scan again</button></div></> : <>
-        <div className={styles.controls}><button disabled={reading} onClick={retry} type="button"><RotateCcw />Try again</button><button disabled={reading} onClick={() => { retry(); setCameraId(""); setFacing((current) => current === "environment" ? "user" : "environment"); }} type="button"><SwitchCamera />Flip camera</button>{torchAvailable ? <button aria-pressed={torch} onClick={() => void toggleTorch()} type="button"><Flashlight />Light {torch ? "on" : "off"}</button> : null}<button disabled={reading} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose photo</button></div>
+        <div className={styles.controls}><button disabled={reading || !cameraReady} onClick={() => void captureBarcode()} type="button"><Camera />{reading ? "Reading photo…" : "Capture barcode"}</button><button disabled={reading} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose photo</button></div>
+        <div className={styles.controls}>{!cameraReady ? <><button disabled={reading} onClick={retry} type="button"><RotateCcw />Try again</button><button disabled={reading} onClick={() => nativeRef.current?.click()} type="button">Use device camera</button></> : <button disabled={reading} onClick={() => { retry(); setCameraId(""); setFacing((current) => current === "environment" ? "user" : "environment"); }} type="button"><SwitchCamera />Flip camera</button>}{cameraReady && torchAvailable ? <button aria-pressed={torch} onClick={() => void toggleTorch()} type="button"><Flashlight />Light {torch ? "on" : "off"}</button> : null}</div>
         {(cameras.length > 1 || zoomRange) && <div className={styles.cameraSettings}>
           {cameras.length > 1 && <label>Camera<select value={cameraId} disabled={reading} onChange={event => { retry(); setCameraId(event.target.value); }}><option value="">Automatic rear camera</option>{cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}</select></label>}
           {zoomRange && <label>Zoom · {zoom.toFixed(1)}×<input aria-label="Camera zoom" type="range" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoom} disabled={reading} onChange={event => void changeZoom(Number(event.target.value))} /></label>}
@@ -238,6 +297,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
         {!idOnly ? <div className={styles.manual}><label htmlFor={`${titleId}-code`}>{vinOnly ? "Enter VIN instead" : "Enter code instead"}</label><input autoCapitalize={vinOnly ? "characters" : "off"} autoComplete="off" id={`${titleId}-code`} maxLength={vinOnly ? 17 : 120} onChange={(event) => setManual(vinOnly ? event.target.value.toUpperCase() : event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); reviewManual(); } }} placeholder={vinOnly ? "17-character VIN" : "Type or use a connected barcode reader"} value={manual} /><button disabled={vinOnly ? !vinFromBarcode(manual) : !manual.trim()} onClick={reviewManual} type="button">{vinOnly ? "Review VIN" : "Review code"}</button></div> : null}
       </>}
       <input accept="image/*" hidden onChange={(event) => { void readPhoto(event.target.files?.[0]); event.target.value = ""; }} ref={uploadRef} type="file" />
+      <input accept="image/*" capture="environment" hidden onChange={(event) => { void readPhoto(event.target.files?.[0]); event.target.value = ""; }} ref={nativeRef} type="file" />
     </div>
   </div>, document.body);
 }

@@ -5,9 +5,9 @@ vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: dependencies.acto
 vi.mock("@/server/document-library/text-extraction", () => ({ extractDocumentText: dependencies.extract }));
 import { POST } from "@/app/api/document-library/id-front/route";
 
-function request(origin = "http://localhost", mime = "image/jpeg", bytes = new Uint8Array([255, 216, 255, 224])) {
+function request(origin = "http://localhost", mime = "image/jpeg", bytes = new Uint8Array([255, 216, 255, 224]), headers?: Record<string, string>) {
   const form = new FormData(); form.append("file", new File([bytes], "front.jpg", { type: mime }));
-  return new Request("http://localhost/api/document-library/id-front", { method: "POST", headers: { origin }, body: form });
+  return new Request("http://localhost/api/document-library/id-front", { method: "POST", headers: { origin, ...headers }, body: form });
 }
 beforeEach(() => {
   vi.resetAllMocks(); dependencies.actor.mockResolvedValue({ id: "staff-1", isActive: true, roles: [], duties: { all: [] } });
@@ -29,6 +29,14 @@ describe("front-of-ID OCR endpoint", () => {
     expect((await POST(request("https://unrelated.example"))).status).toBe(403);
     expect((await POST(request("http://localhost", "image/jpeg", new Uint8Array([1, 2, 3])))).status).toBe(400);
     expect(dependencies.extract).not.toHaveBeenCalled();
+  });
+  it("accepts a browser's same-origin request when the proxy canonicalizes the server URL", async () => {
+    const accepts = { host: "preview.example", "sec-fetch-site": "same-origin" };
+    expect((await POST(request("https://preview.example", undefined, undefined, accepts))).status).toBe(200);
+    expect((await POST(request("https://other.example", undefined, undefined, accepts))).status).toBe(403);
+    expect((await POST(request("https://preview.example", undefined, undefined, { ...accepts, "sec-fetch-site": "cross-site" }))).status).toBe(403);
+    expect((await POST(request("https://preview.example", undefined, undefined, { host: "preview.example" }))).status).toBe(403);
+    expect(dependencies.extract).toHaveBeenCalledOnce();
   });
   it("rejects an oversized request before running OCR", async () => {
     const oversized = new Request("http://localhost/api/document-library/id-front", { method: "POST", headers: { "content-length": "10000000" }, body: "not parsed" });

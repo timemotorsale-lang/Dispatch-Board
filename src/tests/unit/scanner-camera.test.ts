@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cameraErrorMessage, createCameraSession } from "@/features/mobile-capture/scanner-camera";
+import { cameraErrorMessage, captureCameraFrame, createCameraSession } from "@/features/mobile-capture/scanner-camera";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -76,5 +76,30 @@ describe("scanner camera lifecycle", () => {
     const error = new Error("Camera failed");
     error.name = name;
     expect(cameraErrorMessage(error)).toContain(message);
+  });
+});
+
+describe("camera shutter", () => {
+  const video = { readyState: 2, videoWidth: 1920, videoHeight: 1080 } as HTMLVideoElement;
+
+  it("returns a named JPEG from the full camera frame", async () => {
+    const drawImage = vi.fn();
+    const canvas = {
+      width: 0, height: 0, getContext: () => ({ drawImage }),
+      toBlob: (done: (blob: Blob) => void, type: string) => done(new Blob(["synthetic photo bytes"], { type }))
+    };
+    vi.stubGlobal("document", { createElement: () => canvas });
+    const photo = await captureCameraFrame(video, "id-front.jpg");
+    expect([canvas.width, canvas.height]).toEqual([1920, 1080]);
+    expect(drawImage).toHaveBeenCalledExactlyOnceWith(video, 0, 0);
+    expect(photo).toMatchObject({ name: "id-front.jpg", type: "image/jpeg", size: 21 });
+  });
+
+  it("blocks a shutter press before the first frame and reports a failed image encode", async () => {
+    await expect(captureCameraFrame({ ...video, readyState: 1 } as HTMLVideoElement, "photo.jpg")).rejects.toThrow("Wait for the camera picture");
+    vi.stubGlobal("document", { createElement: () => ({
+      getContext: () => ({ drawImage: vi.fn() }), toBlob: (done: (blob: null) => void) => done(null)
+    }) });
+    await expect(captureCameraFrame(video, "photo.jpg")).rejects.toThrow("Could not capture the photo");
   });
 });

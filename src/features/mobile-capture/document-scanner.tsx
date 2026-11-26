@@ -3,8 +3,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ImagePreview from "next/image";
-import { Camera, FileCheck, Plus, RotateCw, UploadCloud, X } from "lucide-react";
-import { cameraErrorMessage, createCameraSession } from "./scanner-camera";
+import { FileCheck, Plus, RotateCw, UploadCloud, X } from "lucide-react";
+import { PhotoCamera } from "./photo-camera";
 import { correctDocument, detectDocumentCorners, documentQualityHints, fullPageCorners, validCorners, type DocumentCorners } from "./document-image";
 import { buildScannedPdf, MAX_SCAN_BYTES, MAX_SCAN_PAGES, type ScannedPage, type ScanPaperSize } from "./document-pdf";
 import styles from "./document-scanner.module.css";
@@ -14,19 +14,18 @@ const cornerNames = ["Top left", "Top right", "Bottom right", "Bottom left"];
 
 export function DocumentScanner({ onClose, onComplete, onImageComplete, initialPaperSize = "ORIGINAL", maxPages = MAX_SCAN_PAGES }: { onClose: () => void; onComplete?: (file: File) => void; onImageComplete?: (file: File) => void; initialPaperSize?: ScanPaperSize; maxPages?: number }) {
   const titleId = useId();
+  const isIdFront = Boolean(onImageComplete);
   const [draft, setDraft] = useState<DraftPage | null>(null);
   const [corners, setCorners] = useState<DocumentCorners>(fullPageCorners);
   const [pages, setPages] = useState<ScannedPage[]>([]);
-  const [camera, setCamera] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [camera, setCamera] = useState(true);
   const [busy, setBusy] = useState(false);
   const [grayscale, setGrayscale] = useState(false);
   const [paperSize, setPaperSize] = useState<ScanPaperSize>(initialPaperSize);
-  const [notice, setNotice] = useState("Photograph one page at a time or choose a page photo. Nothing is uploaded until you accept and send.");
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [notice, setNotice] = useState(onImageComplete ? "Photograph the front of the ID. Keep the whole card sharp and avoid glare." : "Photograph one page at a time or choose a page photo.");
   const uploadRef = useRef<HTMLInputElement>(null);
-  const nativeRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const cameraActive = useRef(true);
   const urlsRef = useRef(new Set<string>());
   const generation = useRef(0);
   const dragRef = useRef<number | null>(null);
@@ -38,6 +37,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
     document.body.style.overflow = "hidden";
     dialogRef.current?.focus();
     function keyboard(event: KeyboardEvent) {
+      if (cameraActive.current) return;
       if (event.key === "Escape") closeRef.current();
       if (event.key !== "Tab") return;
       const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="file"]), select:not(:disabled), summary') ?? []);
@@ -49,24 +49,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
     const urls = urlsRef.current;
     return () => { generation.current += 1; urls.forEach((url) => URL.revokeObjectURL(url)); document.body.style.overflow = overflow; document.removeEventListener("keydown", keyboard); previous?.focus(); };
   }, []);
-
-  useEffect(() => {
-    if (!camera || !videoRef.current) return;
-    const session = createCameraSession();
-    let cancelled = false;
-    void session.open(videoRef.current, "environment").then((stream) => {
-      if (!stream || cancelled) return;
-      setReady(true);
-      setNotice("Place the page on a contrasting surface. Include all four corners and avoid glare.");
-    }).catch((error: unknown) => {
-      if (!cancelled) { setCamera(false); setNotice(cameraErrorMessage(error)); }
-    });
-    function visibility() {
-      if (document.hidden) { session.stop(); setCamera(false); setReady(false); setNotice("Camera paused. Tap Add page to resume when ready."); }
-    }
-    document.addEventListener("visibilitychange", visibility);
-    return () => { cancelled = true; session.stop(); document.removeEventListener("visibilitychange", visibility); };
-  }, [camera]);
+  useEffect(() => { if (!camera) dialogRef.current?.focus(); }, [camera]);
 
   function rememberUrl(blob: Blob) {
     const url = URL.createObjectURL(blob);
@@ -79,8 +62,8 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
     if (!file) return;
     if (!file.type.startsWith("image/") || !file.size || file.size > MAX_SCAN_BYTES) { setNotice("Choose a page image under 25 MB. Use regular Upload for an existing PDF."); return; }
     const current = ++generation.current;
+    cameraActive.current = false;
     setCamera(false);
-    setReady(false);
     setBusy(true);
     const url = rememberUrl(file);
     try {
@@ -105,7 +88,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
       if (draft) releaseUrl(draft.url);
       setDraft({ source, url });
       setCorners(detected ?? fullPageCorners());
-      setNotice([detected ? "Page edges suggested. Adjust the four corners if needed, then keep the page." : "Edges were unclear. Drag the corners to the page edges, or keep the full photo.", ...qualityHints].join(" "));
+      setNotice([detected ? "Edges suggested. Check that nothing was cut off before keeping the photo." : "Edges were unclear. Adjust the corners or keep the full photo.", ...qualityHints].join(" "));
     } catch (error) {
       releaseUrl(url);
       if (current === generation.current) setNotice(error instanceof Error ? error.message : "Could not read this page photo.");
@@ -113,21 +96,18 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
   }
 
   function startCamera() {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { setNotice("Live camera needs HTTPS. Use your phone camera or choose a page photo."); nativeRef.current?.click(); return; }
-    setReady(false); setCamera(true); setNotice("Starting document camera…");
+    cameraActive.current = true;
+    setCamera(true);
   }
 
-  async function capture() {
-    const video = videoRef.current;
-    if (!video?.videoWidth || !video.videoHeight) { setNotice("Wait for the camera image, then capture."); return; }
-    setBusy(true);
-    const current = generation.current;
-    const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext("2d")!.drawImage(video, 0, 0);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.94));
-    if (current !== generation.current) return;
-    if (blob) await loadPage(new File([blob], "document-page.jpg", { type: "image/jpeg" }));
-    else { setBusy(false); setNotice("The page could not be captured. Try again."); }
+  function closeCamera() {
+    cameraActive.current = false;
+    setCamera(false);
+  }
+
+  function acceptCameraPhoto(file: File) {
+    if (!file.type.startsWith("image/") || !file.size || file.size > MAX_SCAN_BYTES) return "Choose a page image under 25 MB.";
+    void loadPage(file);
   }
 
   function changeCorner(index: number, axis: "horizontal" | "vertical", value: number) {
@@ -166,11 +146,10 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
     finally { if (current === generation.current) setBusy(false); }
   }
 
-  return createPortal(<div className={styles.backdrop}><div className={styles.dialog} aria-labelledby={titleId} aria-modal="true" ref={dialogRef} role="dialog" tabIndex={-1}>
+  return <>{createPortal(<div className={styles.backdrop}><div className={styles.dialog} aria-labelledby={titleId} aria-modal="true" ref={dialogRef} role="dialog" tabIndex={-1}>
     <header><div><span>{onImageComplete ? "ID capture · front of card" : `Document scanner · ${pages.length} / ${maxPages} pages`}</span><h2 id={titleId}>{onImageComplete ? "Capture front of ID" : "Scan a document"}</h2></div><button disabled={busy} aria-label="Close document scanner" onClick={() => closeRef.current()} type="button"><X /></button></header>
     <p role="status">{notice}</p>
-    {!onImageComplete && <label>PDF paper size<select aria-label="PDF paper size" disabled={busy} value={paperSize} onChange={event => setPaperSize(event.target.value as ScanPaperSize)}><option value="ORIGINAL">Match photographed page</option><option value="LETTER">US Letter</option><option value="A4">A4</option></select></label>}
-    {camera ? <div className={styles.camera}><video autoPlay muted playsInline ref={videoRef} /><div className={styles.controls}><button disabled={!ready || busy} onClick={() => void capture()} type="button"><Camera />Capture page</button><button disabled={busy} onClick={() => { setCamera(false); setReady(false); }} type="button">Back to pages</button></div></div> : draft ? <>
+    {draft ? <>
       <svg className={styles.crop} viewBox={`0 0 ${draft.source.width} ${draft.source.height}`} aria-label="Adjust document corners" onPointerMove={(event) => {
         if (dragRef.current === null || busy) return;
         const matrix = event.currentTarget.getScreenCTM();
@@ -186,8 +165,8 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
       <details><summary>Fine-tune corners</summary>{corners.map((point, index) => <fieldset disabled={busy} key={cornerNames[index]}><legend>{cornerNames[index]}</legend>{(["horizontal", "vertical"] as const).map((axis) => <label key={axis}>{axis}<input aria-label={`${cornerNames[index]} ${axis}`} type="range" min={0} max={1} step={0.005} value={point[axis]} onChange={(event) => changeCorner(index, axis, Number(event.target.value))} /></label>)}</fieldset>)}</details>
       {!validCorners(corners) ? <p role="alert">Corners must follow the page edges without crossing. Reset to the full photo if needed.</p> : null}
       <label><input disabled={busy} type="checkbox" checked={grayscale} onChange={(event) => setGrayscale(event.target.checked)} /> Enhance text · grayscale</label>
-      <div className={styles.controls}><button disabled={busy || !validCorners(corners)} onClick={() => void keepPage()} type="button"><FileCheck />{onImageComplete ? "Use front photo" : "Keep page"}</button><button disabled={busy} onClick={() => setCorners(fullPageCorners())} type="button">Full photo</button><button disabled={busy} onClick={() => { releaseUrl(draft.url); setDraft(null); setNotice("Page discarded. Capture or choose another photo."); }} type="button">Discard page</button></div>
-    </> : <div className={styles.controls}><button disabled={busy || pages.length >= maxPages} onClick={startCamera} type="button"><Plus />Add page with camera</button><button disabled={busy || pages.length >= maxPages} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose page photo</button></div>}
+      <div className={styles.controls}><button className={styles.primary} disabled={busy || !validCorners(corners)} onClick={() => void keepPage()} type="button"><FileCheck />{onImageComplete ? "Use front photo" : "Keep page"}</button><button disabled={busy} onClick={() => setCorners(fullPageCorners())} type="button">Full photo</button><button disabled={busy} onClick={() => startCamera()} type="button">Retake</button></div>
+    </> : <div className={styles.controls}><button className={styles.primary} disabled={busy || pages.length >= maxPages} onClick={startCamera} type="button"><Plus />{onImageComplete ? "Open ID camera" : pages.length ? "Add page with camera" : "Open document camera"}</button><button disabled={busy || pages.length >= maxPages} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />{onImageComplete ? "Choose ID photo" : "Choose page photo"}</button></div>}
     {pages.length ? <ol className={styles.pages} aria-label="Scanned pages">{pages.map((page, index) => <li key={page.id}>
       <ImagePreview unoptimized alt={`Scanned page ${index + 1}`} src={page.url} width={400} height={500} style={{ transform: `rotate(${page.rotation}deg)` }} />
       <strong>Page {index + 1}</strong><div className={styles.controls}>
@@ -196,8 +175,12 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete, initialP
         <button disabled={busy || camera || index === pages.length - 1} onClick={() => setPages((current) => { const reordered = [...current]; [reordered[index + 1], reordered[index]] = [reordered[index], reordered[index + 1]]; return reordered; })} type="button">Move down</button>
         <button aria-label={`Remove page ${index + 1}`} disabled={busy || camera} onClick={() => { releaseUrl(page.url); setPages((current) => current.filter((item) => item.id !== page.id)); }} type="button"><X /></button>
       </div></li>)}</ol> : null}
-    <footer>{!onImageComplete ? <button className={styles.primary} disabled={busy || camera || Boolean(draft) || !pages.length} onClick={() => void finish()} type="button">{busy ? "Preparing…" : `Create PDF · ${pages.length} ${pages.length === 1 ? "page" : "pages"}`}</button> : null}<small>{onImageComplete ? "Keep the entire card visible. After you use the photo, it is sent to this app’s OCR service to suggest fields for review; it is not filed or used to change a customer record." : "Review the PDF before sending. Auto-crop is a suggestion; check that no text was cut off."}</small></footer>
+    {!camera && <footer>{!onImageComplete && pages.length > 0 && !draft ? <><label>PDF paper size<select aria-label="PDF paper size" disabled={busy} value={paperSize} onChange={event => setPaperSize(event.target.value as ScanPaperSize)}><option value="ORIGINAL">Match photographed page</option><option value="LETTER">US Letter</option><option value="A4">A4</option></select></label><button className={styles.primary} disabled={busy} onClick={() => void finish()} type="button">{busy ? "Preparing…" : `Create PDF · ${pages.length} ${pages.length === 1 ? "page" : "pages"}`}</button></> : null}<small>{onImageComplete ? "Use front photo reads the image for review. It does not file the photo or change a customer record." : "Review the PDF before sending. Check that no text was cut off."}</small></footer>}
     <input accept="image/*" hidden ref={uploadRef} onChange={(event) => { void loadPage(event.target.files?.[0]); event.target.value = ""; }} type="file" />
-    <input accept="image/*" capture="environment" hidden ref={nativeRef} onChange={(event) => { void loadPage(event.target.files?.[0]); event.target.value = ""; }} type="file" />
-  </div></div>, document.body);
+  </div></div>, document.body)}{camera && <PhotoCamera
+    titleText={isIdFront ? "Photograph the front of the ID" : "Document camera"}
+    shutterLabel={isIdFront ? "Capture ID front" : "Capture page"}
+    guidance={isIdFront ? "Keep the entire ID in view and tilt away from glare." : "Fit all four corners in view and avoid glare."}
+    framing={isIdFront ? "id" : "document"} onClose={closeCamera} onPhoto={acceptCameraPhoto}
+  />}</>;
 }

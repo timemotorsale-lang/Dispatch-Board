@@ -6,6 +6,22 @@ export function cameraErrorMessage(error: unknown) {
   return "The camera could not start. Try again, choose a photo, or use manual entry.";
 }
 
+/** Snapshot the pixels shown by a live camera without relying on ImageCapture support. */
+export async function captureCameraFrame(video: HTMLVideoElement, filename: string) {
+  if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+    throw new Error("Wait for the camera picture, then try again.");
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare the photo. Try again or choose a photo.");
+  context.drawImage(video, 0, 0);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.94));
+  if (!blob?.size) throw new Error("Could not capture the photo. Try again or choose a photo.");
+  return new File([blob], filename, { type: "image/jpeg" });
+}
+
 export function createCameraSession() {
   let stopped = false;
   let activeStream: MediaStream | null = null;
