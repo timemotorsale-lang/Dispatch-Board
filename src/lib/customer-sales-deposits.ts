@@ -1,4 +1,9 @@
-export const depositMethods = { CASH: "Cash", CHECK: "Check", OTHER_CARD: "Other card" } as const;
+export const depositMethods = {
+  CASH: "Cash", ZELLE: "Zelle", CREDIT_CARD: "Credit card", DEBIT_CARD: "Debit card", OTHER_CARD: "Other card",
+  CHECK: "Check", CASHIERS_CHECK: "Cashier's check", MONEY_ORDER: "Money order",
+  ACH: "ACH transfer", WIRE: "Wire transfer", BANK_TRANSFER: "Other bank transfer",
+  CASH_APP: "Cash App", VENMO: "Venmo", PAYPAL: "PayPal", MOBILE_WALLET: "Mobile wallet", OTHER_PAYMENT: "Other payment"
+} as const;
 export type DepositMethod = keyof typeof depositMethods;
 export const depositHoldBlocker = "Vehicle is held by a customer deposit. Use the deposit customer on the sale or record a verified full refund in Customer 360.";
 export const depositDisclosure = "IMPORTANT: THIS MAY BE A BINDING CONTRACT AND YOU MAY LOSE ANY DEPOSITS IF YOU DO NOT PERFORM ACCORDING TO ITS TERMS.";

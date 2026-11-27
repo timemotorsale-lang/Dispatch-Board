@@ -5,7 +5,7 @@ import { depositAmount, depositCurrency, depositDate, depositDisclosure, deposit
 import styles from "./customer360-workspace.module.css";
 
 type Deposit = { id: string; amountCents: number; method: DepositMethod; vehicleLabel: string | null; nonRefundable: boolean; receivedAt: string; refundedAt: string | null };
-type Vehicle = { id: string; label: string; vin: string };
+type Vehicle = { id: string; label: string; vin: string; color: string | null };
 type Ledger = { deposits: Deposit[]; canRecord: boolean };
 type Editor = { action: "receive"; id: string } | { action: "refund"; id: string; deposit: Deposit };
 
@@ -67,8 +67,11 @@ export function CustomerSalesDeposits({ customerId }: { customerId: string }) {
     event.preventDefault();
     if (!editor || busy || finding) return;
     const form = new FormData(event.currentTarget);
-    if (editor.action === "receive" && (!depositAmount(form.get("amount")) || linkVehicle && !vehicle)) {
-      setError("Enter a positive dollar amount and choose a vehicle if you are placing a hold."); return;
+    if (editor.action === "receive" && !depositAmount(form.get("amount"))) {
+      setError("Enter a positive dollar amount before recording the deposit."); amountRef.current?.focus(); return;
+    }
+    if (editor.action === "receive" && linkVehicle && !vehicle) {
+      setError("Select a vehicle from the search results, or clear the hold option to record an unlinked deposit."); return;
     }
     const data = Object.fromEntries(form);
     setBusy(true); setError("");
@@ -79,15 +82,25 @@ export function CustomerSalesDeposits({ customerId }: { customerId: string }) {
       }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setNotice({ id: result.id, label: editor.action === "refund" ? "Full refund recorded. Any vehicle deposit hold was released." : "Payment recorded. Receipt is ready." });
+      if (editor.action === "receive") {
+        setEditor(null);
+        setNotice({ id: result.id, label: "Deposit recorded. Your printable copy is ready." });
+        window.location.assign(receiptHref(result.id, true));
+        return;
+      }
+      setNotice({ id: result.id, label: "Full refund recorded. Any vehicle deposit hold was released." });
       setEditor(null);
       try { setLedger(await read()); } catch { setLoadError("Saved. Reopen the deposits list to refresh it."); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Save could not be confirmed. Retry the same action."); }
     finally { setBusy(false); }
   }
 
+  function receiptHref(id: string, print = false) {
+    return `${url}?receipt=${encodeURIComponent(id)}${print ? "&print=1" : ""}`;
+  }
+
   function receipt(id: string) {
-    return <a target="_blank" rel="noopener noreferrer" href={`${url}?receipt=${encodeURIComponent(id)}`}>Review / print receipt</a>;
+    return <a href={receiptHref(id)}>Review / print agreement and receipt</a>;
   }
 
   return <div className={styles.wishSection}>
@@ -110,25 +123,25 @@ export function CustomerSalesDeposits({ customerId }: { customerId: string }) {
           </select></label>
           <label><span>Transaction reference {method === "CASH" ? "(optional)" : ""}</span><input name="reference" maxLength={64} required={method !== "CASH"} /></label>
         </div>
-        {method === "OTHER_CARD" && <p>Record the approval reference from your card terminal. This does not charge the card. Do not enter a card number.</p>}
+        {(["CREDIT_CARD", "DEBIT_CARD", "OTHER_CARD", "MOBILE_WALLET"] as DepositMethod[]).includes(method) && <p>Record the approval reference from your card terminal. This does not charge the card. Do not enter a card number.</p>}
         <label className={styles.depositCheck}><input type="checkbox" checked={linkVehicle} disabled={finding} onChange={event => {
           setLinkVehicle(event.target.checked); setVehicle(null); setVehicles(null);
         }} /> Link a vehicle and place a hold</label>
         {linkVehicle && (vehicle ? <div className={styles.actions}><strong>{vehicle.label}</strong><span>{vehicle.vin}</span>
           <button type="button" onClick={() => { setVehicle(null); setVehicles(null); }}>Change vehicle</button></div>
           : <div className={styles.depositFields}>
-            <div className={styles.wishFields}><label><span>Search ready inventory by VIN, stock number, make or model</span>
+            <div className={styles.wishFields}><label><span>Search ready inventory by VIN, stock number, year, make, model or color</span>
               <input value={search} maxLength={60} onChange={event => { setSearch(event.target.value); setVehicles(null); }}
                 onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (!finding && search.trim().length >= 2) void findVehicle(); } }} /></label></div>
             <div className={styles.actions}><button type="button" disabled={finding || search.trim().length < 2} onClick={() => void findVehicle()}>{finding ? "Searching…" : "Find vehicle"}</button></div>
-            {vehicles?.length ? <ul className={styles.rows}>{vehicles.map(result => <li key={result.id}><div><strong>{result.label}</strong><small>{result.vin}</small></div>
+            {vehicles?.length ? <ul className={styles.rows}>{vehicles.map(result => <li key={result.id}><div><strong>{result.label}</strong><small>{[result.color, result.vin].filter(Boolean).join(" · ")}</small></div>
               <button type="button" onClick={() => setVehicle(result)}>Select {result.label}</button></li>)}</ul>
-              : vehicles && <p>No matching frontline-ready vehicles without a deposit hold were found.</p>}
+              : vehicles && <p>No matching frontline-ready vehicles without a deposit hold were found. Try the stock number, VIN, or fewer details.</p>}
           </div>)}
         <label className={styles.depositCheck}><input type="checkbox" checked={nonRefundable} onChange={event => setNonRefundable(event.target.checked)} /> Mark non-refundable</label>
         <details className={styles.subsection} open>
           <summary>Deposit terms to show the customer</summary>
-          {depositTerms(linkVehicle, nonRefundable).split("\n").map(line => <p key={line}>{line}</p>)}
+          {depositTerms(Boolean(vehicle), nonRefundable).split("\n").map(line => <p key={line}>{line}</p>)}
           <p><strong>{depositDisclosure}</strong></p>
         </details>
         <label className={styles.depositCheck}><input key={`${linkVehicle}:${vehicle?.id ?? ""}:${nonRefundable}`} type="checkbox" name="termsPresented" required /> I showed these terms to the customer and confirmed their agreement.</label>

@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: Context) {
     if (query.has("vehicleSearch")) return NextResponse.json({ vehicles: await findDepositVehicles(scope, query.get("vehicleSearch") ?? "") }, { headers });
     if (query.has("receipt")) {
       const receipt = await getDepositReceipt(scope, query.get("receipt") ?? "");
-      return new NextResponse(renderCustomerDepositReceipt(receipt), { headers: {
+      return new NextResponse(renderCustomerDepositReceipt(receipt, query.get("print") === "1"), { headers: {
         ...headers, "content-type": "text/html; charset=utf-8",
         "content-security-policy": depositReceiptCsp
       } });

@@ -33,7 +33,7 @@ const vehicleWhere = (organizationId: string) => ({
   organizationId, mergedIntoVehicleId: null, status: "ACTIVE" as const,
   inventoryUnits: { some: { organizationId, closedAt: null, lifecycleStage: "FRONTLINE_READY" as const } }
 });
-const vehicleSelect = { id: true, stockNumber: true, vin: true, vehicleNumber: true, year: true, make: true, model: true } as const;
+const vehicleSelect = { id: true, stockNumber: true, vin: true, vehicleNumber: true, year: true, make: true, model: true, color: true } as const;
 const label = (v: { year: number | null; make: string | null; model: string | null; stockNumber: string | null; vehicleNumber: string }) =>
   [[v.year, v.make, v.model].filter(Boolean).join(" "), v.stockNumber || v.vehicleNumber].filter(Boolean).join(" / ");
 
@@ -44,16 +44,19 @@ export async function listCustomerDeposits(scope: Scope) {
 export async function findDepositVehicles(scope: Scope, query: string) {
   if (!scope.manage) throw new DepositError("A manager must select the deposit vehicle.", 403);
   if (query.trim().length < 2) return [];
-  const value = query.trim().slice(0, 60);
+  const tokens = query.trim().slice(0, 60).split(/\s+/).filter(token => /[a-z0-9]/i.test(token)).slice(0, 12);
+  if (!tokens.length) return [];
   const vehicles = await prisma.vehicle.findMany({
-    where: { ...vehicleWhere(scope.organizationId), salesDeposits: { none: { refundedAt: null } }, OR: [
-      { vin: { contains: value, mode: "insensitive" } }, { stockNumber: { contains: value, mode: "insensitive" } },
-      { vehicleNumber: { contains: value, mode: "insensitive" } }, { make: { contains: value, mode: "insensitive" } },
-      { model: { contains: value, mode: "insensitive" } },
-      { inventoryUnits: { some: { organizationId: scope.organizationId, closedAt: null, inventoryNumber: { contains: value, mode: "insensitive" } } } }
-    ] }, select: vehicleSelect, orderBy: [{ stockNumber: "asc" }, { id: "asc" }], take: 20
+    where: { ...vehicleWhere(scope.organizationId), salesDeposits: { none: { refundedAt: null } }, AND: tokens.map(token => {
+      const match = { contains: token, mode: "insensitive" } as const;
+      return { OR: [
+        { vin: match }, { stockNumber: match }, { vehicleNumber: match }, { make: match }, { model: match }, { color: match },
+        ...(/^\d{4}$/.test(token) ? [{ year: Number(token) }] : []),
+        { inventoryUnits: { some: { organizationId: scope.organizationId, closedAt: null, inventoryNumber: match } } }
+      ] };
+    }) }, select: vehicleSelect, orderBy: [{ stockNumber: "asc" }, { id: "asc" }], take: 20
   });
-  return vehicles.map(vehicle => ({ id: vehicle.id, label: label(vehicle), vin: vehicle.vin }));
+  return vehicles.map(vehicle => ({ id: vehicle.id, label: label(vehicle), vin: vehicle.vin, color: vehicle.color }));
 }
 export async function getDepositReceipt(scope: Scope, id: string) {
   const deposit = await prisma.customerSalesDeposit.findFirst({ where: { ...scopeWhere(scope), id } });
@@ -109,7 +112,17 @@ export async function changeCustomerDeposit(scope: Scope, body: Record<string, u
   const reference = safeDepositReference(body.reference);
   return prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":customer-deposit:" + id}, 0))`;
-    const customer = await tx.customer.findFirst({ where: scope.customerWhere, select: { displayName: true, organization: { select: { name: true } } } });
+    const customer = await tx.customer.findFirst({
+      where: scope.customerWhere,
+      select: {
+        displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true,
+        organization: { select: { name: true } },
+        contactPoints: {
+          where: { type: { in: ["PHONE", "EMAIL"] } }, select: { type: true, value: true },
+          orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }, { id: "asc" }]
+        }
+      }
+    });
     if (!customer) throw new DepositError("This customer record is not available.", 404);
     const existing = await tx.customerSalesDeposit.findFirst({ where: { ...scopeWhere(scope), id } });
     const audit = async (eventType: string) => tx.enterpriseAuditEvent.create({ data: {
@@ -150,6 +163,10 @@ export async function changeCustomerDeposit(scope: Scope, body: Record<string, u
     await tx.customerSalesDeposit.create({ data: {
       id, organizationId, customerId, vehicleId, amountCents, method, paymentReference: reference || null, nonRefundable,
       terms: depositTerms(Boolean(vehicle), nonRefundable), companyName: customer.organization.name, customerName: customer.displayName,
+      customerNumber: customer.customerNumber,
+      customerPhone: customer.contactPoints.find(point => point.type === "PHONE" && point.value.trim())?.value.trim() || customer.phoneNumber?.trim() || null,
+      customerEmail: customer.contactPoints.find(point => point.type === "EMAIL" && point.value.trim())?.value.trim() || customer.email?.trim() || null,
+      customerAddress: customer.address?.trim() || null,
       vehicleLabel: vehicle ? label(vehicle) : null, vin: vehicle?.vin ?? null, receivedById: actor.id, receivedByName: actor.name
     } });
     await audit("CUSTOMER_DEPOSIT_RECEIVED");

@@ -3298,6 +3298,10 @@ model CustomerSalesDeposit {
   terms             String
   companyName       String
   customerName      String
+  customerNumber    String?
+  customerPhone     String?
+  customerEmail     String?
+  customerAddress   String?
   vehicleLabel      String?
   vin               String?
   receivedById      String

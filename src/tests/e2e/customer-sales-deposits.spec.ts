@@ -15,11 +15,11 @@ test("managers record, review and refund deposits, and the sale guard follows th
     const organizationId = "org-time-motor-sales";
     const owner = await db.user.findUniqueOrThrow({ where: { email: "morgan.manager@local.test" } });
     const location = await db.location.findFirstOrThrow({ where: { organizationId } });
-    const buyer = await db.customer.create({ data: { id: randomUUID(), organizationId, ownerUserId: owner.id, customerNumber: "DEP-" + randomUUID(), displayName: "Synthetic Deposit Review" } });
+    const buyer = await db.customer.create({ data: { id: randomUUID(), organizationId, ownerUserId: owner.id, customerNumber: "DEP-" + randomUUID(), displayName: "Synthetic Deposit Review", phoneNumber: "+16125550142", email: "deposit-review@example.test", address: "123 Example Avenue" } });
     const otherBuyer = await db.customer.create({ data: { id: randomUUID(), organizationId, ownerUserId: owner.id, customerNumber: "DEP-" + randomUUID(), displayName: "Synthetic Alternate Buyer" } });
     async function inventory() {
       const stock = "DP-" + randomUUID().slice(0, 8);
-      const vehicle = await db.vehicle.create({ data: { organizationId, vehicleNumber: stock, stockNumber: stock, year: 2022, make: "Toyota", model: "Camry" } });
+      const vehicle = await db.vehicle.create({ data: { organizationId, vehicleNumber: stock, stockNumber: stock, year: 2022, make: "Toyota", model: "Camry", color: "Maroon" } });
       await db.inventoryUnit.create({ data: { organizationId, vehicleId: vehicle.id, inventoryNumber: stock,
         lifecycleStage: "FRONTLINE_READY", ownerUserId: owner.id, locationId: location.id, financialAcquiredAt: new Date(), stageStartedAt: new Date(), targetAt: new Date(), nextAction: "Synthetic deposit review" } });
       return vehicle;
@@ -30,6 +30,9 @@ test("managers record, review and refund deposits, and the sale guard follows th
     expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
     const path = `/crm-next/customers/${buyer.id}#deals`;
     const endpoint = `/api/crm-next/customers/${buyer.id}/deposits`;
+    await page.addInitScript(() => { window.print = () => {
+      document.body.dataset.printRequests = String(Number(document.body.dataset.printRequests ?? "0") + 1);
+    }; });
     await page.goto(path);
     await ready(page.getByRole("button", { name: "Record deposit", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Record deposit", exact: true }).click();
@@ -40,30 +43,46 @@ test("managers record, review and refund deposits, and the sale guard follows th
     const cardRef = "TEST-APPROVAL-" + randomUUID().slice(0, 8);
     await form.getByLabel("Transaction reference").fill(cardRef);
     await form.getByLabel("Link a vehicle and place a hold").check();
-    await form.getByLabel(/Search ready inventory/).fill(vehicle.stockNumber!);
+    await expect(form.getByRole("button", { name: "Print draft agreement" })).toHaveCount(0);
+    await form.getByLabel(/showed these terms/).check();
+    await form.getByLabel(/verified that the payment/).check();
+    await form.getByRole("button", { name: "Record deposit and issue receipt" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Select a vehicle from the search results" })).toBeVisible();
+    await expect(page.locator("body")).not.toHaveAttribute("data-print-requests", "1");
+    expect(await db.customerSalesDeposit.count({ where: { customerId: buyer.id } })).toBe(0);
+    await form.getByLabel(/Search ready inventory/).fill("2022 Toyota Camry Maroon");
     await form.getByRole("button", { name: "Find vehicle" }).click();
-    await form.getByRole("button", { name: /Select 2022 Toyota Camry/ }).click();
+    await form.getByRole("button", { name: "Select 2022 Toyota Camry / " + vehicle.stockNumber, exact: true }).click();
     await form.getByLabel("Mark non-refundable").check();
     await form.getByLabel(/showed these terms/).check();
     await form.getByLabel(/verified that the payment/).check();
     await form.getByRole("button", { name: "Record deposit and issue receipt" }).click();
-    await ready(page.getByText("Payment recorded. Receipt is ready.")).toBeVisible();
-    await page.reload();
+    await ready(page.getByRole("heading", { name: "Deposit agreement and receipt", exact: true })).toBeVisible();
+    await expect(page.locator("body")).toHaveAttribute("data-print-requests", "1");
+    await expect(page).not.toHaveURL(/[&?]print=1/);
+    await expect(page.getByRole("img", { name: "Time Motor Sales" })).toBeVisible();
+    for (const value of ["Time Motor Sales, Inc.", "1101 E. Lake Street", "timemotors.net", "timemotorsale@gmail.com", "612-724-3631",
+      buyer.displayName, buyer.customerNumber, buyer.phoneNumber!, buyer.email!, buyer.address!]) {
+      await expect(page.getByText(value).first()).toBeVisible();
+    }
+    await expect(page.getByText(/subject to applicable law/)).toBeVisible();
+    await page.getByRole("button", { name: "Print agreement and receipt" }).click();
+    await expect(page.locator("body")).toHaveAttribute("data-print-requests", "2");
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByText(/browser Print command/)).toBeHidden();
+    await page.emulateMedia({ media: "screen" });
+    await page.getByRole("link", { name: "Back to deposits" }).click();
     const row = page.getByRole("list", { name: "Saved deposits" }).getByRole("listitem").filter({ hasText: "$500.05" });
     await ready(row.getByText("$500.05 · Vehicle held", { exact: true })).toBeVisible();
-    const receipt = (await row.getByRole("link", { name: "Review / print receipt" }).getAttribute("href"))!;
-    const popupReady = page.waitForEvent("popup");
-    await row.getByRole("link", { name: "Review / print receipt" }).click();
-    const popup = await popupReady;
-    await ready(popup.getByRole("heading", { name: "Deposit receipt" })).toBeVisible();
-    await expect(popup.getByRole("img", { name: "Time Motor Sales" })).toBeVisible();
-    await expect(popup.getByText(/subject to applicable law/)).toBeVisible();
-    await popup.evaluate(() => { window.print = () => { document.body.dataset.testPrinted = "yes"; }; });
-    await popup.getByRole("button", { name: "Print receipt" }).click();
-    await expect(popup.locator("body")).toHaveAttribute("data-test-printed", "yes");
-    await popup.emulateMedia({ media: "print" });
-    await expect(popup.getByText(/browser Print command/)).toBeHidden();
-    await popup.close();
+    const link = row.getByRole("link", { name: "Review / print agreement and receipt" });
+    const receipt = (await link.getAttribute("href"))!;
+    await db.customer.update({ where: { id: buyer.id }, data: { email: "new-deposit-contact@example.test" } });
+    await link.click();
+    await ready(page.getByText(buyer.email!, { exact: true })).toBeVisible();
+    await expect(page.getByText("new-deposit-contact@example.test", { exact: true })).toHaveCount(0);
+    await expect(page.locator("body")).not.toHaveAttribute("data-print-requests", "1");
+    await page.getByRole("link", { name: "Back to deposits" }).click();
+    await ready(row.getByText("$500.05 · Vehicle held", { exact: true })).toBeVisible();
     const saved = await db.customerSalesDeposit.findFirstOrThrow({ where: { vehicleId: vehicle.id } });
     const response = await page.request.post(endpoint, { data: { id: saved.id, action: "receive", amount: "500.05", method: "OTHER_CARD",
       vehicleId: vehicle.id, nonRefundable: true, reference: cardRef, confirmed: true, termsPresented: true } });
@@ -131,13 +150,21 @@ test("managers record, review and refund deposits, and the sale guard follows th
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "Record deposit", exact: true }).click();
     await form.getByLabel("Amount ($)").fill("100");
+    for (const name of ["Cash", "Credit card", "Debit card", "Other card", "Check", "Wire transfer", "Other payment"]) {
+      await expect(form.getByRole("option", { name, exact: true })).toHaveCount(1);
+    }
+    await form.getByLabel("Payment method").selectOption("ZELLE");
+    await form.getByLabel("Transaction reference").fill("TEST-ZELLE-" + randomUUID().slice(0, 8));
     await form.getByLabel(/showed these terms/).check();
     await form.getByLabel(/verified that the payment/).check();
     const width = await form.evaluate(el => ({ scroll: el.scrollWidth, width: el.clientWidth }));
     expect(width.scroll).toBeLessThanOrEqual(width.width + 1);
     await form.getByRole("button", { name: "Record deposit and issue receipt" }).click();
+    await ready(page.getByRole("heading", { name: "Deposit agreement and receipt", exact: true })).toBeVisible();
+    await expect(page.getByText("Zelle", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Back to deposits" }).click();
     await ready(page.getByText("$100.00 · Received", { exact: true })).toBeVisible();
-    expect(await db.customerSalesDeposit.count({ where: { customerId: buyer.id, vehicleId: null } })).toBe(1);
+    expect(await db.customerSalesDeposit.count({ where: { customerId: buyer.id, vehicleId: null, method: "ZELLE" } })).toBe(1);
     expect(await db.enterpriseAuditEvent.count({ where: { correlationId: saved.id } })).toBe(2);
     console.log("[deposit-preview]", path);
   } finally { await db.$disconnect(); }

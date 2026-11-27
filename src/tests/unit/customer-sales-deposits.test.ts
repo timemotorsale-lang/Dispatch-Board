@@ -13,7 +13,7 @@ describe("customer sales deposits", () => {
 
   it("renders the saved original terms, escape-safe text, company logo, print layout and later refund status", () => {
     const html = renderCustomerDepositReceipt({
-      id: "78a91433-f920-424e-928a-d2c06b2c11cc",
+      id: "78a91433-f920-424e-928a-d2c06b2c11cc", customerId: "synthetic-customer", organizationId: "org-time-motor-sales",
       companyName: "Time Motor Sales",
       customerName: "<b>Deposit customer</b>",
       amountCents: 50005, method: "OTHER_CARD", vehicleLabel: "Sedan / W114", vin: "VIN",
@@ -28,6 +28,12 @@ describe("customer sales deposits", () => {
     expect(html).toContain("Full refund recorded");
     expect(html).toContain("Purchaser signature");
     expect(html).toContain("@media print");
+    expect(html).toContain("Deposit agreement and receipt");
+    expect(html).toContain("1101 E. Lake Street, Minneapolis, MN 55407");
+    expect(html).toContain("timemotors.net");
+    expect(html).toContain("timemotorsale@gmail.com");
+    expect(html).toContain("612-724-3631");
+    expect(html).not.toContain("<dt>Customer phone</dt>");
     expect(depositTerms(false, false)).toContain("does not reserve a vehicle");
   });
 });
