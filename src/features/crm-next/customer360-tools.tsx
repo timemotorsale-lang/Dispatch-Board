@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CustomerSalesDeposits } from "./customer-sales-deposits";
 import { DealOperationsDrawer } from "./deal-operations-drawer";
 import styles from "./customer360-workspace.module.css";
 
@@ -25,8 +26,9 @@ export function CustomerDealTools({ customerId }: { customerId: string }) {
     return () => controller.abort();
   }, [customerId, retry]);
   return <>
+    <CustomerSalesDeposits key={customerId} customerId={customerId} />
     <h3>Accounting &amp; deposits</h3>
-    <p>Open a saved deal’s Money record for recorded payments, refunds, and verified deposits. This page does not collect payments.</p>
+    <p>Open Money on a saved deal to review activity posted separately to that deal.</p>
     {error ? <p role="alert">{error} <button type="button" onClick={() => { setError(""); setRetry(value => value + 1); }}>Retry</button></p> :
       deals === null ? <p role="status">Loading saved deals…</p> : deals.length === 0 ? <p>No saved deals are available to you for this customer.</p> :
       <ul className={styles.rows}>{deals.map(deal => <li key={deal.id}>

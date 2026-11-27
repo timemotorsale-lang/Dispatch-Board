@@ -55,3 +55,7 @@
 .wishFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: .55rem .75rem; }
 .wishFields label { align-content: end; font-size: .875rem; font-weight: 600; min-inline-size: 0; }
 .wishFields input { box-sizing: border-box; width: 100%; min-height: 44px; padding: .45rem .55rem; border: 1px solid var(--border, #aab9cd); border-radius: .45rem; background: transparent; color: inherit; font: inherit; font-weight: 400; }
+
+.depositFields { display:grid; gap:.65rem; border:0; padding:0; margin:0; min-inline-size:0; }
+.form .depositCheck { display:flex; gap:.5rem; align-items:center; min-block-size:44px; }
+.wishFields select { box-sizing:border-box; width:100%; min-height:44px; padding:.45rem .55rem; border:1px solid var(--border,#aab9cd); border-radius:.45rem; color:inherit; background:var(--surface,#fff); font:inherit; }

@@ -136,8 +136,14 @@ export function createCustomerLifecycleRepository(database: PrismaClient = prism
         }
         if (action === "TRANSITION_COMMERCIAL_HANDOFF") {
           const record = await tx.vehicleCommercialHandoff.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } }); if (!record) throw new Error("Commercial handoff was not found."); const toStatus = text(data, "toStatus"), allowed: Record<string, string[]> = { OPEN: ["READY", "IN_PROGRESS", "BLOCKED", "CANCELLED"], READY: ["IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"], IN_PROGRESS: ["BLOCKED", "COMPLETED", "CANCELLED"], BLOCKED: ["READY", "IN_PROGRESS", "CANCELLED"], COMPLETED: ["RECONCILED"], RECONCILED: [], CANCELLED: [] }; if (!allowed[record.status]?.includes(toStatus)) throw new Error(`Commercial handoff cannot transition from ${record.status} to ${toStatus}.`); const dependencies = record.dependencySnapshot as Record<string, unknown>, blockers = dependencyBlockers(dependencies); if (["COMPLETED", "RECONCILED"].includes(toStatus) && blockers.length) throw new Error(`Commercial handoff has unresolved dependencies: ${blockers.join(", ")}.`); if (toStatus === "COMPLETED" && !(strings(data, "evidenceObjectIds").length || (record.evidenceObjectIds as string[]).length)) throw new Error("Completed handoffs require evidence.");
+          const reconcileDelivery = toStatus === "RECONCILED" && record.handoffType === "DELIVERY";
+          if (reconcileDelivery) await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${record.vehicleId} AND "organizationId" = ${command.organizationId} FOR NO KEY UPDATE`;
           const next = await tx.vehicleCommercialHandoff.update({ where: { id: record.id }, data: { status: toStatus, version: { increment: 1 }, externalSystemCode: nullableText(data, "externalSystemCode") ?? record.externalSystemCode, externalReference: nullableText(data, "externalReference") ?? record.externalReference, evidenceObjectIds: strings(data, "evidenceObjectIds").length ? toJson(strings(data, "evidenceObjectIds")) : undefined, completedAt: toStatus === "COMPLETED" ? when(data, "occurredAt") : record.completedAt } });
-          if (toStatus === "RECONCILED" && record.handoffType === "DELIVERY") await tx.vehicle.update({ where: { id: record.vehicleId }, data: { status: "SOLD" } });
+          if (reconcileDelivery) {
+            await tx.$queryRaw`SELECT set_config('app.deposit_delivery_handoff', ${next.id}, true)`;
+            await tx.vehicle.update({ where: { id: record.vehicleId }, data: { status: "SOLD" } });
+            await tx.$queryRaw`SELECT set_config('app.deposit_delivery_handoff', '', true)`;
+          }
           return { previous: record, result: { id: next.id, status: next.status, version: aggregateVersion } };
         }
         if (action === "CREATE_PORTAL_GRANT") {

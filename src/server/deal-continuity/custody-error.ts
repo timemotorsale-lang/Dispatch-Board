@@ -1,4 +1,9 @@
+import { depositHoldBlocker } from "@/lib/customer-sales-deposits";
+
 const custodyBlockers = [
+  depositHoldBlocker,
+  "A vehicle in this merge has a customer deposit hold. Record a verified full refund in Customer 360 before merging.",
+  "Link one canonical vehicle before finalizing paperwork while customer deposit holds exist.",
   "Complete the vehicle return review before reserving, selling, or delivering this vehicle.",
   "Record the actual vehicle return and resolve any return hold before reserving, selling, or delivering this vehicle.",
   "Cancel or resolve the temporary vehicle reservation before reserving, selling, or delivering this vehicle.",
