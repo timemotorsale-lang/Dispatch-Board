@@ -867,13 +867,16 @@ export function createVendorRepository() {
       closedByUserId: string;
       close: NormalizedVendorInvoiceBatchCloseInput;
     }) {
+      const invoiceNumber = input.close.invoiceNumber ?? null;
+      const batchStatus = invoiceNumber === null ? "CLOSED" : "INVOICED";
+      const jobStatus = invoiceNumber === null ? "BATCHED" : "INVOICED";
       return prisma.$transaction(async db => {
       const changed = await db.$executeRaw(Prisma.sql`
         UPDATE "VendorInvoiceBatch"
         SET
-          "status" = CASE WHEN ${input.close.invoiceNumber ?? null} IS NULL THEN 'CLOSED'::"VendorInvoiceBatchStatus" ELSE 'INVOICED'::"VendorInvoiceBatchStatus" END,
+          "status" = ${batchStatus}::"VendorInvoiceBatchStatus",
           "closedAt" = CURRENT_TIMESTAMP,
-          "invoiceNumber" = ${input.close.invoiceNumber ?? null},
+          "invoiceNumber" = ${invoiceNumber},
           "invoiceDate" = ${input.close.invoiceDate ?? null}::date,
           "totalAmount" = ${input.close.totalAmount ?? null}::decimal,
           "notes" = COALESCE(${input.close.notes ?? null}, "notes"),
@@ -888,7 +891,7 @@ export function createVendorRepository() {
       await db.$executeRaw(Prisma.sql`
         UPDATE "VendorWorkJob"
         SET
-          "status" = CASE WHEN ${input.close.invoiceNumber ?? null} IS NULL THEN 'BATCHED'::"VendorWorkJobStatus" ELSE 'INVOICED'::"VendorWorkJobStatus" END,
+          "status" = ${jobStatus}::"VendorWorkJobStatus",
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "organizationId" = ${input.organizationId}
           AND "vendorId" = ${input.vendorId}
