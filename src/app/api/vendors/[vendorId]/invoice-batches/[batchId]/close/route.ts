@@ -7,6 +7,7 @@ function statusForError(message: string) {
   if (message === "Authentication required.") return 401;
   if (message === "Vendor not found." || message === "Open batch not found.") return 404;
   if (message.startsWith("Only managers")) return 403;
+  if (message.trimStart().startsWith("Invalid `prisma.")) return 500;
   if (message.includes("required") || message.includes("valid") || message.includes("must be")) return 400;
   return 500;
 }
@@ -22,6 +23,9 @@ export async function POST(
     return NextResponse.json(await closeVendorInvoiceBatch(user, vendorId, batchId, payload));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to close vendor batch.";
-    return NextResponse.json({ error: message }, { status: statusForError(message) });
+    const status = statusForError(message);
+    return NextResponse.json({
+      error: status === 500 ? "The batch close could not be confirmed. Refresh the vendor page and check the batch status before retrying." : message
+    }, { status });
   }
 }
