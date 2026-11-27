@@ -59,3 +59,35 @@
 .depositFields { display:grid; gap:.65rem; border:0; padding:0; margin:0; min-inline-size:0; }
 .form .depositCheck { display:flex; gap:.5rem; align-items:center; min-block-size:44px; }
 .wishFields select { box-sizing:border-box; width:100%; min-height:44px; padding:.45rem .55rem; border:1px solid var(--border,#aab9cd); border-radius:.45rem; color:inherit; background:var(--surface,#fff); font:inherit; }
+
+.primaryReceiptPrint { color: white; background: #354db7; border: 1px solid #354db7; border-radius: .55rem; padding: .55rem 1rem; font: inherit; font-weight: 700; }
+.depositPrintDocument { display: none; }
+@media print {
+  body:has(> .depositPrintDocument) { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body:has(> .depositPrintDocument) > :not(.depositPrintDocument) { display: none !important; }
+  body > .depositPrintDocument { display: block; color: #000; margin: 0; padding: 8mm; font: 10.5pt/1.35 system-ui, sans-serif; overflow-wrap: anywhere; }
+  .depositPrintDocument h1 { margin: .5rem 0; font-size: 18pt; }
+  .depositPrintDocument h2 { font-size: 12pt; }
+  .depositPrintDocument dl { display: grid; grid-template-columns: 1fr 2.5fr; gap: 2pt 10pt; padding: 6pt 0; border-block: 1px solid #aaa; }
+  .depositPrintDocument dt { font-weight: 700; }
+  .depositPrintDocument dd { margin: 0; white-space: pre-line; }
+  .depositPrintDocument section { break-inside: avoid; }
+  .depositPrintDocument :global(.receipt-letterhead) {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-bottom: 3px solid #15233c; padding-bottom: .6rem; margin-bottom: .65rem; break-inside: avoid;
+  }
+  .depositPrintDocument :global(.receipt-party) { min-width: 0; padding-right: 1rem; }
+  .depositPrintDocument :global(.receipt-customer) { border-left: 1px solid #8b97ad; padding: 0 0 0 1rem; }
+  .depositPrintDocument :global(.receipt-party) img { max-width: 150px !important; margin-bottom: 4px !important; }
+  .depositPrintDocument :global(.party-name) { font-weight: 750; margin: 0 0 .2rem; }
+  .depositPrintDocument :global(.party-label) { margin: 0 0 .3rem; font-size: 8pt; font-weight: 700; color: #4e5971; text-transform: uppercase; letter-spacing: .1em; }
+  .depositPrintDocument :global(.party-detail) { margin: .05rem 0; font-size: 9pt; line-height: 1.35; white-space: pre-line; }
+  .depositPrintDocument :global(.receipt-summary) {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr); padding: .45rem .55rem;
+    margin: .4rem 0; border-block: 1px solid #8b97ad;
+  }
+  .depositPrintDocument :global(.receipt-summary) div { min-width: 0; }
+  .depositPrintDocument :global(.receipt-summary) dt { font-size: 8pt; color: #4e5971; }
+  .depositPrintDocument :global(.receipt-summary) dd { font-size: 9pt; font-weight: 700; }
+  .depositPrintDocument :global(.notice) { font-size: 10pt; font-weight: 700; break-after: avoid; }
+}

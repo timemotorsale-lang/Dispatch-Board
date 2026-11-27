@@ -3288,6 +3288,7 @@ model Customer {
 
 model CustomerSalesDeposit {
   id                String    @id
+  kind              String    @default("GENERAL")
   organizationId    String
   customerId        String
   vehicleId         String?

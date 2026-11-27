@@ -36,7 +36,10 @@ export default async function VehicleDetailsPage({ params, searchParams }: { par
     })).catch(() => ({ available: false, documents: [], context: null })),
     getVehicleIntake(user, id).catch(() => null),
     getVehicleSalesMedia(user, id).catch(() => null),
-    prisma.customerSalesDeposit.findFirst({ where: { organizationId: INITIAL_ORGANIZATION.id, vehicleId: id, refundedAt: null }, select: { id: true } })
+    prisma.vehicle.findFirst({ where: { id, organizationId: INITIAL_ORGANIZATION.id }, select: { vin: true } }).then(vehicle =>
+      prisma.customerSalesDeposit.findFirst({ where: { organizationId: INITIAL_ORGANIZATION.id, refundedAt: null, OR: [
+        { vehicleId: id }, ...(vehicle?.vin ? [{ kind: "RESERVATION", vin: { equals: vehicle.vin.trim(), mode: "insensitive" as const } }] : [])
+      ] }, select: { id: true } }))
   ]);
   const captureHref = await canCaptureForVehicle(user, id) ? vehicleCaptureHref(id, `/vehicles/${encodeURIComponent(id)}/details`) : undefined;
   return <>

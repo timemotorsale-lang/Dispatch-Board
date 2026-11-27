@@ -119,7 +119,10 @@ export async function dealVehicle(actor: AuthenticatedUser | null, id: string, d
     recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? ""
   };
   const custody = describeVehicleCustodySelection(vehicle.vehicleUseBookings ?? []);
-  const depositHeld = Boolean(vehicle.salesDeposits?.length);
+  const depositHeld = Boolean(vehicle.salesDeposits?.length || (vehicle.vin && await database.customerSalesDeposit.findFirst({
+    where: { organizationId: dealOrganization(), kind: "RESERVATION", refundedAt: null, vin: { equals: vehicle.vin.trim(), mode: "insensitive" } },
+    select: { id: true }
+  })));
   const eligible = Boolean(!depositHeld && vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && !custody?.blocksTemporaryUse);
   const commercialLabel = unit?.lifecycleStage === "RESERVED_DEAL_PENDING" ? "Reserved for sale" : unit?.lifecycleStage === "SOLD" ? "Sold" : unit?.lifecycleStage === "DELIVERED" ? "Delivered" : null;
   return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: custody?.label ?? commercialLabel ?? (depositHeld ? "Held by a customer deposit" : null) ?? (eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use"), eligibleForUse: eligible };
