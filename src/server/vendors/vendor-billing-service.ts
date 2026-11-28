@@ -30,7 +30,7 @@ async function vendor(db: Tx | typeof prisma, vendorId: string) {
   return result;
 }
 async function invoice(db: Tx, vendorId: string, id: unknown, version?: unknown) {
-  const document = await db.vendorBillingDocument.findFirst({ where: { id: billingText(id,"Invoice",150), organizationId, vendorId }, include: { lines: true, allocations: { include: { settlement: true } } } });
+  const document = await db.vendorBillingDocument.findFirst({ where: { id: billingText(id,"Invoice",150), organizationId, vendorId }, include: { lines: true, agreement: { select: { kind: true } }, allocations: { include: { settlement: true } } } });
   if (!document) throw new VendorBillingError("Invoice not found for this vendor.",404);
   if (version !== undefined && document.version !== version) throw new VendorBillingError("This invoice changed. Refresh it before continuing.",409);
   return document;
@@ -83,7 +83,7 @@ export async function readVendorBilling(user: AuthenticatedUser | null, vendorId
   const rows = documents.map(doc => ({...doc,batchId:batchLinks.find(link=>link.recordId===doc.id)?.relationshipType.slice("INVOICE_BATCH:".length)||null,issueDate:iso(doc.issueDate),dueDate:iso(doc.dueDate),createdAt:doc.createdAt.toISOString(),appliedCents:applied(doc),balanceCents:doc.amountCents - applied(doc),dueItems:dueBalances(doc.dueItems.map(item => ({dueDate:iso(item.dueDate),amountCents:item.amountCents})),applied(doc))}));
   const today=chicagoDate();
   const missingRecurring: Array<{agreementId:string;title:string;dueDate:string;amountCents:number;direction:string}>=[];
-  for(const a of agreements.filter(a=>a.active&&a.kind!=="REPAYMENT"))for(let n=0;n<600;n++){
+  for(const a of agreements.filter(a=>a.active&&["RENT","SERVICE"].includes(a.kind)))for(let n=0;n<600;n++){
     const dueDate=monthlyDate(iso(a.startDate),n);if(dueDate>today||(a.endDate&&dueDate>iso(a.endDate)))break;
     if(!documents.some(d=>d.agreementId===a.id&&d.periodKey===dueDate.slice(0,7)))missingRecurring.push({agreementId:a.id,title:a.title,dueDate,amountCents:a.amountCents,direction:a.direction});
   }
@@ -200,15 +200,26 @@ export async function commandVendorBilling(user: AuthenticatedUser | null,vendor
         const kind=billingText(raw.kind,"Agreement type",30);if(!["RENT","SERVICE","REPAYMENT"].includes(kind))throw new VendorBillingError("Choose rent, recurring service, or repayment of an existing balance.");
         const amountCents=billingCents(raw.amount),startDate=billingDate(raw.startDate),endDate=raw.endDate?billingDate(raw.endDate):null;
         if(endDate&&endDate<startDate)throw new VendorBillingError("The agreement end date cannot precede its start.");
-        if(await db.vendorBillingAgreement.findFirst({where:{organizationId,vendorId,kind,terms:billingText(raw.terms,"Agreement / source terms",1500)}}))throw new VendorBillingError("An agreement with this source reference and terms already exists. Review it before importing another balance or schedule.",409);
         const principalCents=kind==="REPAYMENT"?billingCents(raw.principal):null;
+        let principalDate=startDate, signedDate:string|null=null;
+        const terms=billingText(raw.terms,raw.companyLoan===true?"Agreement reference":"Agreement / source terms",raw.companyLoan===true?450:1500);
+        if(await db.vendorBillingAgreement.findFirst({where:{organizationId,vendorId,kind:kind==="REPAYMENT"?{in:["REPAYMENT","COMPANY_LOAN"]}:kind,terms:{equals:terms,mode:"insensitive"}}}))throw new VendorBillingError("An agreement with this source reference and terms already exists. Review it before importing another balance or schedule.",409);
+        if(raw.companyLoan===true){
+          if(kind!=="REPAYMENT"||raw.direction!=="RECEIVABLE"||raw.principalOnlyConfirmed!==true)throw new VendorBillingError("Confirm that Time Motor Sales is the lender and this schedule allocates the installment entirely to principal.");
+          principalDate=billingDate(raw.principalDate);
+          if(principalDate>chicagoDate())throw new VendorBillingError("Record only principal already funded or recognized on the company books.");
+          if(startDate<principalDate)throw new VendorBillingError("The first due date cannot precede the date principal was funded or recognized. Check the loan and bank records before saving.");
+          signedDate=raw.signedDate?billingDate(raw.signedDate):null;
+          if(signedDate&&signedDate>chicagoDate())throw new VendorBillingError("Enter the actual signing date, not a future date.");
+        }
         const schedule=principalCents?repaymentSchedule(startDate,principalCents,amountCents):[];
-        const agreement=await db.vendorBillingAgreement.create({data:{organizationId,vendorId,direction:billingDirection(raw.direction),kind,title:billingText(raw.title,"Agreement title",300),amountCents,principalCents,startDate:date(startDate),endDate:endDate?date(endDate):null,ownerUserId:user.id,terms:billingText(raw.terms,"Agreement / source terms",1500)}});
+        const lastDue=raw.companyLoan===true?schedule.at(-1)?.dueDate:endDate;
+        const agreement=await db.vendorBillingAgreement.create({data:{organizationId,vendorId,direction:billingDirection(raw.direction),kind:raw.companyLoan===true?"COMPANY_LOAN":kind,title:billingText(raw.title,"Agreement title",300),amountCents,principalCents,startDate:date(startDate),endDate:lastDue?date(lastDue):null,ownerUserId:user.id,terms}});
         if(principalCents){
-          const opening=await createDocument(db,vendorId,user.id,{direction:agreement.direction,number:`OPEN-${agreement.id}`,title:agreement.title,issueDate:startDate,dueDate:startDate,sourceReference:agreement.terms,lines:[{description:"Existing principal - not a new recurring charge",amount:(principalCents/100).toFixed(2)}]}, {agreementId:agreement.id,periodKey:"opening",kind:"OPENING_BALANCE",status:"POSTED"});
+          const opening=await createDocument(db,vendorId,user.id,{direction:agreement.direction,number:`OPEN-${agreement.id}`,title:agreement.title,issueDate:principalDate,dueDate:startDate<principalDate?principalDate:startDate,sourceReference:signedDate?`${terms} · Signed ${signedDate}`:terms,lines:[{description:"Existing principal - not a new recurring charge",amount:(principalCents/100).toFixed(2)}]}, {agreementId:agreement.id,periodKey:"opening",kind:"OPENING_BALANCE",status:"POSTED"});
           await db.vendorBillingDueItem.createMany({data:schedule.map(item=>({organizationId,vendorId,documentId:opening.id,agreementId:agreement.id,periodKey:item.periodKey,dueDate:date(item.dueDate),amountCents:item.amountCents}))});
         }
-        detail=agreement;
+        detail=raw.companyLoan===true?{...agreement,principalDate,signedDate}:agreement;
       } else if(action==="SET_AGREEMENT_ACTIVE"){
         const agreement=await db.vendorBillingAgreement.findFirst({where:{id:billingText(raw.agreementId,"Agreement",150),organizationId,vendorId}});
         if(!agreement||agreement.version!==raw.version)throw new VendorBillingError("Refresh the agreement before changing it.",409);
@@ -240,6 +251,9 @@ export async function commandVendorBilling(user: AuthenticatedUser | null,vendor
         const seen=new Set<string>(),rows:Array<{documentId:string;amountCents:number;direction:string}>=[];
         for(const item of allocations){const doc=await invoice(db,vendorId,item.documentId);if(seen.has(doc.id))throw new VendorBillingError("Select each invoice only once.");seen.add(doc.id);
           if(doc.status!=="POSTED"&&!(action==="CREDIT"&&doc.status==="DISPUTED"))throw new VendorBillingError("Resolve the dispute and approve the invoice before allocating money or offsetting it.");
+          if(action==="OFFSET"&&doc.agreement?.kind==="COMPANY_LOAN")throw new VendorBillingError("Company loan principal cannot be offset against vendor bills. Record the loan receipt and repair payment separately.");
+          if(action==="PAYMENT"&&raw.repairBatch===true&&(doc.kind!=="INVOICE"||!doc.lines.some(line=>line.workJobId)))throw new VendorBillingError("Select only approved invoices linked to repair work for this batch.");
+          if(action==="RECEIPT"&&raw.loanPrincipal===true&&(doc.kind!=="OPENING_BALANCE"||doc.agreement?.kind!=="COMPANY_LOAN"))throw new VendorBillingError("Apply the principal receipt to an open company loan balance.");
           if(["PAYMENT","OFFSET"].includes(action)&&doc.direction==="PAYABLE")await matchWork(db,vendorId,doc);
           if(action==="RECEIPT"&&doc.direction!=="RECEIVABLE"||action==="PAYMENT"&&doc.direction!=="PAYABLE")throw new VendorBillingError("The payment direction does not match this invoice.");
           if(effectiveDate<iso(doc.issueDate))throw new VendorBillingError("A payment before invoice issue must be recorded as unapplied cash first.");
@@ -247,6 +261,8 @@ export async function commandVendorBilling(user: AuthenticatedUser | null,vendor
           rows.push({documentId:doc.id,amountCents:amount,direction:doc.direction});
         }
         const sum=(direction?:string)=>rows.filter(r=>!direction||r.direction===direction).reduce((total,r)=>total+r.amountCents,0);
+        if(action==="PAYMENT"&&raw.repairBatch===true&&sum()!==amountCents)throw new VendorBillingError("Apply the full bank payment across the selected repair bills.");
+        if(action==="RECEIPT"&&raw.loanPrincipal===true&&(rows.length!==1||sum()!==amountCents))throw new VendorBillingError("Apply the full principal receipt to one loan balance. Handle interest separately.");
         if(action==="OFFSET"){if(raw.agreed!==true||sum("RECEIVABLE")!==amountCents||sum("PAYABLE")!==amountCents)throw new VendorBillingError("Confirm the offset agreement and select equal amounts owed in each direction.");}
         else if(action==="CREDIT"&&new Set(rows.map(r=>r.direction)).size>1)throw new VendorBillingError("Apply one credit to a single billing direction.");
         else if(sum()>amountCents||(action==="CREDIT"&&(!rows.length||sum()!==amountCents)))throw new VendorBillingError("Check the allocation total; a credit must be fully applied.");
