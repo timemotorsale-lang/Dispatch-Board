@@ -118,6 +118,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
   const invoiceIntake = useRef<VendorInvoiceIntakeHandle>(null);
   const billing=useRef<VendorBillingHandle>(null);
   const [invoiceRefresh, setInvoiceRefresh] = useState(0);
+  const [invoiceIntakeRefresh, setInvoiceIntakeRefresh] = useState(0);
   const [form, setForm] = useState(() => formFromVendor(initialReadModel.vendor));
   const [noteBody, setNoteBody] = useState("");
   const [taskForm, setTaskForm] = useState({
@@ -482,7 +483,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
 
       <div className="vendor-live-notice" aria-live="polite">{notice}</div>
 
-          <VendorBilling ref={billing} key={invoiceRefresh} initialPeriod={invoiceRefresh ? "ALL" : "THIS_MONTH"} vendorId={vendor.id} documents={vendor.documents} refreshKey={`${JSON.stringify(vendor.workJobs)}:${invoiceRefresh}`} onChanged={()=>{setInvoiceRefresh(current=>current+1);setNotice("Invoice changes saved. Batch invoice totals are refreshing; manually edited closing amounts are retained.");}} />
+          <VendorBilling ref={billing} key={invoiceIntakeRefresh} initialPeriod={invoiceIntakeRefresh ? "ALL" : "THIS_MONTH"} vendorId={vendor.id} documents={vendor.documents} refreshKey={`${JSON.stringify(vendor.workJobs)}:${invoiceRefresh}`} onChanged={()=>{setInvoiceRefresh(current=>current+1);setNotice("Invoice changes saved. Batch invoice totals are refreshing; manually edited closing amounts are retained.");}} />
       <div className="vendor-profile-layout">
         <main className="vendor-profile-main">
           <form className="vendor-profile-editor" onSubmit={saveVendor}>
@@ -646,6 +647,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
             <header><FileText size={18} /><strong>Documents</strong><span>{vendor.documents.length}</span></header>
             <VendorInvoiceIntake ref={invoiceIntake} vendorId={vendor.id} batches={openBatches} defaultBatchId={openBatch?.id||""} onSaved={async batchId => {
               if(batchId)setSelectedBatchId(batchId);
+              setInvoiceIntakeRefresh(current => current + 1);
               setInvoiceRefresh(current => current + 1);
               const response = await fetch(`/api/vendors/${vendor.id}`, { cache: "no-store" });
               const payload = await readVendorJson(response) as VendorProfileReadModel;

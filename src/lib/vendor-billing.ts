@@ -34,6 +34,28 @@ export function repaymentSchedule(start: string, principal: number, installment:
   return Array.from({ length: count }, (_, index) => ({ dueDate: monthlyDate(start, index), amountCents: Math.min(installment, principal - index * installment), periodKey: `installment-${index + 1}` }));
 }
 export type BillingRow = { id: string; direction: string; kind: string; status: string; number: string; title: string; issueDate: string; dueDate: string; amountCents: number; taxCents: number; version: number; balanceCents: number; appliedCents: number; sourceReference: string; disputeReason: string; agreementId: string | null; lines: Array<{ id: string; description: string; amountCents: number; workJobId: string | null }>; dueItems: Array<{ dueDate: string; amountCents: number; outstandingCents: number }> };
+export function vendorRepairPaymentBills(documents: BillingRow[]) {
+  return documents.filter(row => row.direction === "PAYABLE" && row.kind === "INVOICE" && row.status === "POSTED" && row.balanceCents > 0
+    && row.lines.some(line => line.workJobId)).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.number.localeCompare(b.number));
+}
+
+export function vendorPaymentBatchPlan(documents: BillingRow[], amounts: Record<string, string>, bankAmount: string) {
+  const eligible = new Map(vendorRepairPaymentBills(documents).map(row => [row.id, row]));
+  const entries = Object.entries(amounts);
+  if (!entries.length || entries.length > 100) throw new VendorBillingError("Choose between 1 and 100 repair bills.");
+  const allocations = entries.map(([documentId, amount]) => {
+    const bill = eligible.get(documentId);
+    if (!bill) throw new VendorBillingError("A selected repair bill is no longer open. Refresh the vendor ledger.");
+    const cents = billingCents(amount);
+    if (cents > bill.balanceCents) throw new VendorBillingError(`The amount for bill ${bill.number} exceeds its open balance.`);
+    return { documentId, amount: (cents / 100).toFixed(2), cents };
+  });
+  const cents = billingCents(bankAmount);
+  if (allocations.reduce((sum, allocation) => sum + allocation.cents, 0) !== cents) {
+    throw new VendorBillingError("The amounts applied to the bills must add up to the actual bank payment.");
+  }
+  return { amount: (cents / 100).toFixed(2), allocations: allocations.map(({ documentId, amount }) => ({ documentId, amount })) };
+}
 export function dueBalances(items: Array<{ dueDate: string; amountCents: number }>, applied: number) {
   let remaining = applied;
   return [...items].sort((a,b) => a.dueDate.localeCompare(b.dueDate)).map(item => { const covered = Math.min(item.amountCents, Math.max(remaining,0)); remaining -= covered; return { ...item, outstandingCents: item.amountCents - covered }; });

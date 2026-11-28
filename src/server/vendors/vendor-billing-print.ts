@@ -8,7 +8,7 @@ export function vendorBillingPrint(model:Model,params:URLSearchParams){
   const side=(value:string)=>value==="RECEIVABLE"?"They owe us":"We owe them";
   if(agreementId){
     const a=model.agreements.find(a=>a.id===agreementId);if(!a)throw new VendorBillingError("Agreement not found.",404);
-    title=a.kind==="REPAYMENT"?"Repayment schedule":"Recurring billing schedule";
+    title=a.kind==="COMPANY_LOAN"?"Company loan principal schedule":a.kind==="REPAYMENT"?"Repayment schedule":"Recurring billing schedule";
     const scheduled=model.documents.filter(d=>d.agreementId===a.id);
     body=`<h2>${esc(a.title)}</h2><p>${side(a.direction)} | ${billingMoney(a.amountCents)} monthly | ${a.active?"Active":"Paused"}</p><p>First due: ${esc(a.startDate)} | Last due: ${esc(a.endDate||"Until paused / ended")}</p><p>Recorded terms / source: ${esc(a.terms)}</p>${a.principalCents?`<p>Original principal: ${billingMoney(a.principalCents)}. Principal is recorded once; installments are not new charges.</p>`:"<p>Monthly invoices are generated as drafts and require approval. This schedule is a record of entered terms, not a replacement for the signed agreement.</p>"}<table><thead><tr><th>Due date</th><th>Invoice</th><th>Scheduled</th><th>Outstanding</th></tr></thead><tbody>${scheduled.flatMap(d=>d.dueItems.map(i=>row([i.dueDate,d.number,billingMoney(i.amountCents),billingMoney(i.outstandingCents)]))).join("")}</tbody></table>`;
   }else if(id){
