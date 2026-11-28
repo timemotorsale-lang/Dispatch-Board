@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { vehicleCustodyBlocker } from "@/server/deal-continuity/custody-error";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import { addVehicleCustodyEvent, addVehicleExternalIdentity, addVehicleOdometerObservation, addVehicleRelationship, correctRegistryVehicleColor, resolveVehicleDuplicate } from "@/server/vehicle-registry/service";
 const handlers = { ADD_RELATIONSHIP: addVehicleRelationship, ADD_EXTERNAL_IDENTITY: addVehicleExternalIdentity, RECORD_ODOMETER: addVehicleOdometerObservation, RECORD_CUSTODY: addVehicleCustodyEvent, CORRECT_COLOR: correctRegistryVehicleColor, RESOLVE_DUPLICATE: resolveVehicleDuplicate } as const;
@@ -15,5 +16,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       typeof input.customerId === "string" &&
       input.customerId.trim().length > 0;
     return NextResponse.json(await handler(await getCurrentUser(), (await context.params).id, body, serviceIntakeRelationship ? { enforceRollout: false } : undefined));
-  } catch (error) { const message = error instanceof Error ? error.message : "Vehicle command failed."; const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : error instanceof EnterpriseCommandConflictError ? 409 : 400; return NextResponse.json({ error: message }, { status }); }
+  } catch (error) { const blocker = vehicleCustodyBlocker(error); if (blocker) return NextResponse.json({ error: blocker }, { status: 409 }); const message = error instanceof Error ? error.message : "Vehicle command failed."; const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : error instanceof EnterpriseCommandConflictError ? 409 : 400; return NextResponse.json({ error: message }, { status }); }
 }

@@ -56,6 +56,27 @@ export type CompactPartsEntryOptions = {
 export const generateCompactPartNumber = (seed = crypto.randomUUID()) => `PART-${seed.toUpperCase()}`;
 export const generateCompactStockLocationCode = (seed = crypto.randomUUID()) => `BIN-${seed.toUpperCase()}`;
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+export const partsRolloutDenied = (message?: string) => Boolean(message?.startsWith("Parts Operations mutations are not enabled."));
+
+export function canReplaceBlockedReceivingBin(progress: CompactPartsEntryProgress, message?: string) {
+  const bin = progress.steps.stockLocation;
+  return partsRolloutDenied(message) && bin?.path === "/api/parts/locations" && !bin.result
+    && !progress.steps.receipt && !progress.steps.outcome && !progress.input.receiptId;
+}
+
+export function recoveryReceivingBins(progress: CompactPartsEntryProgress, model: CompactPartsEntryModel) {
+  return model.stockLocations.filter(bin => bin.locationId === progress.input.locationId
+    && bin.isActive !== false && bin.status !== "INACTIVE" && bin.type !== "DAMAGED");
+}
+
+export function replaceBlockedReceivingBin(progress: CompactPartsEntryProgress, message: string | undefined, stockLocationId: string, model: CompactPartsEntryModel) {
+  if (!canReplaceBlockedReceivingBin(progress, message) || !recoveryReceivingBins(progress, model).some(bin => bin.id === stockLocationId)) return null;
+  const next = copy(progress);
+  delete next.steps.stockLocation;
+  delete next.input.stockLocationName;
+  next.input.stockLocationId = stockLocationId;
+  return next;
+}
 const positive = (value: number) => Number.isSafeInteger(value) && value > 0;
 const validDate = (value?: string) => Boolean(value && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now() + 60000);
 async function request(path: string, body: Record<string, unknown>) {

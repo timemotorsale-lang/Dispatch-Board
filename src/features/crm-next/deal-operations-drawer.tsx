@@ -229,8 +229,11 @@ export function DealOperationsDrawer({ deal, expectedCustomerId, initialTab = "D
       </>}
       {tab === "Money" && (!repair || data.financialEntries.length > 0) && <>
         <h3>{dailyRental ? "Rental payments" : repair ? "Existing deal financial records" : "Recorded financial activity"}</h3>
+        {!expectedCustomerId && deal.customerId && !repair && !dailyRental && <p>
+          <Link href={`/crm-next/customers/${encodeURIComponent(deal.customerId)}#deals`}>Open customer deposits</Link> to record a deposit or review its receipt.
+        </p>}
         {expectedCustomerId && data.canManage && !repair && !dailyRental && !data.jacketId && data.draftId && <p>
-          Prepare the deal packet before recording a verified deposit. <Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(data.draftId)}&section=documents`}>Open deal documents</Link>
+          Prepare the deal packet before posting activity to this deal. Customer deposits are recorded separately. <Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(data.draftId)}&section=documents`}>Open deal documents</Link>
         </p>}
         {dailyRental && data.draftId && !data.inactive && (data.canManage ? <RentalPaymentForm busy={busy} save={save} showError={setError} /> : <p>A manager can record a received payment and issue its receipt.</p>)}
         {issuedReceipt && issuedReceipt.draftId === data.draftId && <p><a className={styles.rentalPaymentPrimary} target="_blank" rel="noopener" href={rentalReceiptHref(issuedReceipt.draftId, issuedReceipt.paymentId)}>Open latest receipt</a></p>}

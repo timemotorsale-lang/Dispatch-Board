@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { compactReceiptRemaining, runCompactPartsEntry, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
+import { compactReceiptRemaining, replaceBlockedReceivingBin, runCompactPartsEntry, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
 const input: CompactPartsEntryInput = { mode: "PURCHASED", repairOrderId: "ro", locationId: "store", description: "Brake pads", quantity: 2, vendorId: "vendor", unitPriceCents: 2500, purchasedAt: "2026-01-01T12:00:00Z", received: true, receivedAt: "2026-01-02T12:00:00Z", stockLocationId: "bin", packingSource: "Slip 1", note: "Verified synthetic purchase" };
 const model: CompactPartsEntryModel = { repairOrders: [{ id: "ro", locationId: "store" }], demands: [], requisitions: [], catalog: [{ id: "part", partNumber: "PAD" }], vendors: [{ id: "vendor", name: "Vendor" }], stockLocations: [{ id: "bin", locationId: "store", isActive: true }], purchaseOrders: [], receipts: [] };
 function harness(status = "ISSUED") {
@@ -8,6 +8,31 @@ function harness(status = "ISSUED") {
   return { request, onProgress: (progress: CompactPartsEntryProgress) => { saved = progress; }, saved: () => saved };
 }
 describe("compact parts orchestration", () => {
+  it("resumes the issued order at an existing same-store bin after new-bin creation is denied", async () => {
+    const issued: CompactPartsEntryModel = { ...model,
+      stockLocations: [...model.stockLocations, { id: "other-bin", locationId: "other-store" }],
+      purchaseOrders: [{ id: "saved-po", repairOrderId: "ro", locationId: "store", status: "ISSUED",
+        lines: [{ partId: "part", quantity: 2, unitCostCents: 2500 }] }] };
+    const value = { ...input, partId: "part", purchaseOrderId: "saved-po", stockLocationId: undefined, stockLocationName: "New shelf" };
+    const first = harness();
+    first.request.mockRejectedValueOnce(new Error("Parts Operations mutations are not enabled. This workflow is paused or not configured in Settings > Vehicle Operations."));
+    const blocked = await runCompactPartsEntry(value, issued, first);
+    expect(blocked).toMatchObject({ status: "RETRY", purchaseOrderId: "saved-po" });
+    expect(first.request.mock.calls.map(([path]) => path)).toEqual(["/api/parts/locations"]);
+    expect(replaceBlockedReceivingBin(blocked.progress, "Connection lost", "bin", issued)).toBeNull();
+    expect(replaceBlockedReceivingBin(blocked.progress, blocked.message, "other-bin", issued)).toBeNull();
+    const resumed = replaceBlockedReceivingBin(blocked.progress, blocked.message, "bin", issued)!;
+    expect(resumed.submissionId).toBe(blocked.progress.submissionId);
+    const retry = harness();
+    const received = await runCompactPartsEntry(resumed.input, issued, { ...retry, progress: resumed });
+    expect(received).toMatchObject({ status: "COMPLETE", purchaseOrderId: "saved-po", receiptId: "exact-receipt" });
+    expect(retry.request).toHaveBeenCalledExactlyOnceWith("/api/service-close-parts", expect.objectContaining({
+      action: "RECEIVE_PURCHASE_ORDER", subjectId: "saved-po", stockLocationId: "bin",
+      idempotencyKey: `compact-parts:${resumed.submissionId}:receipt`
+    }));
+    expect(replaceBlockedReceivingBin({ ...blocked.progress, steps: { ...blocked.progress.steps, receipt: { path: "/api/service-close-parts", body: {} } } },
+      blocked.message, "bin", issued)).toBeNull();
+  });
   it("records a need without procurement or receipt", async () => {
     const h = harness(); const result = await runCompactPartsEntry({ ...input, mode: "NEEDED", received: false }, model, h);
     expect(result.status).toBe("COMPLETE"); expect(h.request).toHaveBeenCalledTimes(2);

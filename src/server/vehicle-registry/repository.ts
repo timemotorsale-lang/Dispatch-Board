@@ -199,7 +199,12 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
     resolveDuplicate(command: EnterpriseCommandCommitInput, input: { caseId: string; resolution: "CONFIRMED_DISTINCT" | "MERGED" | "DISMISSED"; resolvedByUserId: string; reason: string }) {
       return executeRegistryMutation(database, command, async (tx, version) => {
         const duplicateCase = await tx.vehicleDuplicateCase.findFirstOrThrow({ where: { id: input.caseId, organizationId: command.organizationId, status: "OPEN", OR: [{ primaryVehicleId: command.subjectId }, { candidateVehicleId: command.subjectId }] } });
-        if (input.resolution === "MERGED") await tx.vehicle.update({ where: { id: duplicateCase.candidateVehicleId }, data: { mergedIntoVehicleId: duplicateCase.primaryVehicleId, status: "INACTIVE", version } });
+        if (input.resolution === "MERGED") {
+          // Lock both rows before the merge trigger takes vehicle advisory locks.
+          await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE "organizationId" = ${command.organizationId}
+            AND id IN (${duplicateCase.primaryVehicleId}, ${duplicateCase.candidateVehicleId}) ORDER BY id FOR NO KEY UPDATE`;
+          await tx.vehicle.update({ where: { id: duplicateCase.candidateVehicleId }, data: { mergedIntoVehicleId: duplicateCase.primaryVehicleId, status: "INACTIVE", version } });
+        }
         const updated = await tx.vehicleDuplicateCase.update({ where: { id: duplicateCase.id }, data: { status: input.resolution, resolutionReason: input.reason, resolvedAt: new Date(), resolvedByUserId: input.resolvedByUserId } });
         if (input.resolution !== "MERGED") await tx.vehicle.update({ where: { id: command.subjectId }, data: { duplicateKey: null, version } });
         else if (command.subjectId !== duplicateCase.candidateVehicleId) await tx.vehicle.update({ where: { id: command.subjectId }, data: { version } });

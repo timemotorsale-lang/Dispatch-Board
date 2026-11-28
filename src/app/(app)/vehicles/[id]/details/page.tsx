@@ -22,7 +22,7 @@ export default async function VehicleDetailsPage({ params, searchParams }: { par
   if (!journey) notFound();
   // Opening the record does not require acquisition confirmation or release readiness.
   if (!journey.access.inventory) throw new Error("Inventory access is required for vehicle details.");
-  const [pricing, costs, media, intake, salesMedia] = await Promise.all([
+  const [pricing, costs, media, intake, salesMedia, depositHold] = await Promise.all([
     journey.access.pricing ? getVehiclePricing(user, id) : Promise.resolve(null),
     journey.access.costs ? getVehicleCosts(user, id) : Promise.resolve(null),
     getVehicle360(user, id).then(view => ({
@@ -35,8 +35,15 @@ export default async function VehicleDetailsPage({ params, searchParams }: { par
       }
     })).catch(() => ({ available: false, documents: [], context: null })),
     getVehicleIntake(user, id).catch(() => null),
-    getVehicleSalesMedia(user, id).catch(() => null)
+    getVehicleSalesMedia(user, id).catch(() => null),
+    prisma.vehicle.findFirst({ where: { id, organizationId: INITIAL_ORGANIZATION.id }, select: { vin: true } }).then(vehicle =>
+      prisma.customerSalesDeposit.findFirst({ where: { organizationId: INITIAL_ORGANIZATION.id, refundedAt: null, OR: [
+        { vehicleId: id }, ...(vehicle?.vin ? [{ kind: "RESERVATION", vin: { equals: vehicle.vin.trim(), mode: "insensitive" as const } }] : [])
+      ] }, select: { id: true } }))
   ]);
   const captureHref = await canCaptureForVehicle(user, id) ? vehicleCaptureHref(id, `/vehicles/${encodeURIComponent(id)}/details`) : undefined;
-  return <FrontlinePreparationWorkspace captureHref={captureHref} journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia} initialTab={query?.tab === "media" ? "Media" : "Vehicle Info"} initialMediaKind={query?.purpose === "intake" ? "intake" : "photos"}/>;
+  return <>
+    {depositHold && <p role="status">Held by a customer deposit. Do not offer this vehicle to another customer.</p>}
+    <FrontlinePreparationWorkspace captureHref={captureHref} journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia} initialTab={query?.tab === "media" ? "Media" : "Vehicle Info"} initialMediaKind={query?.purpose === "intake" ? "intake" : "photos"}/>
+  </>;
 }

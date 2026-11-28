@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { CompactPartsEntry, type CompactPartsEntryInput as FormEntry, type CompactPartsEntryResult as FormResult, type CompactPartsPurchaseOrder, type CompactPartsSelection, type CompactPartsReceivedPart, type CompactPartsUsage } from "./compact-parts-entry";
-import { runCompactPartsEntry, compactReceiptRemaining, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
+import { runCompactPartsEntry, compactReceiptRemaining, canReplaceBlockedReceivingBin, partsRolloutDenied, recoveryReceivingBins, replaceBlockedReceivingBin, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
 import { repairCloseGuidance } from "@/lib/repair-close-guidance";
 import compactStyles from "./service-close-parts-workspace.module.css";
 
@@ -125,6 +125,8 @@ export function resolvePartsEntry(storage: Pick<Storage, "getItem" | "setItem">,
   return resolved;
 }
 export function partsEntryRecoveryGuidance(saved: SavedCompactEntry, purchaseOrder?: { status?: string }) {
+  if (canReplaceBlockedReceivingBin(saved.progress, saved.message)) return "Creating a new receiving bin is paused. The purchase order is still saved. Choose an existing bin at this store to finish receiving.";
+  if (partsRolloutDenied(saved.message)) return "This step is paused by the parts rollout setting. Ask a rollout administrator to review Parts Operations, then retry this saved entry.";
   if (saved.message?.includes("PARTS_MANAGE") && saved.message.includes("CAPABILITY_REQUIRED")) return "A staff member with parts access for this store needs to resume this saved entry.";
   if (Object.values(saved.progress.steps).some(step => !step.result?.id)) return saved.message || "The last save was not confirmed. Resume this entry using the details already entered.";
   if (purchaseOrder?.status === "DRAFT") return "This purchase order is a draft and needs approval before receiving. After approval, resume this entry to check the latest status.";
@@ -448,7 +450,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
     return () => { current = false; };
   }, [orderId, initial]);
 
-  async function saveCompact(entry: FormEntry, restored?: SavedCompactEntry): Promise<FormResult> {
+  async function saveCompact(entry: FormEntry, restored?: SavedCompactEntry, recoveryBinId?: string): Promise<FormResult> {
     if (compactSending.current) return { status: "error", message: "A parts entry is already being saved.", retryable: true };
     if (!restored && unfinished.some(item => item.entry.requestId !== entry.requestId && (item.entry.part.trim().toLowerCase() === entry.part.trim().toLowerCase() || Boolean(entry.purchaseOrderId && item.entry.purchaseOrderId === entry.purchaseOrderId)))) {
       return { status: "error", message: "This part or purchase order already has a saved unfinished entry. Resume that entry above to avoid recording it twice." };
@@ -460,12 +462,22 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
     compactSending.current = true;
     setBusy(true);
     let saved: SavedCompactEntry | undefined;
+    const recoveryBase = recoveryBinId ? restored : undefined;
     try {
       if (restored) {
         workingModel = scopedRepairOrders(await request(), reviewOrderId);
         setModel(workingModel);
         order = workingModel.repairOrders.find(item => item.id === entry.repairOrderId);
         if (!order || order.closedAt) return { status: "error", message: "This repair order is unavailable or closed. Review the saved parts records." };
+      }
+      if (recoveryBase && recoveryBinId) {
+        const progress = replaceBlockedReceivingBin(recoveryBase.progress, recoveryBase.message, recoveryBinId, compactPartsModel(workingModel));
+        if (!progress) {
+          const message = "That receiving bin is no longer available. Your saved entry is unchanged. Choose an active bin at this store.";
+          setPartsRecoverySummary(message);
+          return { status: "error", message };
+        }
+        restored = { ...recoveryBase, progress };
       }
       const matchRepairJob = Boolean(entry.repairJobId && !entry.purchaseOrderId && (!entry.usage || entry.usage === "NOT_YET"));
       if (!restored && matchRepairJob && !order.repairJobs?.some(job => job.id === entry.repairJobId && job.status && !["UNKNOWN", "CANCELLED", "QC_PASSED", "COMPLETED"].includes(job.status))) {
@@ -497,7 +509,10 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
       const result = await runCompactPartsEntry(input, compactPartsModel(workingModel), { progress: saved!.progress, onProgress: persist });
       saved = { entry: prior?.entry ?? entry, progress: result.progress, message: result.message, purchaseOrderId: result.purchaseOrderId, status: result.status, nextAction: result.nextAction };
       const noRequestsStarted = result.status === "BLOCKED" && Object.keys(result.progress.steps).length === 0;
-      if (result.status === "COMPLETE" || noRequestsStarted) {
+      if (noRequestsStarted && recoveryBase) {
+        sessionStorage.setItem(key, JSON.stringify(recoveryBase));
+        setUnfinished(items => [...items.filter(item => item.entry.requestId !== entry.requestId), recoveryBase]);
+      } else if (result.status === "COMPLETE" || noRequestsStarted) {
         if (result.status === "COMPLETE") setBlockedPurchase(null);
         sessionStorage.removeItem(key);
         setUnfinished(items => items.filter(item => item.entry.requestId !== entry.requestId));
@@ -1373,7 +1388,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
 
     </header>}
 
-    <Notice value={notice.includes("PARTS_MANAGE") && notice.includes("CAPABILITY_REQUIRED") ? "Ask someone with parts access at this store to review the saved records and finish this entry. You can enter a different part below." : notice} />
+    <Notice value={notice.includes("PARTS_MANAGE") && notice.includes("CAPABILITY_REQUIRED") ? "Ask someone with parts access at this store to review the saved records and finish this entry. You can enter a different part below." : partsRolloutDenied(notice) ? "A parts step is paused. Check Finish saving parts below for the next action." : notice} />
 
     {taskLayout && <div className={compactStyles.taskNav} aria-label="Parts tasks" role="group">
       <button type="button" className="button button-secondary" aria-pressed={partsTask === "purchase"} onClick={() => setPartsTask("purchase")}>Buy &amp; receive</button>
@@ -1423,10 +1438,26 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, para
       const po = model.purchaseOrders.find(po => po.id === item.purchaseOrderId && po.requisition?.demand?.repairOrder?.id === orderId);
       const partId = item.progress.partSelection?.id ?? item.progress.input.partId;
       const existingOptions = compactPurchaseOptions(model, orderId).filter(option => option.id === item.purchaseOrderId && (!partId || option.partId === partId));
+      const binBlocked = canReplaceBlockedReceivingBin(item.progress, item.message);
+      const recoveryBins = binBlocked ? recoveryReceivingBins(item.progress, compactPartsModel(model)) : [];
       return <article key={item.entry.requestId}>
         <p><strong>{item.entry.part}</strong> · Qty {item.entry.quantity}</p>
         {po && <p><strong>{po.purchaseOrderNumber}</strong> · {format(po.status)}</p>}
         <p>{partsEntryRecoveryGuidance(item, po)}</p>
+        {binBlocked && recoveryBins.length > 0 && <form onSubmit={event => {
+          event.preventDefault();
+          if (busy || resumingParts || refreshNeeded) return;
+          const id = String(new FormData(event.currentTarget).get("receivingBin") ?? "");
+          if (!id) { setPartsRecoverySummary("Select an active receiving bin at this store."); return; }
+          void saveCompact(item.entry, item, id);
+        }}>
+          <label>Existing receiving bin<select name="receivingBin" required defaultValue=""><option value="">Choose a bin</option>
+            {recoveryBins.map(bin => <option key={bin.id} value={bin.id}>{[model.stockLocations.find(item => item.id === bin.id)?.code, bin.name].filter(Boolean).join(" · ") || "Receiving bin"}</option>)}
+          </select></label>
+          <button type="submit" disabled={busy || resumingParts || refreshNeeded}>Save receipt to this bin</button>
+        </form>}
+        {binBlocked && !recoveryBins.length && <p>No active receiving bin is listed for this store. Ask a rollout administrator to set one up, then reopen this entry.</p>}
+        {partsRolloutDenied(item.message) && <Link href="/settings/vehicle-operations">Review Parts Operations rollout settings</Link>}
         <button type="button" onClick={() => { setDetailsOpen(true); setMode("order"); }}>Review saved parts records</button>
         {po && <a href={`#parts-po-${encodeURIComponent(po.id)}`} onClick={() => { setDetailsOpen(true); setMode("order"); }}>Review purchase order {po.purchaseOrderNumber}</a>}
         {canResolvePartsEntry(item) && existingOptions.length === 1 && <button type="button" disabled={busy} onClick={() => void selectExistingOrder(existingOptions[0].id, existingOptions[0].partId, item)}>Use existing order</button>}

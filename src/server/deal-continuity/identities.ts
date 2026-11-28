@@ -103,7 +103,7 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
 }
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
   requireDealIdentityUser(actor);
-  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { vehicleUseBookings: vehicleCustodySelection(dealOrganization()), inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
+  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { salesDeposits: { where: { refundedAt: null }, select: { id: true }, take: 1 }, vehicleUseBookings: vehicleCustodySelection(dealOrganization()), inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
   const unit = vehicle.inventoryUnits[0];
   const snapshot = vehicle.specificationSnapshot as { specifications?: Record<string, unknown> } | null;
@@ -119,9 +119,13 @@ export async function dealVehicle(actor: AuthenticatedUser | null, id: string, d
     recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? ""
   };
   const custody = describeVehicleCustodySelection(vehicle.vehicleUseBookings ?? []);
-  const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && !custody?.blocksTemporaryUse);
+  const depositHeld = Boolean(vehicle.salesDeposits?.length || (vehicle.vin && await database.customerSalesDeposit.findFirst({
+    where: { organizationId: dealOrganization(), kind: "RESERVATION", refundedAt: null, vin: { equals: vehicle.vin.trim(), mode: "insensitive" } },
+    select: { id: true }
+  })));
+  const eligible = Boolean(!depositHeld && vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && !custody?.blocksTemporaryUse);
   const commercialLabel = unit?.lifecycleStage === "RESERVED_DEAL_PENDING" ? "Reserved for sale" : unit?.lifecycleStage === "SOLD" ? "Sold" : unit?.lifecycleStage === "DELIVERED" ? "Delivered" : null;
-  return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: custody?.label ?? commercialLabel ?? (eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use"), eligibleForUse: eligible };
+  return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: custody?.label ?? commercialLabel ?? (depositHeld ? "Held by a customer deposit" : null) ?? (eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use"), eligibleForUse: eligible };
 }
 export async function searchDealVehicles(actor: AuthenticatedUser | null, params: URLSearchParams) {
   requireDealIdentityUser(actor);

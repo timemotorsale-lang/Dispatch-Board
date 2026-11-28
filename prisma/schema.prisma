@@ -3265,6 +3265,8 @@ model Customer {
   interactions                    CustomerInteraction[]
   notes                           CustomerNote[]
   vehicleRelationships            CustomerVehicle[]
+  vehicleWishes                   CustomerVehicleWish[]
+  salesDeposits                   CustomerSalesDeposit[]
   registryVehicleRelationships    VehicleRelationship[]
   documentRequirements            CustomerDocumentRequirement[]
   tasks                           Task[]
@@ -3282,6 +3284,58 @@ model Customer {
   @@index([organizationId, displayName])
   @@index([organizationId, duplicateKey])
   @@index([mergedIntoCustomerId])
+}
+
+model CustomerSalesDeposit {
+  id                String    @id
+  kind              String    @default("GENERAL")
+  organizationId    String
+  customerId        String
+  vehicleId         String?
+  amountCents       Int
+  method            String
+  paymentReference  String?
+  nonRefundable     Boolean
+  terms             String
+  companyName       String
+  customerName      String
+  customerNumber    String?
+  customerPhone     String?
+  customerEmail     String?
+  customerAddress   String?
+  vehicleLabel      String?
+  vin               String?
+  receivedById      String
+  receivedByName    String
+  receivedAt        DateTime  @default(now())
+  refundedAt        DateTime?
+  refundedById      String?
+  refundReference   String?
+  refundReason      String?
+  customer          Customer  @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  vehicle           Vehicle?  @relation(fields: [vehicleId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, customerId, receivedAt])
+  @@unique([organizationId, method, paymentReference])
+  @@unique([organizationId, method, refundReference])
+}
+
+model CustomerVehicleWish {
+  id                  String    @id
+  customerId          String
+  year                Int?
+  make                String?
+  model               String?
+  color               String?
+  maxPriceCents        Int?
+  monthlyPaymentCents Int?
+  version             Int       @default(1)
+  archivedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  customer            Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, archivedAt, createdAt])
 }
 
 model CustomerContactPoint {
@@ -4437,6 +4491,7 @@ model UnifiedCrmForecastSnapshot {
 }
 
 model Vehicle {
+  salesDeposits CustomerSalesDeposit[]
   collectionAccounts CollectionAccount[]
   autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]

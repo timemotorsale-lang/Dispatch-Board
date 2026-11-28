@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
-const mocks = vi.hoisted(() => ({ vehicle: vi.fn(), booking: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { vehicle: { findFirst: mocks.vehicle }, vehicleUseBooking: { findFirst: mocks.booking } } }));
+const mocks = vi.hoisted(() => ({ vehicle: vi.fn(), booking: vi.fn(), deposit: vi.fn() }));
+vi.mock("@/server/db/client", () => ({ prisma: { vehicle: { findFirst: mocks.vehicle }, vehicleUseBooking: { findFirst: mocks.booking }, customerSalesDeposit: { findFirst: mocks.deposit } } }));
 vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "company-a" }) }));
 import { dealVehicle } from "@/server/deal-continuity/identities";
 const actor = { id: "staff", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } } as AuthenticatedUser;
 const record = { id: "vehicle-a", vin: "2T3W1RFVXRW333586", year: 2024, make: "Toyota", model: "RAV4", color: "Silver", licensePlate: "DEMO42", specificationSnapshot: { specifications: { trim: "XLE" } }, inventoryUnits: [{ id: "unit-a", inventoryNumber: "STOCK-42", locationId: "location-a", lifecycleStage: "FRONTLINE_READY", operatingState: "ACTIVE" }], odometerObservations: [{ reading: 54000, observedAt: new Date("2026-11-03T18:00:00Z") }] };
-beforeEach(() => { vi.resetAllMocks(); mocks.vehicle.mockResolvedValue(record); mocks.booking.mockResolvedValue(null); });
+beforeEach(() => { vi.resetAllMocks(); mocks.vehicle.mockResolvedValue(record); mocks.booking.mockResolvedValue(null); mocks.deposit.mockResolvedValue(null); });
 describe("shared vehicle prefill", () => {
   it("returns recorded identity, trim and accepted mileage within the company boundary", async () => {
     expect(await dealVehicle(actor, "vehicle-a")).toMatchObject({ vin: record.vin, year: "2024", stockNumber: "STOCK-42", trim: "XLE", recordedMileage: "54000", mileageRecordedAt: "2026-11-03T18:00:00.000Z", licensePlate: "DEMO42" });
@@ -15,5 +15,12 @@ describe("shared vehicle prefill", () => {
   it("leaves absent trim and mileage empty without inferring values", async () => {
     mocks.vehicle.mockResolvedValue({ ...record, specificationSnapshot: null, odometerObservations: [] });
     expect(await dealVehicle(actor, "vehicle-a")).toMatchObject({ trim: "", recordedMileage: "", mileageRecordedAt: "" });
+  });
+  it("blocks allocation when an active manual VIN reservation matches", async () => {
+    mocks.deposit.mockResolvedValue({ id: "deposit-a" });
+    expect(await dealVehicle(actor, "vehicle-a")).toMatchObject({ eligibleForUse: false, availability: "Held by a customer deposit" });
+    expect(mocks.deposit).toHaveBeenCalledWith({ where: {
+      organizationId: "company-a", kind: "RESERVATION", refundedAt: null, vin: { equals: record.vin, mode: "insensitive" }
+    }, select: { id: true } });
   });
 });

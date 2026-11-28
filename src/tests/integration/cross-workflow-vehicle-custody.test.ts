@@ -131,8 +131,8 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("cross-work
   it("holds an actual checkout and keeps a legacy return on hold after paperwork closes until explicit completion", async () => {
     const { prisma, reserve, sell, rental, vehicle, customer, actor } = await fixture();
     const booking = await reserve();
-    const packet = await prisma.documentLibraryPacket.create({ data: { organizationId: booking.organizationId, ownerType: "DEAL", ownerId: rental.id, ownerLabel: customer.displayName, packetType: "SALES_DOCUMENTS", workflow: "daily-rental", title: "Rentals test packet" } });
-    const jacket = await prisma.salesDocumentJacket.create({ data: { organizationId: booking.organizationId, packetId: packet.id, customerId: customer.id, customerName: customer.displayName, dealReference: rental.id, dealNumber: String(rental.dealNumber), pathway: rental.pathway, vin: vehicle.vin, vehicleReference: vehicle.vehicleNumber, state: "CHECKED_OUT", requirements: [], createdByUserId: actor.id } });
+    const packet = await prisma.documentLibraryPacket.create({ data: { organizationId: rental.organizationId, ownerType: "DEAL", ownerId: rental.id, ownerLabel: customer.displayName, packetType: "SALES_DOCUMENTS", workflow: "daily-rental", title: "Rentals test packet" } });
+    const jacket = await prisma.salesDocumentJacket.create({ data: { organizationId: rental.organizationId, packetId: packet.id, customerId: customer.id, customerName: customer.displayName, dealReference: rental.id, dealNumber: String(rental.dealNumber), pathway: rental.pathway, vin: vehicle.vin, vehicleReference: vehicle.vehicleNumber, state: "CHECKED_OUT", requirements: [], createdByUserId: actor.id } });
     const version = { jacketId: jacket.id, finalizedByUserId: actor.id, snapshot: {} };
     await prisma.salesDocumentPacketVersion.create({ data: { ...version, version: 1, phase: "CHECKOUT", disposition: "CHECKED_OUT" } });
     await prisma.vehicleUseBooking.update({ where: { id: booking.id }, data: { status: "CHECKED_OUT", version: 2, agreementJacketId: jacket.id, checkedOutAt: booking.startsAt, departureSnapshot: { observed: true } } });
@@ -183,4 +183,28 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("cross-work
       else process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID = original;
     }
   }, 30_000);
+
+  it("does not deadlock a registry merge against sale reconciliation on the surviving vehicle", async () => {
+    const { prisma, vehicle, actor } = await fixture();
+    const { createVehicleRegistryRepository } = await import("@/server/vehicle-registry/repository");
+    const { normalizeEnterpriseCommand } = await import("@/server/enterprise-command/domain");
+    const candidate = await prisma.vehicle.create({ data: { organizationId: vehicle.organizationId, vehicleNumber: randomUUID() } });
+    const issue = await prisma.vehicleDuplicateCase.create({ data: { organizationId: vehicle.organizationId,
+      primaryVehicleId: vehicle.id, candidateVehicleId: candidate.id, matchReasons: ["fixture"], confidence: 95 } });
+    const reason = "Synthetic merge during reconciliation", organizationId = vehicle.organizationId;
+    const cmd = normalizeEnterpriseCommand({ organizationId, domain: "VEHICLE_REGISTRY", subjectType: "VEHICLE", subjectId: vehicle.id,
+      commandType: "RESOLVE_VEHICLE_DUPLICATE", expectedVersion: 0, idempotencyKey: randomUUID(), reason, payload: {}, actorUserId: actor.id, locationId: null });
+    let merge: Promise<unknown> = Promise.resolve();
+    const advisoryAvailable = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${vehicle.id} FOR NO KEY UPDATE`;
+      merge = createVehicleRegistryRepository(prisma).resolveDuplicate(cmd, { caseId: issue.id, resolution: "MERGED", reason, resolvedByUserId: actor.id });
+      // The merge must be waiting for the survivor row, not holding its advisory lock.
+      await delay(150);
+      const [lock] = await tx.$queryRaw<{ acquired: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtextextended(${organizationId + ":" + vehicle.id}, 0)) AS acquired`;
+      if (lock.acquired) await tx.vehicle.update({ where: { id: vehicle.id }, data: { status: "SOLD" } });
+      return lock.acquired;
+    });
+    await expect(merge).resolves.toMatchObject({ result: { canonicalVehicleId: vehicle.id, resolution: "MERGED" } });
+    expect(advisoryAvailable).toBe(true);
+  }, 30000);
 });
